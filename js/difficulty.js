@@ -127,29 +127,31 @@ function createJetSystem() {
           // Real params, straight from the source project's own "Plasma1" particle
           // emitter: flow 100/s, force 300-600, life fixed 0.5s, size 80→20
           // (shrinks), color (40,80,160)→(64,0,128), alpha 1→0, additive,
-          // zoneRadius 4, texture LightGlow.png. Capped at 20 per jet (down from
-          // the single-platform version's 25) — up to 4 jets can be active per
-          // platform and there are 3 platforms now, so worst case (every jet on
-          // every platform firing at once) is a real possibility, not a rare
-          // edge case; a fully uncapped version crashed a phone's GPU ("Aw,
-          // Snap!" — Rob's test).
+          // zoneRadius 4, texture LightGlow.png.
+          //
+          // No particle cap here — the real GPU crash Rob hit turned out to be a
+          // leak in the nozzle glow's gradient allocation (see pixi_playscreen.js),
+          // not particle count; that's fixed now and the nozzle glow itself was
+          // removed. A cap here (20, briefly) was inherited from the old Canvas 2D
+          // single-platform version's *different* bottleneck (drawTintedParticle's
+          // per-particle repaint cost), which doesn't apply to Pixi's native .tint
+          // — capping it was making the stream read as thin/throttled instead of
+          // continuous (Rob) for no actual performance reason.
           let spawnGuard = 0;
           jet.spawnTimer -= dt;
           while (jet.spawnTimer <= 0 && spawnGuard < 30) {
             jet.spawnTimer += 0.01; // flow=100/s
             spawnGuard++;
-            if (jet.particles.length < 20) {
-              const spread = (Math.random() - 0.5) * (2 * Math.PI / 180); // ~1° angle spread
-              const force = 300 + Math.random() * 300;
-              jet.particles.push({
-                x: jet.x + (Math.random() - 0.5) * 4, // zoneRadius=4
-                y: jet.y,
-                vx: Math.sin(spread) * force,
-                vy: -Math.cos(spread) * force,
-                life: 0,
-                maxLife: 0.5,
-              });
-            }
+            const spread = (Math.random() - 0.5) * (2 * Math.PI / 180); // ~1° angle spread
+            const force = 300 + Math.random() * 300;
+            jet.particles.push({
+              x: jet.x + (Math.random() - 0.5) * 4, // zoneRadius=4
+              y: jet.y,
+              vx: Math.sin(spread) * force,
+              vy: -Math.cos(spread) * force,
+              life: 0,
+              maxLife: 0.5,
+            });
           }
         } else {
           jet.wasInRange = false;

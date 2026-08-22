@@ -28,31 +28,6 @@ const PlayScreenPixi = {
     const c = new PIXI.Container();
     this.container = c;
 
-    // Built once and reused by every jet on every platform, every frame (see
-    // _refreshJets) — a FillGradient bakes its own small GPU texture, so
-    // constructing a fresh one per jet per frame (as an earlier version did)
-    // leaked GPU memory continuously until it crashed a phone. Center is (0,0)
-    // since each jet's nozzle Graphics gets positioned at the jet's world
-    // location instead (nozzle.position.set), so the gradient itself never
-    // needs to know where any particular jet actually is.
-    this._jetAuraGradient = new PIXI.FillGradient({
-      type: 'radial', center: { x: 0, y: 0 }, innerRadius: 0, outerCenter: { x: 0, y: 0 }, outerRadius: 24,
-      colorStops: [
-        { offset: 0, color: 'rgba(120,170,255,0.35)' },
-        { offset: 1, color: 'rgba(90,140,255,0)' },
-      ],
-      textureSpace: 'local',
-    });
-    this._jetCoreGradient = new PIXI.FillGradient({
-      type: 'radial', center: { x: 0, y: 0 }, innerRadius: 0, outerCenter: { x: 0, y: 0 }, outerRadius: 6,
-      colorStops: [
-        { offset: 0, color: 'rgba(255,255,255,0.95)' },
-        { offset: 0.5, color: 'rgba(180,210,255,0.6)' },
-        { offset: 1, color: 'rgba(180,210,255,0)' },
-      ],
-      textureSpace: 'local',
-    });
-
     const bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
     c.addChild(bg);
 
@@ -217,16 +192,13 @@ const PlayScreenPixi = {
     // freed — see that method) — NOT the blur filters themselves, which were
     // removed as a guess along the way and are restored here now that the
     // actual leak is fixed.
+    // No nozzle/base-emitter Graphics anymore (Rob: removed — see _refreshJets)
+    // — just the particle stream container per jet.
     v.jetContainers = JET_DEFS.map(() => {
       const jc = new PIXI.Container();
       jc.blendMode = 'add';
-      const nozzle = new PIXI.Graphics();
-      const nozzleWrap = new PIXI.Container();
-      nozzleWrap.blendMode = 'add';
-      nozzleWrap.filters = [new PIXI.BlurFilter({ strength: 1.5 })]; // was 3 — Rob: too spread out
-      nozzleWrap.addChild(nozzle);
-      wc.addChild(jc, nozzleWrap);
-      return { particleContainer: jc, pool: [], nozzle };
+      wc.addChild(jc);
+      return { particleContainer: jc, pool: [] };
     });
   },
 
@@ -383,12 +355,14 @@ const PlayScreenPixi = {
     }));
   },
 
+  // The nozzle "base emitter" (aura + pulsing ring + spark rays + core, drawn
+  // at the jet's origin point) was removed entirely (Rob: something read wrong
+  // about it, simpler to just drop it) — the particle stream itself is the
+  // jet's whole visual now.
   _refreshJets(p) {
-    const v = p._visual;
-    const time = PlayScreen.elapsed;
     for (let i = 0; i < p.jetSystem.jets.length; i++) {
       const jet = p.jetSystem.jets[i];
-      const { particleContainer, pool, nozzle } = v.jetContainers[i];
+      const { particleContainer, pool } = p._visual.jetContainers[i];
       this._syncParticlePool(pool, particleContainer, jet.particles, textures.jetParticle, (jp, t) => ({
         x: jp.x, y: jp.y,
         size: (60 + (20 - 60) * t) * 0.85,
@@ -396,40 +370,6 @@ const PlayScreenPixi = {
         tint: rgbToHex(40 + (64 - 40) * t, 80 + (0 - 80) * t, 160 + (128 - 160) * t),
         additive: true,
       }));
-
-      nozzle.clear();
-      if (!jet.active) continue;
-      const pulse = 0.5 + 0.5 * Math.sin(time * 6);
-
-      // Position the whole nozzle Graphics at the jet's world location and draw
-      // everything relative to its own local (0,0) — this is what lets the aura/
-      // core gradients below be built ONCE and reused instead of constructed
-      // fresh every frame (see the cached gradients set up in build()). An
-      // earlier version created a brand new PIXI.FillGradient here every frame,
-      // for every active jet (up to 24/frame across the tower) — each one bakes
-      // its own small GPU texture, and none of that ever got freed, so it was a
-      // genuine memory leak that grew until a phone's GPU ran out and crashed
-      // ("Aw, Snap!" — Rob's test). This was the real fix; the particle-count
-      // and jet-blur changes before it were real improvements but not the
-      // actual cause.
-      nozzle.position.set(jet.x, jet.y);
-      nozzle.circle(0, 0, 24).fill(this._jetAuraGradient);
-
-      // toFixed avoids JS stringifying a near-zero alpha as exponential notation
-      // (e.g. "2.04e-7"), which Pixi's color parser rejects — Canvas 2D's parser
-      // (the source this was ported from, difficulty.js) tolerates that fine.
-      nozzle.circle(0, 0, 5 + pulse * 9).stroke({ width: 1.5, color: `rgba(180,210,255,${(0.5 * (1 - pulse)).toFixed(3)})` });
-
-      const angleCenter = -Math.PI / 2, spread = 0.9, rayCount = 5;
-      for (let r = 0; r < rayCount; r++) {
-        const a = angleCenter - spread + (2 * spread) * (r / (rayCount - 1)) + Math.sin(time * 2 + r) * 0.05;
-        const len = 9 + pulse * 4;
-        nozzle.moveTo(Math.cos(a) * 3, Math.sin(a) * 3)
-          .lineTo(Math.cos(a) * len, Math.sin(a) * len)
-          .stroke({ width: 1, color: 'rgba(200,220,255,0.5)' });
-      }
-
-      nozzle.circle(0, 0, 6).fill(this._jetCoreGradient);
     }
   },
 
