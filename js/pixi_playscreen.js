@@ -162,16 +162,25 @@ const PlayScreenPixi = {
     v.hingeBubbleContainer = new PIXI.Container();
     wc.addChild(v.hingeBubbleContainer);
 
+    // Glow (dot + both rings) now built *before* the hinge sprite/ball, so it
+    // sits behind both — Rob: the ring visibly cut across the ball where they
+    // overlapped, since it used to render in front of everything including
+    // the ball. Almost all of the ring's circumference is outside the ball's
+    // footprint anyway, so this only changes the small overlapping arc; the
+    // ring still reads as surrounding the ball everywhere else. _restackBall
+    // still re-inserts the ball right before hingeSprite each frame, so this
+    // ordering (glow, then [ball, hingeSprite]) holds regardless of which
+    // platform the ball is currently nearest.
+    v.hingeGlowBlurred = new PIXI.Graphics();
+    v.hingeGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 4 })];
+    v.hingeGlowSolid = new PIXI.Graphics();
+    wc.addChild(v.hingeGlowBlurred, v.hingeGlowSolid);
+
     v.hingeSprite = new PIXI.Sprite(textures.hinge);
     v.hingeSprite.anchor.set(0.5);
     v.hingeSprite.width = 112 * p.visualScale; v.hingeSprite.height = 112 * p.visualScale;
     v.hingeSprite.position.set(p.pivot.x, p.pivot.y);
     wc.addChild(v.hingeSprite);
-
-    v.hingeGlowBlurred = new PIXI.Graphics();
-    v.hingeGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 4 })];
-    v.hingeGlowSolid = new PIXI.Graphics();
-    wc.addChild(v.hingeGlowBlurred, v.hingeGlowSolid);
 
     v.hingeMagicContainer = new PIXI.Container();
     v.hingeMagicContainer.blendMode = 'add';
