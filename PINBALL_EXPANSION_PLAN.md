@@ -93,6 +93,28 @@ live Canvas version. Left before calling this done for real: a real side-by-side
 comparison pass against the live game, including on Rob's phone, not just the desktop
 preview — then decide when to start Phase 2 (the new platform mechanics).
 
+**Side-by-side comparison pass (same session, third pass):** ran both builds
+side by side (live on port 8643, Pixi on port 8645) across Home, Levels, gameplay HUD,
+and Game Over. Two real issues found and fixed:
+1. **Blast-button badge missing its circle background** — the live version draws a
+   dark circle (`rgb(33,24,46)`) behind each blast button's charge-count number;
+   `pixi_hud.js`'s port only drew the bare `Text`. Fixed by adding the matching
+   `PIXI.Graphics` circle, verified against current `ui.js` source before fixing.
+2. **Real crash bug in the jet nozzle spark ring** (`pixi_playscreen.js`,
+   `_refreshJets`) — `` `rgba(180,210,255,${0.5 * (1 - pulse)})` `` throws inside
+   Pixi's color parser whenever `pulse` (a continuous `sin()`-driven 0-1 pulse) gets
+   close enough to 1 that `1 - pulse` stringifies in JS as exponential notation (e.g.
+   `2.04e-7`) — Pixi's parser doesn't accept that, Canvas 2D's does, so this only broke
+   on the Pixi port, not the live game. It's a narrow timing window so it wouldn't
+   crash often, but it's real and would eventually hit during normal play. Fixed with
+   `.toFixed(3)`, matching the pattern already used a few lines below for the same
+   class of value.
+
+Everything else compared cleanly: Home, Levels, HUD pill/score/potion-counter styling,
+blast ring/bottle, hinge glow, and the Game Over board/score/bubbles/button-pill all
+matched the live version. Not yet done: testing on Rob's actual phone (desktop preview
+only so far).
+
 **Two real bugs caught and fixed this session:**
 1. The jet particle containers were built once in `build()` by mapping over
    `Difficulty.jets` — but that array starts empty and is only populated by

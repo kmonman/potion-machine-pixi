@@ -349,7 +349,10 @@ const PlayScreenPixi = {
       });
       nozzle.circle(bx, by, 24).fill(aura);
 
-      nozzle.circle(bx, by, 5 + pulse * 9).stroke({ width: 1.5, color: `rgba(180,210,255,${0.5 * (1 - pulse)})` });
+      // toFixed avoids JS stringifying a near-zero alpha as exponential notation
+      // (e.g. "2.04e-7"), which Pixi's color parser rejects — Canvas 2D's parser
+      // (the source this was ported from, difficulty.js) tolerates that fine.
+      nozzle.circle(bx, by, 5 + pulse * 9).stroke({ width: 1.5, color: `rgba(180,210,255,${(0.5 * (1 - pulse)).toFixed(3)})` });
 
       const angleCenter = -Math.PI / 2, spread = 0.9, rayCount = 5;
       for (let r = 0; r < rayCount; r++) {

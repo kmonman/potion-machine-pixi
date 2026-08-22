@@ -60,10 +60,17 @@ const HudPixi = {
       bottle.anchor.set(0.5);
       bottle.width = bw; bottle.height = bh;
       bc.addChild(ring, bottle);
-      const badge = new PIXI.Text({ text: '0', style: { fontFamily: 'PotionTitle', fontSize: btn.w * 0.11 * 1.15 * 1.5, fill: 0x9b9b9b } });
+      // Small circle behind the charge number, colored to match the pole's
+      // own flat sprite fill (rgb(33,24,46), sampled directly from
+      // NewSprite.png) — missed when this was first ported to Pixi, caught
+      // during the side-by-side comparison against the live version.
+      const numFontSize = btn.w * 0.11 * 1.15 * 1.5;
+      const badgeBg = new PIXI.Graphics().circle(0, 0, numFontSize * 0.62).fill(0x21182e);
+      badgeBg.position.set(-bw * 0.42, -bh * 0.42);
+      const badge = new PIXI.Text({ text: '0', style: { fontFamily: 'PotionTitle', fontSize: numFontSize, fill: 0x9b9b9b } });
       badge.anchor.set(0.5);
       badge.position.set(-bw * 0.42, -bh * 0.42);
-      bc.addChild(badge);
+      bc.addChild(badgeBg, badge);
       bc.eventMode = 'static';
       bc.cursor = 'pointer';
       bc.on('pointertap', () => PlayScreen.fireBlast());
