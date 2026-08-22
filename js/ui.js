@@ -365,8 +365,10 @@ const PlayScreen = {
       this._updateGoBubbles(dt);
     }
 
-    // Blast buttons only show once the potion counter is above 0, and ease
-    // in/out (~0.3s) rather than popping instantly (Rob).
+    // Blast buttons show once the player has ever earned a potion this run
+    // (stays true for the rest of the run even after spending down to 0 —
+    // that's what the separate 0.35-alpha dimming in pixi_hud.js's refresh()
+    // is for), and ease in/out (~0.3s) rather than popping instantly (Rob).
     const blastTarget = (this.mode === 'freeplay' && !this.isOver && this._potionsMade() > 0) ? 1 : 0;
     this.blastButtonsT += (blastTarget - this.blastButtonsT) * Math.min(1, dt / 0.3);
   },

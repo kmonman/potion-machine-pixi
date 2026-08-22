@@ -97,7 +97,14 @@ const HudPixi = {
       this._scoreNumber.setText(PlayScreen._scoreText(), sb.x + 125 * PlayScreen.PILL_SCALE, sb.y + 35 * PlayScreen.PILL_SCALE);
 
       const cb = PlayScreen.potionCounterBtn;
-      this._potionNumber.setText(String(PlayScreen._potionsMade()), cb.x + cb.w * (97 / 191), cb.y + cb.h * (124 / 259));
+      // Free Play: a potion IS a blast charge, so this should show how many
+      // you actually have left to spend (blastCharges, which fireBlast()
+      // decrements), not _potionsMade() (score/1000 — a lifetime-earned total
+      // that never goes back down even after using one). Rob caught this
+      // pill not decreasing when he fired a blast. Level 1 has no blast
+      // mechanic at all, so it keeps showing plain progress there.
+      const potionCount = PlayScreen.mode === 'freeplay' ? PlayScreen.blastCharges : PlayScreen._potionsMade();
+      this._potionNumber.setText(String(potionCount), cb.x + cb.w * (97 / 191), cb.y + cb.h * (124 / 259));
     }
 
     this._muteSprite.texture = state.muted ? textures.muteMuted : textures.muteUnmuted;
