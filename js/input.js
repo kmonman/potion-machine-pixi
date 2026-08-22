@@ -29,6 +29,26 @@ const Input = (() => {
     if (e.key === 'ArrowRight') keys.right = false;
   });
 
+  // Second desktop-only fallback (Rob): mouse X position across the game area
+  // maps directly to tilt, the same way gamma (an absolute angle) does for a
+  // real phone — center of the game = 0, its left/right edges = -1/+1 — rather
+  // than tracking drag distance from a click point. Guarded to pointerType
+  // 'mouse' so it can't be triggered by touch drags on a real phone (those
+  // fire pointermove with pointerType 'touch', not 'mouse').
+  const gameWrapEl = document.getElementById('gameWrap');
+  let mouseTilt = null; // null until the mouse actually moves — don't force tilt to 0 just because deviceorientation/keys haven't fired yet
+  window.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || !gameWrapEl) return;
+    const rect = gameWrapEl.getBoundingClientRect();
+    const norm = (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
+    mouseTilt = Math.max(-1, Math.min(1, norm));
+  });
+  // Let it drift back to center on leaving the game area, same spirit as the
+  // keyboard fallback centering when no arrow key is held.
+  window.addEventListener('pointerleave', (e) => {
+    if (e.pointerType === 'mouse') mouseTilt = null;
+  });
+
   function handleOrientation(event) {
     if (event.gamma === null) return;
     const clamped = Math.max(-TILT_CLAMP_DEGREES, Math.min(TILT_CLAMP_DEGREES, event.gamma));
@@ -67,7 +87,10 @@ const Input = (() => {
     // (~0.55s to full tilt).
     if (keys.left) rawTilt = Math.max(-1, rawTilt - 0.03);
     else if (keys.right) rawTilt = Math.min(1, rawTilt + 0.03);
-    else if (keys.left === false && keys.right === false && !listening) {
+    // Mouse is absolute (like gamma), not ramped — it can just be assigned
+    // directly whenever it's actively positioned over the game area.
+    else if (mouseTilt !== null) rawTilt = mouseTilt;
+    else if (!listening) {
       rawTilt *= 0.9; // let the keyboard fallback drift back to center
     }
     smoothedTilt += (rawTilt - smoothedTilt) * (1 - SMOOTHING);
