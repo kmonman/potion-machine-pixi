@@ -25,6 +25,11 @@ function createPlatform(pivotX, pivotY, opts = {}) {
   // size actually gets drawn.
   const scale = opts.scale ?? 1;
   const lengthScale = opts.lengthScale ?? 1;
+  // How fast this platform's own tube-heat schedule (TUBE_STAGE_SCHEDULE, in
+  // difficulty.js) runs — 1 = normal, <1 = slower, >1 = faster. Different per
+  // platform (set in ui.js's _buildTower) so the tower's 3 tubes change color
+  // at different intervals instead of all moving in lockstep (Rob).
+  const tubeSpeed = opts.tubeSpeed ?? 1;
   return {
     pivot: { x: pivotX, y: pivotY },
     visualScale: scale,
@@ -46,6 +51,19 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     // are just floating bars, not mounted on their own post down to the ground).
     hasPole: !!opts.hasPole,
     poleHeight: 630,
+
+    // This platform's own tube-heat progression (color, grip, tilt-force) —
+    // see _updateTube below and TUBE_STAGE_SCHEDULE in difficulty.js. Used to
+    // be one value shared by the whole run; now each platform's liquid heats
+    // up independently, on its own schedule at its own tubeSpeed.
+    tubeSpeed,
+    tubeStage: 'Cool',
+    tubePhaseIndex: 0,
+    tubePhaseTimer: 0,
+    grip: TUBE_STAGE_PARAMS.Cool.grip,
+    tiltForce: TUBE_STAGE_PARAMS.Cool.tiltForce,
+    tubeColor: TUBE_STAGE_PARAMS.Cool.color.slice(),
+    tubeColorTarget: TUBE_STAGE_PARAMS.Cool.color.slice(),
 
     angle: 0, // degrees; positive = right end tilts down
     startAngle: 0,
@@ -89,6 +107,9 @@ function createPlatform(pivotX, pivotY, opts = {}) {
 
     reset() {
       this.angle = 0;
+      // Fixed at 1, not randomized — every platform starts tilting the same
+      // way (Rob: the tubes should all start off moving in the same
+      // direction), same as before this was ever a multi-platform question.
       this.direction = 1;
       this.startAngle = 0;
       this.targetAngle = (5 + Math.random() * 15) * this.direction;
@@ -100,7 +121,38 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       this.hingeSparkParticles = [];
       this.hingeSparkTimer = 0;
       this.touching = false;
+      this.tubePhaseIndex = 0;
+      this.tubePhaseTimer = 0;
+      this._applyTubeStage(TUBE_STAGE_SCHEDULE[0].stage);
+      this.tubeColor = TUBE_STAGE_PARAMS[this.tubeStage].color.slice();
       this._initLiquid();
+    },
+
+    _applyTubeStage(stage) {
+      this.tubeStage = stage;
+      const params = TUBE_STAGE_PARAMS[stage];
+      this.grip = params.grip;
+      this.tiltForce = params.tiltForce;
+      this.tubeColorTarget = params.color.slice();
+    },
+
+    // This platform's own tube-heat schedule (see TUBE_STAGE_SCHEDULE in
+    // difficulty.js) — runs at `tubeSpeed` (a per-platform multiplier on dt)
+    // so the tower's 3 tubes change stage at different intervals rather than
+    // all in lockstep (Rob).
+    _updateTube(dt) {
+      this.tubePhaseTimer += dt * this.tubeSpeed;
+      const entry = TUBE_STAGE_SCHEDULE[this.tubePhaseIndex];
+      if (this.tubePhaseTimer >= entry.duration) {
+        this.tubePhaseTimer = 0;
+        this.tubePhaseIndex = (this.tubePhaseIndex + 1) % TUBE_STAGE_SCHEDULE.length;
+        this._applyTubeStage(TUBE_STAGE_SCHEDULE[this.tubePhaseIndex].stage);
+      }
+      // Smooth color transitions (~0.5s) rather than snapping.
+      const lerpSpeed = Math.min(1, dt / 0.5);
+      for (let i = 0; i < 3; i++) {
+        this.tubeColor[i] += (this.tubeColorTarget[i] - this.tubeColor[i]) * lerpSpeed;
+      }
     },
 
     update(dt) {
@@ -117,6 +169,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
         this.timer = 0;
       }
 
+      this._updateTube(dt);
       this._updateLiquid(dt);
       this._updateHinge(dt);
     },

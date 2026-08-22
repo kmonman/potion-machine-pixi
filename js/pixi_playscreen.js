@@ -396,7 +396,7 @@ const PlayScreenPixi = {
     body.lineTo(last.x, halfT);
     body.closePath();
 
-    const [tr, tg, tb] = Difficulty.tubeColor;
+    const [tr, tg, tb] = p.tubeColor;
     const bodyGrad = new PIXI.FillGradient({
       type: 'linear', x0: 0, y0: -halfT, x1: 0, y1: halfT,
       colorStops: [

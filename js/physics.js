@@ -81,8 +81,14 @@ const Physics = {
     // --- integrate free motion ---
     // Tilt strength is scaled by the current difficulty stage — heat and moon
     // phases both make the controls twitchier, matching the original's combined
-    // TiltForce * MoonTiltMultiplier.
-    const difficultyMultiplier = Difficulty.tiltForce * Difficulty.moonTiltMultiplier;
+    // TiltForce * MoonTiltMultiplier. Tube heat is per-platform now (each tube
+    // has its own schedule), so this reads whichever platform the ball is
+    // currently on/last rested on — the same "which tube's heat currently
+    // affects the ball" logic applyBlast already uses for launch angle. Moon
+    // stays a single global multiplier (only one ball, applies regardless of
+    // platform).
+    const tiltForce = (this.currentPlatform || this.platforms[0]).tiltForce;
+    const difficultyMultiplier = tiltForce * Difficulty.moonTiltMultiplier;
     const gx = tiltX * this.tiltAccel * difficultyMultiplier;
     const gy = this.gravityY;
     this.vx += gx * dt;
@@ -164,10 +170,12 @@ const Physics = {
         this.y = p.pivot.y + dir.y * clampedAlong + normal.y * clampedPerp;
 
         if (vNormal > 0) vNormal = 0; // stop moving into the surface
-        // Difficulty.grip is meant as "fraction of speed kept per second of contact"
-        // (hotter tube = less grip = harder to control) — Math.pow(grip, dt) makes
-        // that true regardless of frame rate.
-        vAlong *= Math.pow(Difficulty.grip, dt);
+        // grip is meant as "fraction of speed kept per second of contact"
+        // (hotter tube = less grip = harder to control) — Math.pow(grip, dt)
+        // makes that true regardless of frame rate. Reads p.grip directly
+        // (this platform's own heat) now that each tube heats up
+        // independently, rather than one grip shared by the whole run.
+        vAlong *= Math.pow(p.grip, dt);
 
         this.vx = dir.x * vAlong + normal.x * vNormal;
         this.vy = dir.y * vAlong + normal.y * vNormal;

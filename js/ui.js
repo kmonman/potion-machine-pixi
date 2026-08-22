@@ -286,10 +286,14 @@ const PlayScreen = {
   // — rather than the base platform's full independently-randomizing set of 4.
   _buildTower() {
     const baseX = 360, baseY = 652;
+    // Different tubeSpeed per platform (Rob: the three tubes should change at
+    // different intervals) — 1 is TUBE_STAGE_SCHEDULE's own pacing, so these
+    // drift the middle/top platforms out of sync with the base rather than
+    // all three heating up in lockstep.
     const platforms = [
-      createPlatform(baseX, baseY, { hasPole: true }),
-      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7 }),
-      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7 }),
+      createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1 }),
+      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.75 }),
+      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7, tubeSpeed: 1.3 }),
     ];
     platforms[0].jetSystem = createJetSystem();
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0] });

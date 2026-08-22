@@ -1,10 +1,12 @@
-// Stage 3: the escalating-difficulty systems. Free Play runs off a hand-authored
-// script of timed "phases" (lifted verbatim from the original project's embedded
-// JSON) — each one sets how hot the tube is, whether the "moon" is out, and which
-// of 4 jets are firing. Level 1 will get its own (simpler, fixed-schedule) version
-// later; for now both play modes share this since Level 1 doesn't have its own
-// difficulty content built yet either.
-
+// Stage 3: the escalating-difficulty systems. The "moon" phase (tilt multiplier
+// + overlay — Free Play only) still runs off this hand-authored script of timed
+// phases (lifted verbatim from the original project's embedded JSON), unchanged.
+// Tube heat/color used to come from this same script's `tube` field, shared by
+// one global Difficulty object — now that each platform in the tower has its own
+// independent liquid, tube progression moved to its own per-platform schedule
+// (see TUBE_STAGE_SCHEDULE below, and platform.js's _updateTube) instead. The
+// `tube` field in each phase below is unused dead data now, left in place rather
+// than reworking this whole script just to strip one field out of it.
 const FREE_PLAY_PHASES = [
   { duration: 4, tube: 'Cool', moon: 'Cool', jets: [false, false, false, false] },
   { duration: 5, tube: 'Cool', moon: 'Cool', jets: [true, false, false, false] },
@@ -44,6 +46,27 @@ const TUBE_STAGE_PARAMS = {
   Hot: { grip: 0.60, tiltForce: 0.7, color: [255, 0, 195] },
   Fire: { grip: 0.40, tiltForce: 0.6, color: [255, 0, 85] },
 };
+
+// Each platform's tube runs its own copy of this schedule (see platform.js's
+// _updateTube), each at its own speed (createPlatform's `tubeSpeed` option —
+// set per platform in ui.js's _buildTower) so the tower's 3 tubes drift out of
+// sync with each other instead of all matching color in lockstep. Much slower
+// and more front-loaded toward Cool/Warm than the old FREE_PLAY_PHASES tube
+// progression was (Rob: start with cool and warm, some hot later, fire much
+// later) — a full cycle here is 220s versus the old script's Fire debut at
+// just 76s in.
+const TUBE_STAGE_SCHEDULE = [
+  { duration: 30, stage: 'Cool' },
+  { duration: 30, stage: 'Warm' },
+  { duration: 25, stage: 'Cool' },
+  { duration: 25, stage: 'Warm' },
+  { duration: 20, stage: 'Hot' },
+  { duration: 20, stage: 'Warm' },
+  { duration: 15, stage: 'Hot' },
+  { duration: 15, stage: 'Fire' },
+  { duration: 20, stage: 'Hot' },
+  { duration: 20, stage: 'Fire' },
+];
 
 // Tilt multipliers toned down (Rob: "too much energy" at Fire) — was
 // 1/1.5/2.5/4.
@@ -188,19 +211,19 @@ function createJetSystem(opts = {}) {
 // shared progression regardless of which platform the ball is on, since it
 // represents the overall run's difficulty ramping over time, not a per-platform
 // thing. Jets are the part that's per-platform now (see createJetSystem above).
+// Global run-wide moon phase only now — tube heat/grip/tilt-force/color moved
+// to being per-platform (see TUBE_STAGE_SCHEDULE above and platform.js's
+// _updateTube), since each platform's liquid is independent. Moon stays global
+// since there's only one ball and the tilt-feel/overlay it drives applies to
+// the ball regardless of which platform it's currently on.
 const Difficulty = {
   phaseIndex: 0,
   phaseTimer: 0,
   phaseDuration: 0,
 
-  tubeStage: 'Cool',
   moonStage: 'Cool',
-  tiltForce: 1,
   moonTiltMultiplier: 1,
-  grip: 0.90,
 
-  tubeColor: [112, 43, 245],
-  tubeColorTarget: [112, 43, 245],
   ballOpacity: 1,
   ballOpacityTarget: 1,
   moonOpacity: 0,
@@ -210,7 +233,6 @@ const Difficulty = {
     this.phaseIndex = 0;
     this.phaseTimer = 0;
     this.phaseDuration = FREE_PLAY_PHASES[0].duration;
-    this.tubeColor = [112, 43, 245];
     this.ballOpacity = 1;
     this.moonOpacity = 0;
     this._applyPhase(FREE_PLAY_PHASES[0]);
@@ -227,22 +249,12 @@ const Difficulty = {
 
     // Smooth transitions (~0.5s) rather than snapping, matching the original's tweens.
     const lerpSpeed = Math.min(1, dt / 0.5);
-    for (let i = 0; i < 3; i++) {
-      this.tubeColor[i] += (this.tubeColorTarget[i] - this.tubeColor[i]) * lerpSpeed;
-    }
     this.ballOpacity += (this.ballOpacityTarget - this.ballOpacity) * lerpSpeed;
     this.moonOpacity += (this.moonOpacityTarget - this.moonOpacity) * lerpSpeed;
   },
 
   _applyPhase(phase) {
-    this.tubeStage = phase.tube;
     this.moonStage = phase.moon;
-
-    const tubeParams = TUBE_STAGE_PARAMS[phase.tube];
-    this.tiltForce = tubeParams.tiltForce;
-    this.grip = tubeParams.grip;
-    this.tubeColorTarget = tubeParams.color.slice();
-
     const moonParams = MOON_STAGE_PARAMS[phase.moon];
     this.moonTiltMultiplier = moonParams.multiplier;
     this.moonImageKey = moonParams.image;
