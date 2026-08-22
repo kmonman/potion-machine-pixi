@@ -157,12 +157,13 @@ const GameOverPixi = {
     // Three sine layers with deliberately non-aligned periods/phases (not simple
     // multiples of each other) instead of the original's two fast ones (180ms/
     // 47ms) — that combination repeated often enough to read as a fast, regular
-    // pulse rather than a flicker. Slower and less obviously periodic (Rob).
+    // pulse rather than a flicker. First pass (900/550/1300ms) read too slow —
+    // split the difference back toward the original's speed (Rob).
     const now = Date.now();
     const flicker = 0.75 + 0.25 * (
-      0.45 * Math.sin(now / 900) +
-      0.35 * Math.sin(now / 550 + 1.3) +
-      0.2 * Math.sin(now / 1300 + 2.7)
+      0.45 * Math.sin(now / 480) +
+      0.35 * Math.sin(now / 300 + 1.3) +
+      0.2 * Math.sin(now / 700 + 2.7)
     );
     this._gameOverContainer.y = 560 + this._gameOverH / 2;
     this._gameOverContainer.scale.set(t);

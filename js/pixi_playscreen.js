@@ -223,7 +223,7 @@ const PlayScreenPixi = {
       const nozzle = new PIXI.Graphics();
       const nozzleWrap = new PIXI.Container();
       nozzleWrap.blendMode = 'add';
-      nozzleWrap.filters = [new PIXI.BlurFilter({ strength: 3 })];
+      nozzleWrap.filters = [new PIXI.BlurFilter({ strength: 1.5 })]; // was 3 — Rob: too spread out
       nozzleWrap.addChild(nozzle);
       wc.addChild(jc, nozzleWrap);
       return { particleContainer: jc, pool: [], nozzle };
