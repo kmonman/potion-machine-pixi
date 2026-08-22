@@ -194,10 +194,17 @@ const PlayScreenPixi = {
     c.addChildAt(this._ballSprite, c.getChildIndex(this._hingeBubbleContainer));
   },
 
+  // Delegates to the OLD ui.js's PlayScreen.update() rather than calling
+  // Platform/Physics/Fog updates directly (an earlier version of this file
+  // did exactly that, which was a real bug caught while starting the HUD
+  // work: it skipped PlayScreen's own logic entirely — score accumulation,
+  // blast-charge thresholds, elapsed time, game-over detection, the blast
+  // buttons' pop-animation timer, AND Difficulty.update() (tube/moon phase
+  // progression) — none of that was ever running. PlayScreen.update() is
+  // the real single entry point; it calls Platform/Physics/Fog/Difficulty/
+  // HingeBubbles updates itself internally, this just delegates to it whole.
   update(dt, tiltX) {
-    Platform.update(dt);
-    Physics.update(dt, tiltX);
-    Fog.update(dt);
+    PlayScreen.update(dt, tiltX);
   },
 
   refresh() {

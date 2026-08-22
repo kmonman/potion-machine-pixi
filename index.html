@@ -27,7 +27,7 @@
      caching never serves a stale file while this is actively being worked on —
      drop that before real deployment, where normal caching is a feature. -->
 <script>
-  const DEV_SCRIPTS = ['js/storage.js', 'js/input.js', 'js/leaderboard.js', 'js/fog.js', 'js/ui.js', 'js/platform.js', 'js/difficulty.js', 'js/physics.js', 'js/pixi_home.js', 'js/pixi_levels.js', 'js/pixi_playscreen.js', 'js/game.js'];
+  const DEV_SCRIPTS = ['js/storage.js', 'js/input.js', 'js/leaderboard.js', 'js/fog.js', 'js/ui.js', 'js/platform.js', 'js/difficulty.js', 'js/physics.js', 'js/pixi_home.js', 'js/pixi_levels.js', 'js/pixi_playscreen.js', 'js/pixi_hud.js', 'js/game.js'];
   const v = Date.now();
   document.write(DEV_SCRIPTS.map(s => `<script src="${s}?v=${v}"><\/script>`).join(''));
 </script>

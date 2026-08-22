@@ -37,16 +37,42 @@ running side by side).
   the same way. Verified together in one scene (touching + a jet firing) with zero
   console errors across repeated update cycles.
 
-**Not built yet:** the jet base "nozzle" glow (aura/core/rays), the HUD
-(score/potion-counter pills, mute, blast buttons), and the Game Over screen. Also still
-owed: brightening the pole's glow, which reads dimmer on Pixi than the live Canvas
-version right now.
+- **HUD** (`js/pixi_hud.js`, new file) — score pill, potion-counter pill (with its
+  reinforced blur-glow layer), mute button, and both Free Play blast buttons (ring +
+  bottle + charge badge, with the pop in/out scale+fade animation). None of the dense
+  geometry/oval-matching math got reimplemented — this reads `PlayScreen`'s (old ui.js)
+  own already-computed `scorePillBtn`/`potionCounterBtn`/`muteBtn`/`blastLeftBtn`/
+  `blastRightBtn` rects and state (`blastCharges`, `blastButtonsT`, `_scoreText()`,
+  `_potionsMade()`) directly, since that math doesn't care how things get drawn. Built
+  a reusable `buildTabularNumber()` helper (fixed-digit-pitch number display, porting
+  ui.js's `drawTabularNumber`) as a pool of Text children instead of per-frame
+  `fillText` calls. Verified: score/potion numbers render correctly, mute toggles the
+  icon, and `fireBlast()` genuinely consumes a charge and kicks the ball (checked with
+  physics frozen to rule out timing noise).
 
-**Bug caught and fixed this pass:** the jet particle containers were built once in
-`build()` by mapping over `Difficulty.jets` — but that array starts empty and is only
-populated by `Difficulty.reset()` (called from `PlayScreen.enter()`, i.e. only once a
-run actually starts), which hadn't happened yet at boot time. Fixed by building from
-`JET_DEFS` (the fixed 4-entry source list) instead.
+**Not built yet:** the jet base "nozzle" glow (aura/core/rays), and the Game Over
+screen. Also still owed: brightening the pole's glow, which reads dimmer on Pixi than
+the live Canvas version right now.
+
+**Two real bugs caught and fixed this session:**
+1. The jet particle containers were built once in `build()` by mapping over
+   `Difficulty.jets` — but that array starts empty and is only populated by
+   `Difficulty.reset()` (called from `PlayScreen.enter()`, i.e. only once a run
+   actually starts), which hadn't happened yet at boot time. Fixed by building from
+   `JET_DEFS` (the fixed 4-entry source list) instead.
+2. Bigger one: `PlayScreenPixi.update()` was calling `Platform.update()`/
+   `Physics.update()`/`Fog.update()` directly — but the *real* single entry point is
+   `PlayScreen.update()` (old ui.js), which calls all of those internally AND handles
+   score accumulation, blast-charge thresholds, elapsed time, game-over detection, the
+   blast buttons' pop-animation timer, and `Difficulty.update()` (tube/moon phase
+   progression) — none of which had been running at all. Fixed by delegating to
+   `PlayScreen.update(dt, tiltX)` wholesale instead of reimplementing its call list.
+
+**Dev tooling note (recurring):** the Browser-pane preview caches by exact URL, same
+issue CLAUDE.md already documents for the live project — a plain reload can silently
+serve a stale page even after files change. Same fix: navigate to
+`http://localhost:8645/?bust=<anything-new>` if a change doesn't seem to have taken
+effect before assuming it's a real bug.
 
 **Pattern being followed:** none of the underlying game logic (`physics.js`,
 `platform.js`'s update methods, `difficulty.js`, `fog.js`) has been touched — only how

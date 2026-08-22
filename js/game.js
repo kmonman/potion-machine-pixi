@@ -277,6 +277,7 @@ function tick(ticker) {
   } else if (state.screen === 'level1' || state.screen === 'freeplay') {
     PlayScreenPixi.update(dt, Input.tiltX);
     PlayScreenPixi.refresh();
+    HudPixi.refresh();
   }
 }
 
@@ -297,6 +298,8 @@ async function main() {
   LevelsScreenPixi.build(textures, state);
   screenContainers.levels = LevelsScreenPixi.container;
   PlayScreenPixi.build(textures);
+  HudPixi.build(textures);
+  PlayScreenPixi.container.addChild(HudPixi.container); // shows/hides together with the play screen automatically
   screenContainers.level1 = PlayScreenPixi.container;
   screenContainers.freeplay = PlayScreenPixi.container;
   for (const key in screenContainers) app.stage.addChild(screenContainers[key]);
