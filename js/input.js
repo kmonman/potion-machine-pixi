@@ -60,8 +60,13 @@ const Input = (() => {
   }
 
   function update() {
-    if (keys.left) rawTilt = Math.max(-1, rawTilt - 0.08);
-    else if (keys.right) rawTilt = Math.min(1, rawTilt + 0.08);
+    // 0.08/frame reached full tilt in ~0.2s — fine for a real phone tilt (a
+    // physical motion that's naturally gradual), way too twitchy for a key
+    // that's either fully down or fully up with nothing in between (Rob:
+    // arrow keys tip the ball off the platform too fast). Slowed to 0.03
+    // (~0.55s to full tilt).
+    if (keys.left) rawTilt = Math.max(-1, rawTilt - 0.03);
+    else if (keys.right) rawTilt = Math.min(1, rawTilt + 0.03);
     else if (keys.left === false && keys.right === false && !listening) {
       rawTilt *= 0.9; // let the keyboard fallback drift back to center
     }
