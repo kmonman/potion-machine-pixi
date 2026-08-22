@@ -50,9 +50,26 @@ running side by side).
   icon, and `fireBlast()` genuinely consumes a charge and kicks the ball (checked with
   physics frozen to rule out timing noise).
 
-**Not built yet:** the jet base "nozzle" glow (aura/core/rays), and the Game Over
-screen. Also still owed: brightening the pole's glow, which reads dimmer on Pixi than
-the live Canvas version right now.
+- **Game Over screen** (`js/pixi_gameover.js`, new file) — the board (with its
+  transparent-interior glow frame), the "ball fell off" icon, the bubble-up effect
+  (masked to a rect that shifts with score width, cropped from `BubblesFinal.png`'s
+  sprite sheet via a Pixi sub-rectangle texture frame), the score text, the 3
+  potion-fill icons, "GAME OVER" itself (a blurred tinted duplicate underneath for the
+  glow, alpha driven by the same two-sine flicker formula as the ctx version — Pixi has
+  no direct `shadowBlur` equivalent), and the bottom 3-button pill with real interactive
+  hit-zones (Home/Retry/3rd, matching `PlayScreen.hitTest()`'s own third-split logic).
+  Verified end to end: triggered a real game-over, confirmed the whole screen renders
+  correctly (score, bubbles, 3 filled potions, glowing "GAME OVER", buttons), clicked
+  Home and confirmed it navigates cleanly back.
+
+**Phase 1 is essentially feature-complete** — every screen (Home, Levels, gameplay,
+HUD, Game Over) and every gameplay system (platform, liquid, ball, hinge glow + all 3
+of its particle effects, jets) is built and verified on Pixi. Two small polish items
+left, not full features: the jet's base "nozzle" glow (aura/core/rays — still
+Canvas-only), and brightening the pole's glow, which reads dimmer on Pixi than the live
+Canvas version right now. After those: a real side-by-side comparison pass against the
+live game (including on Rob's phone, not just desktop preview) before calling Phase 1
+actually done and starting Phase 2 (the new platform mechanics).
 
 **Two real bugs caught and fixed this session:**
 1. The jet particle containers were built once in `build()` by mapping over

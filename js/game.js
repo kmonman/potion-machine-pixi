@@ -58,6 +58,15 @@ const canvas = document.getElementById('gameCanvas');
 const gameWrap = document.getElementById('gameWrap');
 const nameInput = document.getElementById('nameInput');
 
+// A handful of PlayScreen's (old ui.js) own methods do real text-layout math
+// with a Canvas 2D context — not drawing, just using ctx.font/measureText to
+// figure out where things go (e.g. _goScoreLayout() sizing the Game Over
+// bubble mask around however wide the score text is). That's legitimate
+// logic, not rendering, so instead of reimplementing it, this `ctx` stays
+// around as a detached, never-drawn-to context purely for measurement — it's
+// not attached to the visible canvas at all (Pixi owns that entirely).
+const ctx = document.createElement('canvas').getContext('2d');
+
 // Pixi Application — the GPU rendering foundation for this rebuild (see
 // PINBALL_EXPANSION_PLAN.md). Reuses the existing <canvas> element (rather
 // than letting Pixi create its own) so gameWrap's CSS sizing/scaling and the
@@ -278,6 +287,7 @@ function tick(ticker) {
     PlayScreenPixi.update(dt, Input.tiltX);
     PlayScreenPixi.refresh();
     HudPixi.refresh();
+    GameOverPixi.refresh();
   }
 }
 
@@ -299,7 +309,11 @@ async function main() {
   screenContainers.levels = LevelsScreenPixi.container;
   PlayScreenPixi.build(textures);
   HudPixi.build(textures);
-  PlayScreenPixi.container.addChild(HudPixi.container); // shows/hides together with the play screen automatically
+  GameOverPixi.build(textures);
+  // Both show/hide together with the play screen automatically by riding
+  // along as its children — GameOverPixi added after HudPixi so it draws on
+  // top (matches PlayScreen.draw()'s own order: HUD, then Game Over overlay).
+  PlayScreenPixi.container.addChild(HudPixi.container, GameOverPixi.container);
   screenContainers.level1 = PlayScreenPixi.container;
   screenContainers.freeplay = PlayScreenPixi.container;
   for (const key in screenContainers) app.stage.addChild(screenContainers[key]);
