@@ -250,6 +250,11 @@ function showScreen(name) {
     seen.add(container);
     container.visible = container === target;
   }
+  // The name entry field only belongs on Home — centralized here (runs on
+  // every screen change, from every path: tryEnterGame, Levels -> Level 1,
+  // and Retry on Game Over) rather than only in tryEnterGame(), which retry
+  // bypasses entirely. Rob caught it showing on Game Over on his phone.
+  nameInput.style.display = name === 'home' ? '' : 'none';
 }
 
 // ---------- Resize (keeps the fixed 720x1280 internal coordinate space; only

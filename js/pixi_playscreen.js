@@ -211,26 +211,19 @@ const PlayScreenPixi = {
 
     // Jets — one particle container per jet, each with its own small
     // rebuilt-every-frame nozzle Graphics (aura + pulsing ring + spark rays +
-    // core), additive-blended. No BlurFilter here (see note below) — the aura/
-    // core already use soft radial gradients, which reads as glowy without a
-    // real GPU blur pass.
-    //
-    // A real-time BlurFilter renders its content to an offscreen texture and
-    // blurs it — genuinely expensive per instance, not free just because
-    // there's "only" one of them. With up to 4 jets active per platform and 3
-    // platforms, giving each its own blur filter meant up to 12 separate blur
-    // passes every frame (plus 3 more on the hinges), which crashed a phone's
-    // GPU ("Aw, Snap!" — Rob's test) even with particle *counts* well within
-    // what plenty of games run fine. That's the actual lesson here: the
-    // problem was never how many particles were on screen, it was stacking
-    // real-time blur filters per emitter instead of baking the glow into the
-    // art/gradients the way most games do.
+    // core), wrapped in a blurred+additive container. The GPU crash on Rob's
+    // phone ("Aw, Snap!") turned out to be a real memory leak in _refreshJets
+    // (a fresh PIXI.FillGradient built every frame per active jet, never
+    // freed — see that method) — NOT the blur filters themselves, which were
+    // removed as a guess along the way and are restored here now that the
+    // actual leak is fixed.
     v.jetContainers = JET_DEFS.map(() => {
       const jc = new PIXI.Container();
       jc.blendMode = 'add';
       const nozzle = new PIXI.Graphics();
       const nozzleWrap = new PIXI.Container();
       nozzleWrap.blendMode = 'add';
+      nozzleWrap.filters = [new PIXI.BlurFilter({ strength: 3 })];
       nozzleWrap.addChild(nozzle);
       wc.addChild(jc, nozzleWrap);
       return { particleContainer: jc, pool: [], nozzle };
