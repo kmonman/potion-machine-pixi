@@ -164,7 +164,7 @@ const PlayScreenPixi = {
 
     v.hingeSprite = new PIXI.Sprite(textures.hinge);
     v.hingeSprite.anchor.set(0.5);
-    v.hingeSprite.width = 112; v.hingeSprite.height = 112;
+    v.hingeSprite.width = 112 * p.visualScale; v.hingeSprite.height = 112 * p.visualScale;
     v.hingeSprite.position.set(p.pivot.x, p.pivot.y);
     wc.addChild(v.hingeSprite);
 
@@ -331,9 +331,9 @@ const PlayScreenPixi = {
     blurred.clear();
     solid.clear();
     v.hingeGlowBlurred.filters[0].strength = 4;
-    const dotR = 17;
-    blurred.circle(x, y, dotR).stroke({ width: 5, color: rgb, alpha: 0.4 + g * 0.6 });
-    solid.circle(x, y, dotR).stroke({ width: 3, color: rgb, alpha: 0.5 + g * 0.5 });
+    const dotR = 17 * p.visualScale;
+    blurred.circle(x, y, dotR).stroke({ width: 5 * p.visualScale, color: rgb, alpha: 0.4 + g * 0.6 });
+    solid.circle(x, y, dotR).stroke({ width: 3 * p.visualScale, color: rgb, alpha: 0.5 + g * 0.5 });
 
     this._syncParticlePool(v.hingeMagicPool, v.hingeMagicContainer, p.hingeMagicParticles, textures.smokeParticle, (mp, t) => ({
       x: mp.x, y: mp.y,
@@ -342,9 +342,9 @@ const PlayScreenPixi = {
       additive: true,
     }));
 
-    for (const r of [47, p.hingeRingRadius]) {
-      blurred.circle(x, y, r).stroke({ width: 5, color: rgb, alpha: 0.4 + g * 0.6 });
-      solid.circle(x, y, r).stroke({ width: 3, color: rgb, alpha: 0.5 + g * 0.5 });
+    for (const r of [47 * p.visualScale, p.hingeRingRadius]) {
+      blurred.circle(x, y, r).stroke({ width: 5 * p.visualScale, color: rgb, alpha: 0.4 + g * 0.6 });
+      solid.circle(x, y, r).stroke({ width: 3 * p.visualScale, color: rgb, alpha: 0.5 + g * 0.5 });
     }
 
     this._syncParticlePool(v.hingeSparkPool, v.hingeSparkContainer, p.hingeSparkParticles, textures.glowParticle, (sp, t) => ({

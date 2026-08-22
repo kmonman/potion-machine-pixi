@@ -15,20 +15,26 @@ function easeInOutSine(t) {
 }
 
 function createPlatform(pivotX, pivotY, opts = {}) {
+  // Top and middle platforms are smaller than the base (Rob: 60% size) — scaling
+  // length/thickness/hingeRingRadius here (not just the Pixi rendering) means
+  // Physics's collision math, which reads these directly, automatically matches
+  // whatever size actually gets drawn.
+  const scale = opts.scale ?? 1;
   return {
     pivot: { x: pivotX, y: pivotY },
+    visualScale: scale,
     // Shortened from the original's 674 (Rob's phone test: the tube reached close
     // enough to the screen edges that the ball couldn't actually fall down the gap
     // between the tube's end and the side wall). Widened back up 520→620 (Rob: felt
     // too small) — the 100px fall-through margin (Physics._checkBoundaries) still
     // gives room to drop.
-    length: 620,
-    thickness: 52,
+    length: 620 * scale,
+    thickness: 52 * scale,
     // The sprite's own outer ring (Hinge.png), measured directly from the asset
     // pixels: it sits at radius 42-49 of the 100x100 source, scaled to the 112px
     // display size (×1.12) → ~47-55. Used as the outer edge so Physics's "touching"
     // threshold lines up with where the ball visually reaches this real ring.
-    hingeRingRadius: 55,
+    hingeRingRadius: 55 * scale,
 
     // Only the base/ground platform gets a pole (Rob: the stacked platforms above it
     // are just floating bars, not mounted on their own post down to the ground).

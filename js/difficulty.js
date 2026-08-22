@@ -85,7 +85,14 @@ const JET_CATCH_RADIUS_Y = 70;
 // unchanged from the original single-platform version, just no longer tied to the
 // single scripted FREE_PLAY_PHASES schedule. Instead each jet flips on/off on its
 // own randomized timer so platforms don't all pulse in lockstep.
-function createJetSystem() {
+// `allowedIndices` restricts which of the 4 mount points (see JET_DEFS: 0/1 are
+// the outer left/right jets, 2/3 the inner ones) this platform's jets are ever
+// allowed to use — Rob wants the middle platform down to just its outer-left
+// jet and the top platform down to just its outer-right jet, with the rest
+// permanently off, rather than all 4 independently randomizing like the base
+// platform still does.
+function createJetSystem(opts = {}) {
+  const allowedIndices = opts.allowedIndices || [0, 1, 2, 3];
   return {
     jets: JET_DEFS.map(() => ({ x: 0, y: 0, active: false, wasInRange: false, particles: [], spawnTimer: 0, toggleTimer: 0 })),
     jetCooldown: 0,
@@ -98,17 +105,26 @@ function createJetSystem() {
       this.jetCooldown = 0;
     },
 
-    update(dt, pivot, dir) {
+    // `scale` is the owning platform's visualScale — jet mount distances are
+    // defined for the base platform's full-size bar, so a smaller platform
+    // needs its jets pulled in proportionally or they'd hang off past the end
+    // of its (now shorter) bar.
+    update(dt, pivot, dir, scale = 1) {
       for (let i = 0; i < this.jets.length; i++) {
         const jet = this.jets[i];
-        jet.toggleTimer -= dt;
-        if (jet.toggleTimer <= 0) {
-          jet.toggleTimer = 1.5 + Math.random() * 3.5;
-          jet.active = Math.random() < 0.45; // independently on/off, roughly ~2 of 4 active at a time
+        if (allowedIndices.includes(i)) {
+          jet.toggleTimer -= dt;
+          if (jet.toggleTimer <= 0) {
+            jet.toggleTimer = 1.5 + Math.random() * 3.5;
+            jet.active = Math.random() < 0.45; // independently on/off, roughly ~2 of 4 active at a time
+          }
+        } else {
+          jet.active = false; // this platform never uses this mount point
         }
-        const distance = jet.active ? JET_DEFS[i].activeDistance : JET_PARKED_DISTANCE;
+        const distance = jet.active ? JET_DEFS[i].activeDistance * scale : JET_PARKED_DISTANCE;
+        // -22, not -25 — moved down a couple pixels (Rob).
         jet.x = pivot.x + dir.x * distance;
-        jet.y = pivot.y + dir.y * distance - 25;
+        jet.y = pivot.y + dir.y * distance - 22;
       }
 
       if (this.jetCooldown > 0) this.jetCooldown = Math.max(0, this.jetCooldown - dt);

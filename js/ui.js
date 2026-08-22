@@ -270,17 +270,21 @@ const PlayScreen = {
   // layout, not procedural), each running its own independent jets/hinge-bubbles
   // (Rob: "each platform should function independently", not share one global
   // simulation). Only the base platform gets a pole (Rob: the ones above it are
-  // just floating bars). First slice: 3 platforms, same base properties, no
-  // per-platform visual variety yet.
+  // just floating bars). Top/middle platforms are smaller (60% scale) and each
+  // restricted to a single jet — middle keeps only its outer-left jet (index 0),
+  // top only its outer-right jet (index 1) — rather than the base platform's
+  // full independently-randomizing set of 4 (Rob).
   _buildTower() {
     const baseX = 360, baseY = 652;
     const platforms = [
       createPlatform(baseX, baseY, { hasPole: true }),
-      createPlatform(baseX, baseY - this.TOWER_SPACING, {}),
-      createPlatform(baseX, baseY - this.TOWER_SPACING * 2, {}),
+      createPlatform(baseX, baseY - this.TOWER_SPACING, { scale: 0.6 }),
+      createPlatform(baseX, baseY - this.TOWER_SPACING * 2, { scale: 0.6 }),
     ];
+    platforms[0].jetSystem = createJetSystem();
+    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0] });
+    platforms[2].jetSystem = createJetSystem({ allowedIndices: [1] });
     for (const p of platforms) {
-      p.jetSystem = createJetSystem();
       p.hingeBubbles = createHingeBubbles();
     }
     return platforms;
@@ -323,7 +327,7 @@ const PlayScreen = {
     if (!this.isOver) {
       for (const p of this.platforms) {
         p.update(dt);
-        p.jetSystem.update(dt, p.pivot, p.dir);
+        p.jetSystem.update(dt, p.pivot, p.dir, p.visualScale);
       }
       Difficulty.update(dt);
       Physics.update(dt, tiltX);
