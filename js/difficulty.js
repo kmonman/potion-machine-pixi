@@ -53,19 +53,21 @@ const TUBE_STAGE_PARAMS = {
 // sync with each other instead of all matching color in lockstep. Much slower
 // and more front-loaded toward Cool/Warm than the old FREE_PLAY_PHASES tube
 // progression was (Rob: start with cool and warm, some hot later, fire much
-// later) — a full cycle here is 220s versus the old script's Fire debut at
-// just 76s in.
+// later). Cool is the base/home color the schedule keeps returning to and
+// spends most of its time at (Rob) rather than an equal rotation through all
+// four — of a 244s cycle, Cool alone accounts for 180s (~74%), Warm 30s, Hot
+// 24s, Fire just 10s.
 const TUBE_STAGE_SCHEDULE = [
+  { duration: 45, stage: 'Cool' },
+  { duration: 15, stage: 'Warm' },
+  { duration: 40, stage: 'Cool' },
+  { duration: 15, stage: 'Warm' },
+  { duration: 35, stage: 'Cool' },
+  { duration: 12, stage: 'Hot' },
   { duration: 30, stage: 'Cool' },
-  { duration: 30, stage: 'Warm' },
-  { duration: 25, stage: 'Cool' },
-  { duration: 25, stage: 'Warm' },
-  { duration: 20, stage: 'Hot' },
-  { duration: 20, stage: 'Warm' },
-  { duration: 15, stage: 'Hot' },
-  { duration: 15, stage: 'Fire' },
-  { duration: 20, stage: 'Hot' },
-  { duration: 20, stage: 'Fire' },
+  { duration: 12, stage: 'Hot' },
+  { duration: 10, stage: 'Fire' },
+  { duration: 30, stage: 'Cool' },
 ];
 
 // Tilt multipliers toned down (Rob: "too much energy" at Fire) — was
