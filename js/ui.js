@@ -259,12 +259,20 @@ const PlayScreen = {
   // (Rob). See _drawBlastButtons.
   blastButtonsT: 0,
 
-  // Vertical gap (world px) between platform pivots in the tower. Tuned so a
-  // Potion Blast (see fireBlast below) comfortably clears it — with gravityY
-  // 1500 and blast force 950 mostly-vertical, peak height gained is roughly
-  // force^2 / (2*gravityY) ≈ 300px, so 260px leaves real margin without making
-  // the climb trivial.
-  TOWER_SPACING: 260,
+  // Vertical gap (world px) between platform pivots in the tower. Bumped from
+  // 260 to 300 (Rob: move the top/middle platforms up higher). A blast's peak
+  // vertical reach alone is still roughly force^2/(2*gravityY) ≈ 300px, but
+  // the platforms are no longer stacked directly above one another (see
+  // TOWER_X_OFFSET below), so the real distance a blast needs to cover is the
+  // diagonal to a horizontally-offset target, well inside a 950-force blast's
+  // actual projectile range (v^2/gravityY ≈ 600px) once aimed toward it rather
+  // than straight up.
+  TOWER_SPACING: 300,
+  // Horizontal offset (world px) for the middle/top platforms — Rob: move one
+  // right and one left instead of stacking every platform straight above the
+  // base. Middle goes right, top goes left, so climbing the tower zigzags
+  // rather than going straight up.
+  TOWER_X_OFFSET: 130,
 
   // Builds the tower — a fixed, hand-placed stack of platforms (Rob: hand-designed
   // layout, not procedural), each running its own independent jets/hinge-bubbles
@@ -280,8 +288,8 @@ const PlayScreen = {
     const baseX = 360, baseY = 652;
     const platforms = [
       createPlatform(baseX, baseY, { hasPole: true }),
-      createPlatform(baseX, baseY - this.TOWER_SPACING, { lengthScale: 0.7 }),
-      createPlatform(baseX, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7 }),
+      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7 }),
+      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7 }),
     ];
     platforms[0].jetSystem = createJetSystem();
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0] });
