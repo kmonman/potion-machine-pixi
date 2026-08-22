@@ -259,13 +259,50 @@ const PlayScreen = {
   // (Rob). See _drawBlastButtons.
   blastButtonsT: 0,
 
+  // Vertical gap (world px) between platform pivots in the tower. Tuned so a
+  // Potion Blast (see fireBlast below) comfortably clears it — with gravityY
+  // 1500 and blast force 950 mostly-vertical, peak height gained is roughly
+  // force^2 / (2*gravityY) ≈ 300px, so 260px leaves real margin without making
+  // the climb trivial.
+  TOWER_SPACING: 260,
+
+  // Builds the tower — a fixed, hand-placed stack of platforms (Rob: hand-designed
+  // layout, not procedural), each running its own independent jets/hinge-bubbles
+  // (Rob: "each platform should function independently", not share one global
+  // simulation). Only the base platform gets a pole (Rob: the ones above it are
+  // just floating bars). First slice: 3 platforms, same base properties, no
+  // per-platform visual variety yet.
+  _buildTower() {
+    const baseX = 360, baseY = 652;
+    const platforms = [
+      createPlatform(baseX, baseY, { hasPole: true }),
+      createPlatform(baseX, baseY - this.TOWER_SPACING, {}),
+      createPlatform(baseX, baseY - this.TOWER_SPACING * 2, {}),
+    ];
+    for (const p of platforms) {
+      p.jetSystem = createJetSystem();
+      p.hingeBubbles = createHingeBubbles();
+    }
+    return platforms;
+  },
+
   enter(mode) {
     this.mode = mode || this.mode;
     Difficulty.reset();
-    Platform.reset();
-    Physics.reset();
+    // Reuse the same platform instances every run rather than rebuilding new
+    // ones — game.js's main() seeds `this.platforms` once at boot (before
+    // PlayScreenPixi.build() runs, which attaches Pixi display objects to each
+    // platform via `p._visual`), and replacing those objects here would orphan
+    // that whole Pixi visual tree. Just reset their state in place instead,
+    // same as the old singleton Platform.reset() always did.
+    if (!this.platforms) this.platforms = this._buildTower();
+    for (const p of this.platforms) {
+      p.reset();
+      p.jetSystem.reset();
+      p.hingeBubbles.reset();
+    }
+    Physics.reset(this.platforms);
     Fog.reset();
-    HingeBubbles.reset();
     this.score = 0;
     this.elapsed = 0;
     this.timedOut = false;
@@ -284,10 +321,15 @@ const PlayScreen = {
   update(dt, tiltX) {
     Fog.update(dt);
     if (!this.isOver) {
-      Platform.update(dt);
+      for (const p of this.platforms) {
+        p.update(dt);
+        p.jetSystem.update(dt, p.pivot, p.dir);
+      }
       Difficulty.update(dt);
       Physics.update(dt, tiltX);
-      HingeBubbles.update(dt, Physics.touchingHinge, Platform.pivot.x, Platform.pivot.y);
+      for (const p of this.platforms) {
+        p.hingeBubbles.update(dt, p.touching, p.pivot.x, p.pivot.y);
+      }
       // Back to 6,000 points/minute (100/s) — the earlier 1,000/min slowdown was
       // to make the live-updating digits readable, which is now handled by the
       // tabular-number fix instead, so full speed is safe again (Rob).
@@ -300,7 +342,7 @@ const PlayScreen = {
         this.blastThreshold += 1000;
       }
     } else {
-      HingeBubbles.update(dt, false, Platform.pivot.x, Platform.pivot.y);
+      for (const p of this.platforms) p.hingeBubbles.update(dt, false, p.pivot.x, p.pivot.y);
       this.gameOverT = Math.min(1, this.gameOverT + dt / 0.35);
       if (this.leaderboardMsgT > 0) this.leaderboardMsgT = Math.max(0, this.leaderboardMsgT - dt);
       this._updateGoBubbles(dt);
@@ -373,7 +415,10 @@ const PlayScreen = {
   fireBlast() {
     if (this.mode !== 'freeplay' || this.blastCharges <= 0 || this.isOver) return;
     this.blastCharges--;
-    Physics.applyBlast(600);
+    // Bumped from 600 — this is now also the tower's climb mechanic (Rob: use
+    // the existing potion blasters to get to the next platform up), so it needs
+    // enough force to actually clear TOWER_SPACING, not just hop in place.
+    Physics.applyBlast(950);
   },
 
   _timeText() {

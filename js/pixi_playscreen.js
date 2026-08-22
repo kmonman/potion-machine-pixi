@@ -1,11 +1,12 @@
-// The gameplay screen, rebuilt on PixiJS — the big remaining piece of Phase 1
-// (see PINBALL_EXPANSION_PLAN.md). Building this up in stages rather than one
-// giant leap: this first pass gets the core scene up — scrolling fog
-// background, the pole, the platform bar, and the ball sitting on/rolling
-// with it — driven by the *same* fog.js/platform.js/physics.js update logic
-// already used by the live Canvas 2D game (none of that math changed, only
-// how it gets drawn). Liquid, the hinge glow/particles, jets, HUD, and the
-// Game Over flow are NOT built yet — next chunks.
+// The gameplay screen, rebuilt on PixiJS. Phase 1 built this around one global
+// `Platform`; Phase 2 (the pinball-tower expansion) turned `Platform` into a
+// factory (see platform.js) so multiple independent platforms can exist at once,
+// stacked in a `PlayScreen.platforms` array — this file's job is now to build a
+// Pixi visual "bundle" per platform instead of one fixed set of sprites, plus a
+// world/camera split: platforms + the ball live inside `worldContainer`, which
+// pans vertically to follow the ball as it climbs/falls (Rob: camera follows the
+// ball, doesn't show the whole tower fixed); the background/fog/vignette and the
+// HUD stay screen-fixed, outside the panning container.
 
 // Pixi sprite tints take a single packed 0xRRGGBB number, not separate
 // channels — the old ctx-based particle code kept r/g/b as separate lerped
@@ -17,12 +18,11 @@ function clampByte(v) { return Math.max(0, Math.min(255, Math.round(v))); }
 
 const PlayScreenPixi = {
   container: null,
+  worldContainer: null,
   _fogSprites: [],
-  _poleSprite: null,
-  _poleGlow: null,
-  _platformContainer: null, // rotates as a whole around the pivot
-  _platformSprite: null,
   _ballSprite: null,
+  _camY: 0,
+  _dt: 1 / 60,
 
   build(textures) {
     const c = new PIXI.Container();
@@ -32,8 +32,8 @@ const PlayScreenPixi = {
     c.addChild(bg);
 
     // Fog — 3 layers, each 2 stacked sprites (see Fog.layers in fog.js for the
-    // actual scroll/wrap math, unchanged). Built here as plain Sprites whose
-    // y position gets set from Fog.layers each frame in refresh().
+    // actual scroll/wrap math, unchanged). Screen-fixed background atmosphere,
+    // not part of the panning world — it doesn't need to scroll with the camera.
     for (const l of Fog.layers) {
       const img = new PIXI.Sprite(textures[l.key]);
       img.width = 720; img.height = 1280;
@@ -44,8 +44,7 @@ const PlayScreenPixi = {
     }
 
     // Vignette — same gradient shape as Fog._drawVignette, built once as a
-    // Graphics fill using Pixi's gradient fill support (static, so no need to
-    // rebuild it per frame the way the old ctx version implicitly did).
+    // Graphics fill using Pixi's gradient fill support.
     const vignette = new PIXI.Graphics();
     const grad = new PIXI.FillGradient({
       type: 'linear', x0: 0, y0: 0, x1: 0, y1: 1280,
@@ -61,128 +60,134 @@ const PlayScreenPixi = {
     vignette.rect(0, 0, 720, 1280).fill(grad);
     c.addChild(vignette);
 
-    // Pole — static sprite + a glowing rounded-rect outline. First attempt
-    // used one blurred pass and read noticeably dimmer than the live Canvas
-    // version — switched to the same two-pass technique already working
-    // well on the hinge (a blurred layer underneath + a crisp solid layer on
-    // top), instead of trying to tune a single blur pass to compensate.
-    const poleX = Platform.pivot.x - 25;
-    this._poleSprite = new PIXI.Sprite(textures.pole);
-    this._poleSprite.position.set(poleX, Platform.pivot.y);
-    this._poleSprite.width = 50; this._poleSprite.height = Platform.poleHeight;
-    c.addChild(this._poleSprite);
+    // The panning world — every platform and the ball live in here. Built once
+    // PlayScreen.platforms exists (PlayScreen.enter() runs before the first
+    // build() call from game.js's main(), same ordering Phase 1 relied on for
+    // JET_DEFS).
+    this.worldContainer = new PIXI.Container();
+    c.addChild(this.worldContainer);
 
-    const poleGrad = new PIXI.FillGradient({
-      type: 'linear', x0: 0, y0: Platform.pivot.y, x1: 0, y1: Platform.pivot.y + Platform.poleHeight,
-      colorStops: [
-        { offset: 0, color: 'rgba(170,100,255,0.9)' },
-        { offset: 0.6, color: 'rgba(170,100,255,0.55)' },
-        { offset: 1, color: 'rgba(170,100,255,0)' },
-      ],
-      textureSpace: 'local',
-    });
-    this._poleGlowBlurred = new PIXI.Graphics()
-      .roundRect(poleX, Platform.pivot.y, 50, Platform.poleHeight, 10).stroke({ width: 6, fill: poleGrad });
-    this._poleGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 8 })];
-    this._poleGlowSolid = new PIXI.Graphics()
-      .roundRect(poleX, Platform.pivot.y, 50, Platform.poleHeight, 10).stroke({ width: 3, fill: poleGrad });
-    c.addChild(this._poleGlowBlurred, this._poleGlowSolid);
+    for (const p of PlayScreen.platforms) {
+      this._buildPlatformVisual(p, textures);
+    }
 
-    // Platform bar — a Container so the whole assembly (bar sprite, and later
-    // liquid/glass) rotates together around the pivot, same coordinate-space
-    // trick as the old ctx.translate+rotate block in Platform.draw().
-    this._platformContainer = new PIXI.Container();
-    this._platformContainer.position.set(Platform.pivot.x, Platform.pivot.y);
-    this._platformSprite = new PIXI.Sprite(textures.platform);
-    this._platformSprite.anchor.set(0.5);
-    this._platformSprite.width = Platform.length; this._platformSprite.height = Platform.thickness;
-    this._platformContainer.addChild(this._platformSprite);
+    // Ball — a sprite rotating around its own center, position/rotation copied
+    // from Physics.x/y/rotation every frame. Z-order relative to each
+    // platform's hinge/bubbles is re-applied every frame in refresh() (see
+    // _restackBall) since which platform it's "behind" changes as it climbs.
+    this._ballSprite = new PIXI.Sprite(textures.ball);
+    this._ballSprite.anchor.set(0.5);
+    const ballSize = Physics.displayRadius * 2;
+    this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
+    this.worldContainer.addChild(this._ballSprite);
+  },
 
-    // Liquid — rebuilt from scratch every frame in refresh() (the column
-    // levels genuinely change every frame, unlike everything else here which
-    // is a static shape just being repositioned), clipped to the tube's own
-    // rounded-rect shape via a Pixi mask (Canvas 2D's ctx.clip() has no
-    // direct Pixi equivalent — a mask achieves the same "only show what's
-    // inside this shape" result). Two Graphics: the fill+gradient body, and
-    // a separate 'screen'-blended shine on top, matching
-    // Platform._drawLiquid()'s two-pass approach exactly.
-    const halfL = Platform._liquidHalfLength(), halfT = Platform._liquidHalfThickness();
-    this._liquidMask = new PIXI.Graphics().roundRect(-halfL, -halfT, halfL * 2, halfT * 2, halfT).fill(0xffffff);
-    this._liquidBody = new PIXI.Graphics();
-    this._liquidShine = new PIXI.Graphics();
-    this._liquidShine.blendMode = 'screen';
+  // Builds one platform's full visual bundle (pole if it has one, bar+liquid+
+  // glass, hinge glow/particles, jets) and adds it all to worldContainer,
+  // storing the pieces refresh() needs on `p._visual`. Mirrors the Phase 1
+  // single-platform build() step for step, just parameterized per platform
+  // instead of reading the old global `Platform`/`textures` directly.
+  _buildPlatformVisual(p, textures) {
+    const wc = this.worldContainer;
+    const v = {};
+    p._visual = v;
+
+    // Pole — only the base platform has one (Rob: the platforms stacked above
+    // it are just floating bars, not each mounted on their own post).
+    if (p.hasPole) {
+      const poleX = p.pivot.x - 25;
+      v.poleSprite = new PIXI.Sprite(textures.pole);
+      v.poleSprite.position.set(poleX, p.pivot.y);
+      v.poleSprite.width = 50; v.poleSprite.height = p.poleHeight;
+      wc.addChild(v.poleSprite);
+
+      const poleGrad = new PIXI.FillGradient({
+        type: 'linear', x0: 0, y0: p.pivot.y, x1: 0, y1: p.pivot.y + p.poleHeight,
+        colorStops: [
+          { offset: 0, color: 'rgba(170,100,255,0.9)' },
+          { offset: 0.6, color: 'rgba(170,100,255,0.55)' },
+          { offset: 1, color: 'rgba(170,100,255,0)' },
+        ],
+        textureSpace: 'local',
+      });
+      v.poleGlowBlurred = new PIXI.Graphics()
+        .roundRect(poleX, p.pivot.y, 50, p.poleHeight, 10).stroke({ width: 6, fill: poleGrad });
+      v.poleGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 8 })];
+      v.poleGlowSolid = new PIXI.Graphics()
+        .roundRect(poleX, p.pivot.y, 50, p.poleHeight, 10).stroke({ width: 3, fill: poleGrad });
+      wc.addChild(v.poleGlowBlurred, v.poleGlowSolid);
+    }
+
+    // Platform bar — a Container so the whole assembly (bar sprite, liquid,
+    // glass) rotates together around the pivot.
+    v.platformContainer = new PIXI.Container();
+    v.platformContainer.position.set(p.pivot.x, p.pivot.y);
+    v.platformSprite = new PIXI.Sprite(textures.platform);
+    v.platformSprite.anchor.set(0.5);
+    v.platformSprite.width = p.length; v.platformSprite.height = p.thickness;
+    v.platformContainer.addChild(v.platformSprite);
+
+    // Liquid — rebuilt from scratch every frame in refresh() (column levels
+    // genuinely change every frame), clipped to the tube's own rounded-rect
+    // via a Pixi mask.
+    const halfL = p._liquidHalfLength(), halfT = p._liquidHalfThickness();
+    v.liquidMask = new PIXI.Graphics().roundRect(-halfL, -halfT, halfL * 2, halfT * 2, halfT).fill(0xffffff);
+    v.liquidBody = new PIXI.Graphics();
+    v.liquidShine = new PIXI.Graphics();
+    v.liquidShine.blendMode = 'screen';
     const liquidContainer = new PIXI.Container();
-    liquidContainer.addChild(this._liquidBody, this._liquidShine, this._liquidMask);
-    liquidContainer.mask = this._liquidMask;
-    this._platformContainer.addChild(liquidContainer);
+    liquidContainer.addChild(v.liquidBody, v.liquidShine, v.liquidMask);
+    liquidContainer.mask = v.liquidMask;
+    v.platformContainer.addChild(liquidContainer);
 
-    // Glass — shadow + highlight sprites drawn in front of the liquid, same
-    // as Platform._drawGlass(). Highlight's x gets nudged slightly per-frame
-    // for the parallax cue (see refresh()).
-    this._tubeShadow = new PIXI.Sprite(textures.tubeShadow);
-    this._tubeShadow.anchor.set(0.5);
-    this._tubeShadow.width = Platform.length; this._tubeShadow.height = Platform.thickness;
-    this._tubeShadow.alpha = 0.8;
-    this._tubeHighlight = new PIXI.Sprite(textures.tubeHighlight);
-    this._tubeHighlight.anchor.set(0.5);
-    this._tubeHighlight.width = Platform.length; this._tubeHighlight.height = Platform.thickness;
-    this._tubeHighlight.alpha = 0.9;
-    this._platformContainer.addChild(this._tubeShadow, this._tubeHighlight);
+    // Glass — shadow + highlight sprites drawn in front of the liquid.
+    v.tubeShadow = new PIXI.Sprite(textures.tubeShadow);
+    v.tubeShadow.anchor.set(0.5);
+    v.tubeShadow.width = p.length; v.tubeShadow.height = p.thickness;
+    v.tubeShadow.alpha = 0.8;
+    v.tubeHighlight = new PIXI.Sprite(textures.tubeHighlight);
+    v.tubeHighlight.anchor.set(0.5);
+    v.tubeHighlight.width = p.length; v.tubeHighlight.height = p.thickness;
+    v.tubeHighlight.alpha = 0.9;
+    v.platformContainer.addChild(v.tubeShadow, v.tubeHighlight);
 
-    c.addChild(this._platformContainer);
+    wc.addChild(v.platformContainer);
 
-    // Hinge — z-order matters a lot here (many rounds of Rob's feedback
-    // landed on this exact order): bubbles behind everything (the sprite's
-    // own opaque pixels are what hides them at the dot, not a draw-order
-    // trick alone), then the sprite, then the dot glow, then HingeMagic
-    // smoke, then the ring glow, then HingeSparks on top.
-    this._hingeBubbleContainer = new PIXI.Container();
-    c.addChild(this._hingeBubbleContainer);
+    // Hinge — z-order matters a lot here: bubbles behind everything (the
+    // sprite's own opaque pixels are what hides them at the dot), then the
+    // sprite, then the dot glow, then HingeMagic smoke, then the ring glow,
+    // then HingeSparks on top. The ball gets re-inserted right after
+    // hingeBubbleContainer each frame (see _restackBall) so it renders behind
+    // whichever platform's hinge it's currently nearest.
+    v.hingeBubbleContainer = new PIXI.Container();
+    wc.addChild(v.hingeBubbleContainer);
 
-    this._hingeSprite = new PIXI.Sprite(textures.hinge);
-    this._hingeSprite.anchor.set(0.5);
-    this._hingeSprite.width = 112; this._hingeSprite.height = 112;
-    this._hingeSprite.position.set(Platform.pivot.x, Platform.pivot.y);
-    c.addChild(this._hingeSprite);
+    v.hingeSprite = new PIXI.Sprite(textures.hinge);
+    v.hingeSprite.anchor.set(0.5);
+    v.hingeSprite.width = 112; v.hingeSprite.height = 112;
+    v.hingeSprite.position.set(p.pivot.x, p.pivot.y);
+    wc.addChild(v.hingeSprite);
 
-    // Dot + ring glow — same two-pass technique as the pole (a blurred
-    // stroke layer + a crisp solid one on top), rebuilt every frame since
-    // the color/blur strength both animate with hingeGlow (0 idle → 1
-    // touched). Two separate Graphics (blurred vs solid) since a Pixi
-    // filter blurs its *whole* object — can't blur just one of two strokes
-    // sharing a single Graphics the way ctx's per-call shadowBlur could.
-    this._hingeGlowBlurred = new PIXI.Graphics();
-    this._hingeGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 4 })];
-    this._hingeGlowSolid = new PIXI.Graphics();
-    c.addChild(this._hingeGlowBlurred, this._hingeGlowSolid);
+    v.hingeGlowBlurred = new PIXI.Graphics();
+    v.hingeGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 4 })];
+    v.hingeGlowSolid = new PIXI.Graphics();
+    wc.addChild(v.hingeGlowBlurred, v.hingeGlowSolid);
 
-    this._hingeMagicContainer = new PIXI.Container();
-    this._hingeMagicContainer.blendMode = 'add';
-    c.addChild(this._hingeMagicContainer);
+    v.hingeMagicContainer = new PIXI.Container();
+    v.hingeMagicContainer.blendMode = 'add';
+    wc.addChild(v.hingeMagicContainer);
 
-    // Ring's own glow is drawn AFTER HingeMagic (see drawHinge's real order),
-    // reusing the same two Graphics objects — redrawn fresh each frame
-    // alongside the dot in _refreshHinge() rather than needing 4 separate
-    // Graphics objects for dot+ring.
+    v.hingeSparkContainer = new PIXI.Container();
+    wc.addChild(v.hingeSparkContainer);
 
-    this._hingeSparkContainer = new PIXI.Container();
-    c.addChild(this._hingeSparkContainer);
+    v.hingeMagicPool = [];
+    v.hingeSparkPool = [];
+    v.hingeBubblePool = [];
 
-    this._hingeMagicPool = [];
-    this._hingeSparkPool = [];
-    this._hingeBubblePool = [];
-
-    // Jets — one particle container per jet (see Difficulty.drawJets). Built
-    // from JET_DEFS directly, not Difficulty.jets — the latter starts as an
-    // empty array and is only populated by Difficulty.reset() (called from
-    // PlayScreen.enter(), i.e. only once the player actually starts a run),
-    // which hasn't happened yet at boot time when build() runs.
-    // Each jet's base "nozzle" glow (aura + pulsing ring + spark rays + core —
-    // see Difficulty.drawJets) is its own small rebuilt-every-frame Graphics,
-    // same pattern as the hinge dot/ring, wrapped in a blurred+additive
-    // container matching the ctx version's `filter='blur(3px)'` +
-    // `globalCompositeOperation='lighter'` pairing.
-    this._jetContainers = JET_DEFS.map(() => {
+    // Jets — one particle container per jet, each with its own small
+    // rebuilt-every-frame nozzle Graphics (aura + pulsing ring + spark rays +
+    // core), wrapped in a blurred+additive container.
+    v.jetContainers = JET_DEFS.map(() => {
       const jc = new PIXI.Container();
       jc.blendMode = 'add';
       const nozzle = new PIXI.Graphics();
@@ -190,32 +195,19 @@ const PlayScreenPixi = {
       nozzleWrap.blendMode = 'add';
       nozzleWrap.filters = [new PIXI.BlurFilter({ strength: 3 })];
       nozzleWrap.addChild(nozzle);
-      c.addChild(jc, nozzleWrap);
+      wc.addChild(jc, nozzleWrap);
       return { particleContainer: jc, pool: [], nozzle };
     });
-
-    // Ball — Physics.draw()'s equivalent: a sprite rotating around its own
-    // center, position/rotation copied from Physics.x/y/rotation every frame.
-    // Added *after* the hinge/bubbles (Rob: the ball renders behind the
-    // hinge and its bubbles) but before nothing else yet — HUD isn't built.
-    this._ballSprite = new PIXI.Sprite(textures.ball);
-    this._ballSprite.anchor.set(0.5);
-    const ballSize = Physics.displayRadius * 2;
-    this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
-    c.addChildAt(this._ballSprite, c.getChildIndex(this._hingeBubbleContainer));
   },
 
-  // Delegates to the OLD ui.js's PlayScreen.update() rather than calling
-  // Platform/Physics/Fog updates directly (an earlier version of this file
-  // did exactly that, which was a real bug caught while starting the HUD
-  // work: it skipped PlayScreen's own logic entirely — score accumulation,
-  // blast-charge thresholds, elapsed time, game-over detection, the blast
-  // buttons' pop-animation timer, AND Difficulty.update() (tube/moon phase
-  // progression) — none of that was ever running. PlayScreen.update() is
-  // the real single entry point; it calls Platform/Physics/Fog/Difficulty/
-  // HingeBubbles updates itself internally, this just delegates to it whole.
+  // Delegates to the OLD ui.js's PlayScreen.update() — the real single entry
+  // point; it calls every platform's/Physics's/Fog's/Difficulty's updates
+  // internally, this just delegates to it whole (see the Phase 1 bug this
+  // fixed: calling the sub-updates directly here skipped PlayScreen's own
+  // score/blast-charge/game-over logic entirely).
   update(dt, tiltX) {
     PlayScreen.update(dt, tiltX);
+    this._dt = dt;
   },
 
   refresh() {
@@ -225,29 +217,61 @@ const PlayScreenPixi = {
       f.spriteFlip.y = l.y2;
     }
 
-    this._platformContainer.rotation = Platform.angleRad;
-    this._refreshLiquid();
-
-    // Glass highlight parallax — same `-angle*3` nudge as the old
-    // Platform._drawGlass(), just applied to a sprite's x instead of an
-    // extra ctx.drawImage x-offset argument.
-    this._tubeHighlight.x = -Platform.angle * 3;
+    for (const p of PlayScreen.platforms) {
+      this._refreshPlatform(p);
+    }
 
     this._ballSprite.position.set(Physics.x, Physics.y);
     this._ballSprite.rotation = Physics.rotation;
-
-    this._refreshHinge();
-    this._refreshJets();
+    this._restackBall();
+    this._updateCamera();
   },
 
-  // Syncs a pool of reusable Sprites to however many particles are
-  // currently alive, calling styleFn(particle, t) for each to get its
-  // {x, y, size, alpha, tint, additive}. Reusing sprites instead of
-  // creating/destroying one per particle per frame avoids needless churn —
-  // and unlike the old Canvas 2D drawTintedParticle helper (which repainted
-  // an offscreen canvas from scratch per particle per frame, the actual
-  // measured cause of the mobile lag investigated earlier), Pixi sprites
-  // recolor via `.tint`, a genuinely free GPU operation, no repainting at all.
+  // Re-inserts the ball sprite right after whichever platform's hinge-bubble
+  // container it currently belongs to (Physics.currentPlatform — the platform
+  // it's resting on, or last rested on while mid-flight), so it renders behind
+  // that platform's hinge/bubbles the same way the Phase 1 single-platform
+  // version did. addChildAt on a child already in the tree just reorders it,
+  // not a create/destroy, so this is cheap to do every frame.
+  _restackBall() {
+    const p = Physics.currentPlatform || PlayScreen.platforms[0];
+    const v = p._visual;
+    const idx = this.worldContainer.getChildIndex(v.hingeSprite);
+    this.worldContainer.addChildAt(this._ballSprite, idx);
+  },
+
+  // Camera — pans worldContainer.y so the ball stays roughly at the same
+  // screen-space height the single-platform version always kept it at
+  // (Rob: camera follows the ball, rather than showing the whole tower at
+  // once), smoothed rather than snapping frame to frame, and clamped so it
+  // never scrolls past the top of the tower or below the base platform's
+  // original resting view.
+  _updateCamera() {
+    const screenAnchorY = 760; // where the ball sits on screen at the base platform, matching the old fixed framing
+    const basePivotY = PlayScreen.platforms[0].pivot.y;
+    const topPivotY = PlayScreen.platforms[PlayScreen.platforms.length - 1].pivot.y;
+
+    // worldContainer.y is added to every child's world position, so camY = screenAnchorY
+    // - worldY: it's smallest (camY barely shifts anything) when the ball is down at the
+    // base platform, and largest (shifts the world well down the screen, revealing what
+    // was far above) when the ball is up near the top platform — so the base gives the
+    // *lower* clamp bound and the top-plus-headroom gives the *upper* one, not the other
+    // way around (an earlier version of this had the two swapped, which pinned the camera
+    // at the upper bound permanently since min > max made the clamp always pick the min).
+    const targetCamY = screenAnchorY - Physics.y;
+    const camYAtBase = screenAnchorY - basePivotY;
+    const camYAtTopHeadroom = screenAnchorY - (topPivotY - 260);
+    const clamped = Math.max(camYAtBase, Math.min(camYAtTopHeadroom, targetCamY));
+
+    const lerp = Math.min(1, this._dt * 6);
+    this._camY += (clamped - this._camY) * lerp;
+    this.worldContainer.y = this._camY;
+  },
+
+  // Syncs a pool of reusable Sprites to however many particles are currently
+  // alive, calling styleFn(particle, t) for each to get its {x, y, size,
+  // alpha, tint, additive}. Recolors via `.tint`, a free GPU operation — no
+  // per-particle repainting the way the old Canvas 2D version needed.
   _syncParticlePool(pool, container, particles, texture, styleFn) {
     while (pool.length < particles.length) {
       const s = new PIXI.Sprite(texture);
@@ -270,9 +294,23 @@ const PlayScreenPixi = {
     }
   },
 
-  _refreshHinge() {
-    const { x, y } = Platform.pivot;
-    const g = Platform.hingeGlow;
+  // One platform's full per-frame refresh — rotation, liquid, glass parallax,
+  // hinge glow/particles, jets. Mirrors the Phase 1 single-platform
+  // refresh()/_refreshHinge()/_refreshJets(), just operating on `p`/`p._visual`
+  // instead of the old global Platform/Difficulty.jets/HingeBubbles.
+  _refreshPlatform(p) {
+    const v = p._visual;
+    v.platformContainer.rotation = p.angleRad;
+    this._refreshLiquid(p);
+    v.tubeHighlight.x = -p.angle * 3;
+    this._refreshHinge(p);
+    this._refreshJets(p);
+  },
+
+  _refreshHinge(p) {
+    const v = p._visual;
+    const { x, y } = p.pivot;
+    const g = p.hingeGlow;
     const c = [
       Math.round(140 + (175 - 140) * g),
       Math.round(70 + (85 - 70) * g),
@@ -280,54 +318,49 @@ const PlayScreenPixi = {
     ];
     const rgb = `rgb(${c.join(',')})`;
 
-    this._syncParticlePool(this._hingeBubblePool, this._hingeBubbleContainer, HingeBubbles.bubbles, textures.hingeBubbleParticle, (p, t) => ({
-      x: p.x + Math.sin(p.wobblePhase) * p.wobbleAmp, y: p.y,
-      size: p.maxSize * (1 - t), alpha: 1 - t,
+    this._syncParticlePool(v.hingeBubblePool, v.hingeBubbleContainer, p.hingeBubbles.bubbles, textures.hingeBubbleParticle, (bp, t) => ({
+      x: bp.x + Math.sin(bp.wobblePhase) * bp.wobbleAmp, y: bp.y,
+      size: bp.maxSize * (1 - t), alpha: 1 - t,
       tint: rgbToHex(254 + (63 - 254) * t, 19 + (203 - 19) * t, 117 + (255 - 117) * t),
       additive: false,
     }));
 
-    // Dot + ring glow, both drawn into the same pair of Graphics (blurred
-    // pass, solid pass) since only the dot's/ring's own radius differs —
-    // matches drawHinge()'s real draw order (dot first, then — after
-    // HingeMagic below — the ring), but since both share one Graphics pair
-    // here, the ring's stroke is added in the *second* half of this method
-    // rather than needing a separate Graphics per radius.
-    const blurred = this._hingeGlowBlurred, solid = this._hingeGlowSolid;
+    const blurred = v.hingeGlowBlurred, solid = v.hingeGlowSolid;
     blurred.clear();
     solid.clear();
-    this._hingeGlowBlurred.filters[0].strength = 4;
+    v.hingeGlowBlurred.filters[0].strength = 4;
     const dotR = 17;
     blurred.circle(x, y, dotR).stroke({ width: 5, color: rgb, alpha: 0.4 + g * 0.6 });
     solid.circle(x, y, dotR).stroke({ width: 3, color: rgb, alpha: 0.5 + g * 0.5 });
 
-    this._syncParticlePool(this._hingeMagicPool, this._hingeMagicContainer, Platform.hingeMagicParticles, textures.smokeParticle, (p, t) => ({
-      x: p.x, y: p.y,
-      size: p.maxSize * t, alpha: (150 / 255) * (1 - t),
+    this._syncParticlePool(v.hingeMagicPool, v.hingeMagicContainer, p.hingeMagicParticles, textures.smokeParticle, (mp, t) => ({
+      x: mp.x, y: mp.y,
+      size: mp.maxSize * t, alpha: (150 / 255) * (1 - t),
       tint: rgbToHex(74 + (119 - 74) * t, 144 + (0 - 144) * t, 226 + (255 - 226) * t),
       additive: true,
     }));
 
-    for (const r of [47, Platform.hingeRingRadius]) {
+    for (const r of [47, p.hingeRingRadius]) {
       blurred.circle(x, y, r).stroke({ width: 5, color: rgb, alpha: 0.4 + g * 0.6 });
       solid.circle(x, y, r).stroke({ width: 3, color: rgb, alpha: 0.5 + g * 0.5 });
     }
 
-    this._syncParticlePool(this._hingeSparkPool, this._hingeSparkContainer, Platform.hingeSparkParticles, textures.glowParticle, (p, t) => ({
-      x: p.x, y: p.y,
+    this._syncParticlePool(v.hingeSparkPool, v.hingeSparkContainer, p.hingeSparkParticles, textures.glowParticle, (sp, t) => ({
+      x: sp.x, y: sp.y,
       size: 15 * (1 - t), alpha: (70 / 255) * (1 - t),
       tint: rgbToHex(255, 255 + (33 - 255) * t, 255),
       additive: false,
     }));
   },
 
-  _refreshJets() {
+  _refreshJets(p) {
+    const v = p._visual;
     const time = PlayScreen.elapsed;
-    for (let i = 0; i < Difficulty.jets.length; i++) {
-      const jet = Difficulty.jets[i];
-      const { particleContainer, pool, nozzle } = this._jetContainers[i];
-      this._syncParticlePool(pool, particleContainer, jet.particles, textures.jetParticle, (p, t) => ({
-        x: p.x, y: p.y,
+    for (let i = 0; i < p.jetSystem.jets.length; i++) {
+      const jet = p.jetSystem.jets[i];
+      const { particleContainer, pool, nozzle } = v.jetContainers[i];
+      this._syncParticlePool(pool, particleContainer, jet.particles, textures.jetParticle, (jp, t) => ({
+        x: jp.x, y: jp.y,
         size: (60 + (20 - 60) * t) * 0.85,
         alpha: 1 - t,
         tint: rgbToHex(40 + (64 - 40) * t, 80 + (0 - 80) * t, 160 + (128 - 160) * t),
@@ -376,17 +409,16 @@ const PlayScreenPixi = {
     }
   },
 
-  // Rebuilds the liquid's fill + shine Graphics from Platform.liquidColumns —
-  // has to run every frame since the column levels genuinely change every
-  // frame (spring physics), unlike everything else in this file which is a
-  // static shape just being repositioned. Mirrors Platform._drawLiquid()
-  // line for line, just using Pixi's Graphics path API instead of Canvas 2D's.
-  _refreshLiquid() {
-    const halfT = Platform._liquidHalfThickness();
-    const cols = Platform.liquidColumns;
+  // Rebuilds one platform's liquid fill + shine Graphics from its own
+  // liquidColumns — has to run every frame since the column levels genuinely
+  // change every frame (spring physics).
+  _refreshLiquid(p) {
+    const v = p._visual;
+    const halfT = p._liquidHalfThickness();
+    const cols = p.liquidColumns;
     if (!cols.length) return;
 
-    const body = this._liquidBody;
+    const body = v.liquidBody;
     body.clear();
     body.moveTo(cols[0].x, halfT);
     body.lineTo(cols[0].x, cols[0].level);
@@ -412,7 +444,7 @@ const PlayScreenPixi = {
     });
     body.fill(bodyGrad);
 
-    const shine = this._liquidShine;
+    const shine = v.liquidShine;
     shine.clear();
     const maxDepth = halfT * 2;
     for (let i = 0; i < cols.length - 1; i++) {

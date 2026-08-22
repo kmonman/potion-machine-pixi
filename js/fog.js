@@ -55,84 +55,65 @@ const Fog = {
   },
 };
 
-// Bubbles that stream up from the hinge while the ball is touching it — not an
-// ambient background effect. (First pass had these spawning randomly across the
-// whole screen at all times; Rob caught that they should specifically be part of
-// the hinge-touch feedback, alongside the glow and sparkles.)
-// Trying the *real* source emitter here for comparison (Rob) — the original
-// project's hinge-bubble object is literally called "SparklesFront", with:
-// flow 50/s, force 5-20 (gentle), life 0.2-8s (long-lived), size 30→0
-// (starts big, shrinks away), color pink(254,19,117)→cyan(63,203,255) with
-// alpha 255→0, particleGravityY -40 (continuously accelerates upward),
-// texture Bubble.png. This is a full swap of the previous hand-tuned version
-// (dense small circles, fixed 3s life, one pink tone) — easy to revert to
-// that if this doesn't look right, nothing here is pushed yet.
-const HingeBubbles = {
-  bubbles: [],
-  spawnTimer: 0,
+// Bubbles that stream up from a platform's hinge while the ball is touching it —
+// not an ambient background effect. The original project's hinge-bubble object is
+// literally called "SparklesFront": flow 50/s, force 5-20 (gentle), life 0.2-8s
+// (long-lived), size 30→0 (starts big, shrinks away), color pink(254,19,117)→
+// cyan(63,203,255) with alpha 255→0, particleGravityY -40 (continuously
+// accelerates upward), texture Bubble.png — read directly from the source
+// project's own numbers rather than hand-guessed, then stretched 15% longer-lived
+// (Rob liked that about an earlier hand-tuned version).
+//
+// Was a single global `HingeBubbles` object through Phase 1 (one hinge on screen
+// at a time). For the multi-platform tower this is now a factory —
+// `createHingeBubbles()` — so each platform's hinge gets its own independent
+// bubble stream rather than sharing one global one.
+function createHingeBubbles() {
+  return {
+    bubbles: [],
+    spawnTimer: 0,
 
-  reset() {
-    this.bubbles = [];
-    this.spawnTimer = 0;
-  },
+    reset() {
+      this.bubbles = [];
+      this.spawnTimer = 0;
+    },
 
-  update(dt, emitting, x, y) {
-    if (emitting) {
-      this.spawnTimer -= dt;
-      let bubbleGuard = 0;
-      while (this.spawnTimer <= 0 && bubbleGuard < 20) {
-        this.spawnTimer += 1 / 50; // flow=50/s
-        bubbleGuard++;
-        // angleA=0/angleB=180 in the source — spread across the whole upper
-        // half (never aims downward), matching gravityY pulling everything
-        // up regardless of its initial direction.
-        const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;
-        const force = 5 + Math.random() * 15; // emitterForceMin/Max 5-20
-        this.bubbles.push({
-          x, y,
-          vx: Math.cos(angle) * force,
-          vy: Math.sin(angle) * force,
-          life: 0,
-          // Slightly longer-lived than the real source values (Rob liked
-          // that about the previous hand-tuned version) — same 0.2-8s
-          // range, just stretched 15%.
-          maxLife: (0.2 + Math.random() * 7.8) * 1.15,
-          maxSize: 30, // particleSize1 (shrinks to particleSize2=0)
-          // Borrowed from the previous hand-tuned version too (Rob: "the 3
-          // dimensional twist as they flowed up") — a per-bubble sideways
-          // weave layered on top of the emitter's own vx/vy, drawn as an x
-          // offset rather than baked into position so it doesn't fight the
-          // real gravity/velocity integration below.
-          wobblePhase: Math.random() * Math.PI * 2,
-          wobbleAmp: 6 + Math.random() * 10,
-          wobbleSpeed: 1 + Math.random() * 1,
-        });
+    update(dt, emitting, x, y) {
+      if (emitting) {
+        this.spawnTimer -= dt;
+        let bubbleGuard = 0;
+        while (this.spawnTimer <= 0 && bubbleGuard < 20) {
+          this.spawnTimer += 1 / 50; // flow=50/s
+          bubbleGuard++;
+          // angleA=0/angleB=180 in the source — spread across the whole upper
+          // half (never aims downward), matching gravityY pulling everything
+          // up regardless of its initial direction.
+          const angle = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;
+          const force = 5 + Math.random() * 15; // emitterForceMin/Max 5-20
+          this.bubbles.push({
+            x, y,
+            vx: Math.cos(angle) * force,
+            vy: Math.sin(angle) * force,
+            life: 0,
+            maxLife: (0.2 + Math.random() * 7.8) * 1.15,
+            maxSize: 30, // particleSize1 (shrinks to particleSize2=0)
+            // A per-bubble sideways weave layered on top of the emitter's own
+            // vx/vy, drawn as an x offset rather than baked into position so it
+            // doesn't fight the real gravity/velocity integration below.
+            wobblePhase: Math.random() * Math.PI * 2,
+            wobbleAmp: 6 + Math.random() * 10,
+            wobbleSpeed: 1 + Math.random() * 1,
+          });
+        }
       }
-    }
-    for (const b of this.bubbles) {
-      b.vy += -40 * dt; // particleGravityY — continuously accelerates upward
-      b.x += b.vx * dt;
-      b.y += b.vy * dt;
-      b.wobblePhase += dt * b.wobbleSpeed;
-      b.life += dt;
-    }
-    this.bubbles = this.bubbles.filter((b) => b.life < b.maxLife);
-  },
-
-  draw(ctx, images) {
-    for (const b of this.bubbles) {
-      const t = b.life / b.maxLife;
-      const size = b.maxSize * (1 - t); // particleSize1→particleSize2 (30→0)
-      const alpha = 1 - t; // particleAlpha1→particleAlpha2 (255→0)
-      const drawX = b.x + Math.sin(b.wobblePhase) * b.wobbleAmp;
-      const col = [
-        Math.round(254 + (63 - 254) * t),
-        Math.round(19 + (203 - 19) * t),
-        Math.round(117 + (255 - 117) * t),
-      ];
-      if (images.hingeBubbleParticle) {
-        drawTintedParticle(ctx, images.hingeBubbleParticle, drawX, b.y, size, col, alpha, false);
+      for (const b of this.bubbles) {
+        b.vy += -40 * dt; // particleGravityY — continuously accelerates upward
+        b.x += b.vx * dt;
+        b.y += b.vy * dt;
+        b.wobblePhase += dt * b.wobbleSpeed;
+        b.life += dt;
       }
-    }
-  },
-};
+      this.bubbles = this.bubbles.filter((b) => b.life < b.maxLife);
+    },
+  };
+}

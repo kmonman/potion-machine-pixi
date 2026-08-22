@@ -307,6 +307,13 @@ async function main() {
   screenContainers.home = HomeScreenPixi.container;
   LevelsScreenPixi.build(textures, state);
   screenContainers.levels = LevelsScreenPixi.container;
+  // PlayScreenPixi.build() needs PlayScreen.platforms to exist (it builds one
+  // Pixi visual bundle per platform) — but PlayScreen.enter() only runs once
+  // the player actually navigates into a run, same ordering issue Phase 1 hit
+  // with JET_DEFS vs Difficulty.jets. Seed the tower structure now so build()
+  // has something to construct visuals for; enter() rebuilds/resets it for real
+  // every time a run actually starts.
+  PlayScreen.platforms = PlayScreen._buildTower();
   PlayScreenPixi.build(textures);
   HudPixi.build(textures);
   GameOverPixi.build(textures);

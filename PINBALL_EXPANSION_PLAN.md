@@ -200,18 +200,71 @@ and then redoing the rendering right after would mean doing real work twice.
   not just the desktop preview, since that's exactly the kind of gap that caused this
   whole investigation.
 
-**Phase 2 — New platform mechanics (not scoped in detail yet):**
-Needs real design decisions before implementation starts, e.g.:
-- How many platforms, how are they laid out (fixed hand-authored positions vs.
-  procedural)?
-- How does the ball get from one platform to another — jets only, or a new launch
-  mechanic?
-- Does the camera stay fixed (see the whole table at once) or move/follow the ball?
-- Does each platform need its own hinge-style scoring spot, or is scoring different
-  per platform?
-- What's the win/progression condition — reach the top platform? Score threshold per
-  platform? Something else?
-- New art assets needed for additional platform types/decorations.
+**Phase 2 — New platform mechanics — scope decided 2026-08-22:**
+- **Height**: not infinite/endless generation — a fixed tower roughly 2-3x the height
+  of today's single-platform game (so likely a handful of platforms, exact count TBD
+  once the first slice is up and it's clear how tall a "reasonable" blast-jump is).
+- **Camera**: follows the ball vertically as it climbs/falls (not a fixed whole-table
+  view). This needs a new world/viewport split — a "world" container taller than the
+  screen, panned based on ball height, with the HUD staying screen-fixed on top of it
+  (the HUD/score/blast-buttons must NOT pan with the world).
+- **Layout**: hand-designed platform positions (a fixed tower), not procedural.
+- **Getting between platforms**: the existing potion-blaster mechanic (blastCharges /
+  `PlayScreen.fireBlast()`) launches the ball upward to the next platform — not the
+  ambient jets, which keep their current role as each platform's own scoring/visual
+  effect, not a transit mechanic.
+- **Scoring**: every platform gets its own hinge-style scoring spot — same core loop
+  (touch the glowing hinge) repeated per platform, reusing the existing hinge/particle
+  systems per instance rather than inventing a new scoring mechanic.
+- **Difficulty**: still ramps over time/height, but gains a new axis — platforms
+  (starting with the lowest) get narrower over time, plus other challenge types not
+  yet designed.
+- **End condition**: no explicit "win" screen — same survival/until-the-ball-falls
+  model as today's Free Play, just playing out across a taller multi-platform space.
+- **Per-platform variety**: Rob's original vision was each platform having its own
+  emitters/jets/effects (visual variety platform to platform), not just copies of one
+  platform stacked up — true, but left as a detail to design once the camera +
+  blast-transit skeleton is proven out, not before.
+
+**First implementation slice — built and verified working (2026-08-22):** 3 platforms
+stacked vertically (base + 2 more, `PlayScreen.TOWER_SPACING` = 260px apart), camera
+panning to follow the ball, potion blasts launching it up to the next platform (bumped
+from 600 to 950 force so it can actually clear the gap — see `fireBlast()` in ui.js),
+each platform running its own independent hinge glow/particles/liquid/jets. Built with
+duplicated/reused art and effects for now, to prove the world/camera architecture works
+before investing in per-platform visual variety or the narrowing-width difficulty layer.
+
+**What changed under the hood:** `Platform` (platform.js), `HingeBubbles` (fog.js),
+and jets (previously inside `Difficulty`, difficulty.js) all went from singleton
+objects to factories (`createPlatform()`, `createHingeBubbles()`, `createJetSystem()`)
+so 3 independent instances can exist at once — each platform now owns its own copy of
+everything except the ball itself (still one shared `Physics` singleton) and the
+overall tube-heat/moon/tilt difficulty progression (stays global — it's the run's
+overall difficulty, not a per-platform thing). `physics.js` now checks collision
+against every platform in the tower and tracks `touching` per-platform (not one global
+flag) plus `currentPlatform` (whichever one the ball is resting on, used for the
+blast's launch angle). `pixi_playscreen.js` builds one Pixi visual bundle per platform
+(`p._visual`) inside a new `worldContainer` that pans based on the ball's world Y
+position — the ball sprite gets re-stacked into the right z-order every frame
+(`_restackBall`) so it renders behind whichever platform's hinge it's currently near.
+Only the base platform gets a pole (Rob: the ones above it are just floating bars).
+
+**Bug caught during verification:** the camera's clamp bounds were accidentally
+swapped (`Math.max(minCamY, Math.min(maxCamY, target))` with `minCamY` numerically
+*larger* than `maxCamY`) — since `min > max` always wins a `Math.max`, this pinned the
+camera at one fixed value regardless of the ball's actual position. Caught by directly
+checking `worldContainer.y` against the expected target in the browser console rather
+than only eyeballing screenshots. Fixed and reverified — camera now tracks the ball
+correctly climbing from the base platform up through the tower.
+
+**Verified via direct physics stepping in the browser console:** a blast fired from
+resting on the base platform successfully carries the ball up and lands it resting on
+the middle platform (confirmed via `Physics.currentPlatform` and y-position, not just a
+screenshot); collision resolves correctly against the middle platform in isolation too.
+Screenshotted mid-flight between platforms with the camera correctly tracking the
+ball's world position. Not yet done: verifying it feels right with a human actually
+playing (tilting a phone) rather than scripted physics steps — that's the point of the
+phone test Rob asked for next.
 
 ## Open questions for Rob before Phase 1 starts
 1. Whole-canvas Pixi migration, or particles-only to start?

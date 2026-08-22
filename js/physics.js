@@ -23,20 +23,33 @@ const Physics = {
   tiltAccel: 1400, // px/s^2 at full tilt (tiltX = ±1)
   airDamping: 0.999,
 
+  // True if the ball is touching ANY platform's hinge (used for scoring — see
+  // ui.js). Each individual platform also tracks its own `.touching` flag (set
+  // below, in _checkHinge) so its own glow/particles react to whether the ball
+  // is on THAT platform specifically, not just "some platform somewhere".
   touchingHinge: false,
   fellOff: false,
+  platforms: [],
+  // Whichever platform the ball is currently resting on (or last rested on) —
+  // used for things that need "the platform under the ball" specifically, like
+  // the Potion Blast's launch direction.
+  currentPlatform: null,
 
-  reset() {
-    // Drop from the center of the screen (Rob) — Platform.pivot.x is already
-    // screen-center (360 of 720), so this just drops the old +120 offset to
-    // one side instead of picking a new coordinate.
-    this.x = Platform.pivot.x;
-    this.y = Platform.pivot.y - 140;
+  reset(platforms) {
+    this.platforms = platforms;
+    // Drop from the center of the base platform (Rob) — same -140 offset as
+    // the original single-platform version, just relative to platforms[0]
+    // (the ground platform) instead of a single global Platform singleton.
+    const base = platforms[0];
+    this.x = base.pivot.x;
+    this.y = base.pivot.y - 140;
     this.vx = 0;
     this.vy = 0;
     this.rotation = 0;
     this.touchingHinge = false;
     this.fellOff = false;
+    this.currentPlatform = base;
+    for (const p of platforms) p.touching = false;
   },
 
   // Runs physics in fixed ~1/60s substeps instead of one shot at whatever
@@ -89,60 +102,70 @@ const Physics = {
     this._checkBoundaries();
     this._checkHinge();
 
-    if (this.y > 1100) {
+    // Falls off once it drops well below the lowest (base) platform — was a
+    // flat 1100 back when there was only one platform on a 1280-tall screen;
+    // now expressed relative to the base platform's own pivot so it still
+    // means the same thing (about 450px below the platform) regardless of
+    // where the tower sits or how tall it is.
+    const base = this.platforms[0];
+    if (this.y > base.pivot.y + 448) {
       this.fellOff = true;
     }
   },
 
+  // Checks every platform in the tower and resolves against whichever one the
+  // ball actually overlaps — with real spacing between platforms only one
+  // should ever match at a time, but looping all of them (there are only a
+  // handful) is simpler and safer than trying to guess which one is "current"
+  // ahead of time.
   _resolvePlatformCollision(dt) {
-    const p = Platform;
-    const dir = p.dir;
-    const normal = p.normal;
-    const rx = this.x - p.pivot.x;
-    const ry = this.y - p.pivot.y;
+    for (const p of this.platforms) {
+      const dir = p.dir;
+      const normal = p.normal;
+      const rx = this.x - p.pivot.x;
+      const ry = this.y - p.pivot.y;
 
-    const along = rx * dir.x + ry * dir.y;
-    const perp = rx * normal.x + ry * normal.y;
+      const along = rx * dir.x + ry * dir.y;
+      const perp = rx * normal.x + ry * normal.y;
 
-    const restPerp = -(p.thickness / 2 + this.displayRadius);
-    const halfLength = p.length / 2;
+      const restPerp = -(p.thickness / 2 + this.displayRadius);
+      const halfLength = p.length / 2;
 
-    // `perp > restPerp` alone has no upper bound, so it also matches a ball
-    // that has already fallen well past the bar and ended up on the wrong
-    // side of it — normally impossible without tunneling (which the
-    // substepping in update() now prevents), but the platform keeps
-    // rotating to a new angle every few seconds, and `along`/`perp` are
-    // recomputed against whatever the *current* rotated bar is every frame.
-    // A ball that fell off near one end can have the bar's tip swing back
-    // toward its world position, remapping it back into "along the bar,
-    // deeply overlapping" even though it's actually well below/behind the
-    // bar now — which read as the ball getting "sucked back onto the
-    // platform" instead of falling all the way down (Rob). Capping how deep
-    // an overlap still counts as "resting" (one ball-radius) rejects that
-    // case while still catching genuine landings.
-    const maxRestOverlap = restPerp + this.displayRadius;
-    if (Math.abs(along) <= halfLength && perp > restPerp && perp < maxRestOverlap) {
-      // Push the ball back to rest on the surface.
-      const clampedAlong = along;
-      const clampedPerp = restPerp;
-      this.x = p.pivot.x + dir.x * clampedAlong + normal.x * clampedPerp;
-      this.y = p.pivot.y + dir.y * clampedAlong + normal.y * clampedPerp;
+      // `perp > restPerp` alone has no upper bound, so it also matches a ball
+      // that has already fallen well past the bar and ended up on the wrong
+      // side of it — normally impossible without tunneling (which the
+      // substepping in update() now prevents), but the platform keeps
+      // rotating to a new angle every few seconds, and `along`/`perp` are
+      // recomputed against whatever the *current* rotated bar is every frame.
+      // A ball that fell off near one end can have the bar's tip swing back
+      // toward its world position, remapping it back into "along the bar,
+      // deeply overlapping" even though it's actually well below/behind the
+      // bar now — which read as the ball getting "sucked back onto the
+      // platform" instead of falling all the way down (Rob). Capping how deep
+      // an overlap still counts as "resting" (one ball-radius) rejects that
+      // case while still catching genuine landings.
+      const maxRestOverlap = restPerp + this.displayRadius;
+      if (Math.abs(along) <= halfLength && perp > restPerp && perp < maxRestOverlap) {
+        // Push the ball back to rest on the surface.
+        const clampedAlong = along;
+        const clampedPerp = restPerp;
+        this.x = p.pivot.x + dir.x * clampedAlong + normal.x * clampedPerp;
+        this.y = p.pivot.y + dir.y * clampedAlong + normal.y * clampedPerp;
 
-      // Decompose velocity into along-bar / into-bar components.
-      let vAlong = this.vx * dir.x + this.vy * dir.y;
-      let vNormal = this.vx * normal.x + this.vy * normal.y;
-      if (vNormal > 0) vNormal = 0; // stop moving into the surface
-      // Difficulty.grip is meant as "fraction of speed kept per second of contact"
-      // (hotter tube = less grip = harder to control) — Math.pow(grip, dt) makes
-      // that true regardless of frame rate. A bug here (dt not actually reaching
-      // this function, despite being passed in) meant grip was applied as a flat
-      // per-*frame* multiplier instead: at 60fps that's grip^60 retained per
-      // second, crushing well over 99% of the ball's along-surface speed every
-      // second — which is why it barely seemed to move under gravity/tilt at all.
-      vAlong *= Math.pow(Difficulty.grip, dt);
+        // Decompose velocity into along-bar / into-bar components.
+        let vAlong = this.vx * dir.x + this.vy * dir.y;
+        let vNormal = this.vx * normal.x + this.vy * normal.y;
+        if (vNormal > 0) vNormal = 0; // stop moving into the surface
+        // Difficulty.grip is meant as "fraction of speed kept per second of contact"
+        // (hotter tube = less grip = harder to control) — Math.pow(grip, dt) makes
+        // that true regardless of frame rate.
+        vAlong *= Math.pow(Difficulty.grip, dt);
 
-      this.vx = dir.x * vAlong + normal.x * vNormal;
-      this.vy = dir.y * vAlong + normal.y * vNormal;
+        this.vx = dir.x * vAlong + normal.x * vNormal;
+        this.vy = dir.y * vAlong + normal.y * vNormal;
+        this.currentPlatform = p;
+        return;
+      }
     }
   },
 
@@ -173,18 +196,28 @@ const Physics = {
   // Rob: this should register anywhere from the center dot out to the outer
   // ring, not just near dead center. Uses displayRadius since that's the
   // ball's real drawn size, not the (slightly smaller) physics radius.
+  // Checks every platform independently — with the tower, the ball can only
+  // realistically be near one hinge at a time, but each platform needs to know
+  // for itself whether it's the one being touched right now.
   _checkHinge() {
-    const dx = this.x - Platform.pivot.x;
-    const dy = this.y - Platform.pivot.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    this.touchingHinge = dist < (Platform.hingeRingRadius + this.displayRadius);
+    this.touchingHinge = false;
+    for (const p of this.platforms) {
+      const dx = this.x - p.pivot.x;
+      const dy = this.y - p.pivot.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      p.touching = dist < (p.hingeRingRadius + this.displayRadius);
+      if (p.touching) this.touchingHinge = true;
+    }
   },
 
   // Free Play's "Potion Blast" power-up — a player-triggered impulse, direction
-  // taken from the platform's current angle (same formula shape as the original:
-  // sideways component from sin(angle), upward component from cos(angle)).
+  // taken from whichever platform the ball is currently on (or last rested on)
+  // — same formula shape as the original: sideways component from sin(angle),
+  // upward component from cos(angle). This is also the tower's climb mechanic
+  // now (Rob), so it needs to be strong enough to comfortably clear the gap to
+  // the next platform up — see TOWER_SPACING in ui.js.
   applyBlast(force) {
-    const rad = Platform.angleRad;
+    const rad = (this.currentPlatform || this.platforms[0]).angleRad;
     this.vx += Math.sin(rad) * force;
     this.vy -= Math.cos(rad) * force;
   },
