@@ -27,10 +27,26 @@ running side by side).
   correctly on both tilt directions), the glass shadow/highlight overlay, and the ball
   (position/rotation driven by the same unmodified `Physics` object as the live game).
 
-**Not built yet:** the hinge glow and its three particle effects (HingeMagic,
-HingeSparks, HingeBubbles), the jets, the HUD (score/potion-counter pills, mute, blast
-buttons), and the Game Over screen. Also still owed: brightening the pole's glow, which
-reads dimmer on Pixi than the live Canvas version right now.
+- **Hinge glow + all 3 particle effects, and jet particle streams** (same session,
+  second pass) — the dot/ring glow (rebuilt every frame since color/blur animate with
+  touch state), HingeMagic, HingeSparks, and HingeBubbles all ported to a shared
+  `_syncParticlePool` helper that reuses pooled Sprites and recolors via Pixi's native
+  `.tint` instead of the old per-particle offscreen-canvas repaint trick — genuinely
+  cheaper on the GPU, not just capped like the live version's fix. Jets' particle stream
+  (not yet their base "nozzle" glow effect — aura/core/rays, still Canvas-only) ported
+  the same way. Verified together in one scene (touching + a jet firing) with zero
+  console errors across repeated update cycles.
+
+**Not built yet:** the jet base "nozzle" glow (aura/core/rays), the HUD
+(score/potion-counter pills, mute, blast buttons), and the Game Over screen. Also still
+owed: brightening the pole's glow, which reads dimmer on Pixi than the live Canvas
+version right now.
+
+**Bug caught and fixed this pass:** the jet particle containers were built once in
+`build()` by mapping over `Difficulty.jets` — but that array starts empty and is only
+populated by `Difficulty.reset()` (called from `PlayScreen.enter()`, i.e. only once a
+run actually starts), which hadn't happened yet at boot time. Fixed by building from
+`JET_DEFS` (the fixed 4-entry source list) instead.
 
 **Pattern being followed:** none of the underlying game logic (`physics.js`,
 `platform.js`'s update methods, `difficulty.js`, `fog.js`) has been touched — only how

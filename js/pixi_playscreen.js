@@ -6,6 +6,15 @@
 // already used by the live Canvas 2D game (none of that math changed, only
 // how it gets drawn). Liquid, the hinge glow/particles, jets, HUD, and the
 // Game Over flow are NOT built yet — next chunks.
+
+// Pixi sprite tints take a single packed 0xRRGGBB number, not separate
+// channels — the old ctx-based particle code kept r/g/b as separate lerped
+// floats the whole way through, so this just packs them at the point of use.
+function rgbToHex(r, g, b) {
+  return (clampByte(r) << 16) | (clampByte(g) << 8) | clampByte(b);
+}
+function clampByte(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+
 const PlayScreenPixi = {
   container: null,
   _fogSprites: [],
@@ -121,13 +130,68 @@ const PlayScreenPixi = {
 
     c.addChild(this._platformContainer);
 
+    // Hinge — z-order matters a lot here (many rounds of Rob's feedback
+    // landed on this exact order): bubbles behind everything (the sprite's
+    // own opaque pixels are what hides them at the dot, not a draw-order
+    // trick alone), then the sprite, then the dot glow, then HingeMagic
+    // smoke, then the ring glow, then HingeSparks on top.
+    this._hingeBubbleContainer = new PIXI.Container();
+    c.addChild(this._hingeBubbleContainer);
+
+    this._hingeSprite = new PIXI.Sprite(textures.hinge);
+    this._hingeSprite.anchor.set(0.5);
+    this._hingeSprite.width = 112; this._hingeSprite.height = 112;
+    this._hingeSprite.position.set(Platform.pivot.x, Platform.pivot.y);
+    c.addChild(this._hingeSprite);
+
+    // Dot + ring glow — same two-pass technique as the pole (a blurred
+    // stroke layer + a crisp solid one on top), rebuilt every frame since
+    // the color/blur strength both animate with hingeGlow (0 idle → 1
+    // touched). Two separate Graphics (blurred vs solid) since a Pixi
+    // filter blurs its *whole* object — can't blur just one of two strokes
+    // sharing a single Graphics the way ctx's per-call shadowBlur could.
+    this._hingeGlowBlurred = new PIXI.Graphics();
+    this._hingeGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 4 })];
+    this._hingeGlowSolid = new PIXI.Graphics();
+    c.addChild(this._hingeGlowBlurred, this._hingeGlowSolid);
+
+    this._hingeMagicContainer = new PIXI.Container();
+    this._hingeMagicContainer.blendMode = 'add';
+    c.addChild(this._hingeMagicContainer);
+
+    // Ring's own glow is drawn AFTER HingeMagic (see drawHinge's real order),
+    // reusing the same two Graphics objects — redrawn fresh each frame
+    // alongside the dot in _refreshHinge() rather than needing 4 separate
+    // Graphics objects for dot+ring.
+
+    this._hingeSparkContainer = new PIXI.Container();
+    c.addChild(this._hingeSparkContainer);
+
+    this._hingeMagicPool = [];
+    this._hingeSparkPool = [];
+    this._hingeBubblePool = [];
+
+    // Jets — one particle container per jet (see Difficulty.drawJets). Built
+    // from JET_DEFS directly, not Difficulty.jets — the latter starts as an
+    // empty array and is only populated by Difficulty.reset() (called from
+    // PlayScreen.enter(), i.e. only once the player actually starts a run),
+    // which hasn't happened yet at boot time when build() runs.
+    this._jetContainers = JET_DEFS.map(() => {
+      const jc = new PIXI.Container();
+      jc.blendMode = 'add';
+      c.addChild(jc);
+      return { particleContainer: jc, pool: [] };
+    });
+
     // Ball — Physics.draw()'s equivalent: a sprite rotating around its own
     // center, position/rotation copied from Physics.x/y/rotation every frame.
+    // Added *after* the hinge/bubbles (Rob: the ball renders behind the
+    // hinge and its bubbles) but before nothing else yet — HUD isn't built.
     this._ballSprite = new PIXI.Sprite(textures.ball);
     this._ballSprite.anchor.set(0.5);
     const ballSize = Physics.displayRadius * 2;
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
-    c.addChild(this._ballSprite);
+    c.addChildAt(this._ballSprite, c.getChildIndex(this._hingeBubbleContainer));
   },
 
   update(dt, tiltX) {
@@ -153,6 +217,104 @@ const PlayScreenPixi = {
 
     this._ballSprite.position.set(Physics.x, Physics.y);
     this._ballSprite.rotation = Physics.rotation;
+
+    this._refreshHinge();
+    this._refreshJets();
+  },
+
+  // Syncs a pool of reusable Sprites to however many particles are
+  // currently alive, calling styleFn(particle, t) for each to get its
+  // {x, y, size, alpha, tint, additive}. Reusing sprites instead of
+  // creating/destroying one per particle per frame avoids needless churn —
+  // and unlike the old Canvas 2D drawTintedParticle helper (which repainted
+  // an offscreen canvas from scratch per particle per frame, the actual
+  // measured cause of the mobile lag investigated earlier), Pixi sprites
+  // recolor via `.tint`, a genuinely free GPU operation, no repainting at all.
+  _syncParticlePool(pool, container, particles, texture, styleFn) {
+    while (pool.length < particles.length) {
+      const s = new PIXI.Sprite(texture);
+      s.anchor.set(0.5);
+      container.addChild(s);
+      pool.push(s);
+    }
+    while (pool.length > particles.length) {
+      container.removeChild(pool.pop());
+    }
+    for (let i = 0; i < particles.length; i++) {
+      const t = particles[i].life / particles[i].maxLife;
+      const st = styleFn(particles[i], t);
+      const s = pool[i];
+      s.position.set(st.x, st.y);
+      s.width = s.height = Math.max(0, st.size);
+      s.tint = st.tint;
+      s.alpha = Math.max(0, Math.min(1, st.alpha));
+      s.blendMode = st.additive ? 'add' : 'normal';
+    }
+  },
+
+  _refreshHinge() {
+    const { x, y } = Platform.pivot;
+    const g = Platform.hingeGlow;
+    const c = [
+      Math.round(140 + (175 - 140) * g),
+      Math.round(70 + (85 - 70) * g),
+      Math.round(230 + (255 - 230) * g),
+    ];
+    const rgb = `rgb(${c.join(',')})`;
+
+    this._syncParticlePool(this._hingeBubblePool, this._hingeBubbleContainer, HingeBubbles.bubbles, textures.hingeBubbleParticle, (p, t) => ({
+      x: p.x + Math.sin(p.wobblePhase) * p.wobbleAmp, y: p.y,
+      size: p.maxSize * (1 - t), alpha: 1 - t,
+      tint: rgbToHex(254 + (63 - 254) * t, 19 + (203 - 19) * t, 117 + (255 - 117) * t),
+      additive: false,
+    }));
+
+    // Dot + ring glow, both drawn into the same pair of Graphics (blurred
+    // pass, solid pass) since only the dot's/ring's own radius differs —
+    // matches drawHinge()'s real draw order (dot first, then — after
+    // HingeMagic below — the ring), but since both share one Graphics pair
+    // here, the ring's stroke is added in the *second* half of this method
+    // rather than needing a separate Graphics per radius.
+    const blurred = this._hingeGlowBlurred, solid = this._hingeGlowSolid;
+    blurred.clear();
+    solid.clear();
+    this._hingeGlowBlurred.filters[0].strength = 4;
+    const dotR = 17;
+    blurred.circle(x, y, dotR).stroke({ width: 5, color: rgb, alpha: 0.4 + g * 0.6 });
+    solid.circle(x, y, dotR).stroke({ width: 3, color: rgb, alpha: 0.5 + g * 0.5 });
+
+    this._syncParticlePool(this._hingeMagicPool, this._hingeMagicContainer, Platform.hingeMagicParticles, textures.smokeParticle, (p, t) => ({
+      x: p.x, y: p.y,
+      size: p.maxSize * t, alpha: (150 / 255) * (1 - t),
+      tint: rgbToHex(74 + (119 - 74) * t, 144 + (0 - 144) * t, 226 + (255 - 226) * t),
+      additive: true,
+    }));
+
+    for (const r of [47, Platform.hingeRingRadius]) {
+      blurred.circle(x, y, r).stroke({ width: 5, color: rgb, alpha: 0.4 + g * 0.6 });
+      solid.circle(x, y, r).stroke({ width: 3, color: rgb, alpha: 0.5 + g * 0.5 });
+    }
+
+    this._syncParticlePool(this._hingeSparkPool, this._hingeSparkContainer, Platform.hingeSparkParticles, textures.glowParticle, (p, t) => ({
+      x: p.x, y: p.y,
+      size: 15 * (1 - t), alpha: (70 / 255) * (1 - t),
+      tint: rgbToHex(255, 255 + (33 - 255) * t, 255),
+      additive: false,
+    }));
+  },
+
+  _refreshJets() {
+    for (let i = 0; i < Difficulty.jets.length; i++) {
+      const jet = Difficulty.jets[i];
+      const { particleContainer, pool } = this._jetContainers[i];
+      this._syncParticlePool(pool, particleContainer, jet.particles, textures.jetParticle, (p, t) => ({
+        x: p.x, y: p.y,
+        size: (60 + (20 - 60) * t) * 0.85,
+        alpha: 1 - t,
+        tint: rgbToHex(40 + (64 - 40) * t, 80 + (0 - 80) * t, 160 + (128 - 160) * t),
+        additive: true,
+      }));
+    }
   },
 
   // Rebuilds the liquid's fill + shine Graphics from Platform.liquidColumns —
