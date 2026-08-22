@@ -145,16 +145,24 @@ const Physics = {
       // an overlap still counts as "resting" (one ball-radius) rejects that
       // case while still catching genuine landings.
       const maxRestOverlap = restPerp + this.displayRadius;
-      if (Math.abs(along) <= halfLength && perp > restPerp && perp < maxRestOverlap) {
+      // Decompose velocity into along-bar / into-bar components up front — the
+      // into-bar sign is what makes this a jump-through platform (Rob): a
+      // blast launches the ball up through a platform's underside on the way
+      // to a higher one (vNormal < 0, moving away from the surface, in the
+      // air), but the moment it's actually falling onto a platform's TOP from
+      // above (vNormal >= 0, moving into the surface), that same platform is
+      // solid ground and catches it normally. Without this direction check, a
+      // ball rising through a platform's underside could get caught exactly
+      // like landing on top of it, stopping the climb dead.
+      let vAlong = this.vx * dir.x + this.vy * dir.y;
+      let vNormal = this.vx * normal.x + this.vy * normal.y;
+      if (vNormal >= 0 && Math.abs(along) <= halfLength && perp > restPerp && perp < maxRestOverlap) {
         // Push the ball back to rest on the surface.
         const clampedAlong = along;
         const clampedPerp = restPerp;
         this.x = p.pivot.x + dir.x * clampedAlong + normal.x * clampedPerp;
         this.y = p.pivot.y + dir.y * clampedAlong + normal.y * clampedPerp;
 
-        // Decompose velocity into along-bar / into-bar components.
-        let vAlong = this.vx * dir.x + this.vy * dir.y;
-        let vNormal = this.vx * normal.x + this.vy * normal.y;
         if (vNormal > 0) vNormal = 0; // stop moving into the surface
         // Difficulty.grip is meant as "fraction of speed kept per second of contact"
         // (hotter tube = less grip = harder to control) — Math.pow(grip, dt) makes
