@@ -234,11 +234,13 @@ const PlayScreenPixi = {
     this._updateCamera();
   },
 
-  // Re-inserts the ball sprite right after whichever platform's hinge glow it
-  // currently belongs to (Physics.currentPlatform — the platform it's resting
-  // on, or last rested on while mid-flight) — i.e. in front of that
-  // platform's sprite and glow, but behind its HingeMagic/HingeSparks, same
-  // as the Phase 1 single-platform version.
+  // Re-inserts the ball sprite right after whichever platform's hinge sprite
+  // it currently belongs to (Physics.currentPlatform — the platform it's
+  // resting on, or last rested on while mid-flight) — i.e. in front of that
+  // platform's flat sprite art, but behind its glow (dot + rings) and
+  // HingeMagic/HingeSparks (Rob: ball in front of the plain hinge sprite,
+  // but behind the glow ring itself — the ring is meant to frame the ball
+  // from in front, like a target).
   //
   // Explicitly removes the ball before computing the target index — calling
   // addChildAt on a child that's already elsewhere in the same container
@@ -246,13 +248,13 @@ const PlayScreenPixi = {
   // ball already in it. An earlier version computed the index first (with
   // the ball still present), which meant the removal-then-insert could land
   // the ball one slot off from where the index was measured, alternating
-  // which side of hingeMagicContainer it ended up on frame to frame — Rob
-  // caught this as the ball visibly flickering in and out of place.
+  // which side of the target ended up on frame to frame — Rob caught this
+  // as the ball visibly flickering in and out of place.
   _restackBall() {
     const p = Physics.currentPlatform || PlayScreen.platforms[0];
     const v = p._visual;
     this.worldContainer.removeChild(this._ballSprite);
-    const idx = this.worldContainer.getChildIndex(v.hingeMagicContainer);
+    const idx = this.worldContainer.getChildIndex(v.hingeGlowBlurred);
     this.worldContainer.addChildAt(this._ballSprite, idx);
   },
 
