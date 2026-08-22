@@ -66,37 +66,45 @@ const GameOverPixi = {
     this._gameOverContainer.position.set(360, 0); // y set per-frame once texture aspect is known
     c.addChild(this._gameOverContainer);
     const goW = 560, goH = goW * (textures.gameOverText.height / textures.gameOverText.width);
-    this._gameOverGlow = new PIXI.Sprite(textures.gameOverText);
-    this._gameOverGlow.anchor.set(0.5);
-    this._gameOverGlow.width = goW; this._gameOverGlow.height = goH;
-    this._gameOverGlow.tint = 0xffffff;
-    this._gameOverGlow.filters = [new PIXI.BlurFilter({ strength: 6 })];
 
-    // Mask the glow to just the bottom half of the letters, gradient-faded so
-    // it's brightest right at the bottom edge and dissipates to nothing by
-    // the vertical center (Rob) — rather than glowing uniformly top to
-    // bottom. The mask's own top edge sits exactly at y=0 (the text's
-    // vertical center) with the gradient itself fading to transparent there,
-    // so there's no visible seam; left/right/bottom are padded 60px past the
-    // glow's own bounds so the mask's hard edges don't clip the blur's
-    // natural soft spread on those sides (only the top is meant to be a
-    // real cutoff).
-    const goGlowMask = new PIXI.Graphics();
-    const glowGrad = new PIXI.FillGradient({
-      type: 'linear', x0: 0, y0: 0, x1: 0, y1: goH / 2,
-      colorStops: [
-        { offset: 0, color: 'rgba(255,255,255,0)' },
-        { offset: 1, color: 'rgba(255,255,255,1)' },
-      ],
-      textureSpace: 'local',
-    });
-    goGlowMask.rect(-goW / 2 - 60, 0, goW + 120, goH / 2 + 60).fill(glowGrad);
-    this._gameOverGlow.mask = goGlowMask;
+    // Glow: sliced into thin horizontal strips, each its own Sprite (cropped
+    // from the source texture via a Rectangle frame) with its own alpha, so
+    // the bottom-half gradient fade (Rob: brightest at the bottom, dissipating
+    // to nothing by the vertical center) is a real per-strip alpha value
+    // instead of relying on Pixi's mask system. A Graphics object assigned as
+    // `.mask` does binary stencil masking — confirmed by sampling the
+    // rendered pixels of an earlier version of this that used a gradient-
+    // filled mask: alpha was uniform everywhere inside the mask's shape, the
+    // gradient had no effect at all despite rendering "correctly" in
+    // isolation. Strips are blurred together as one unit (one BlurFilter on
+    // the container all of them share) rather than individually, so there's
+    // no visible seam between strips from blurring them separately.
+    const GLOW_STRIPS = 20;
+    this._gameOverGlowContainer = new PIXI.Container();
+    this._gameOverGlowContainer.filters = [new PIXI.BlurFilter({ strength: 6 })];
+    const srcW = textures.gameOverText.width, srcH = textures.gameOverText.height;
+    const stripDisplayH = goH / GLOW_STRIPS;
+    this._gameOverGlowStrips = [];
+    for (let i = 0; i < GLOW_STRIPS; i++) {
+      const frame = new PIXI.Rectangle(0, (srcH / GLOW_STRIPS) * i, srcW, srcH / GLOW_STRIPS);
+      const strip = new PIXI.Sprite(new PIXI.Texture({ source: textures.gameOverText.source, frame }));
+      strip.tint = 0xffffff;
+      strip.width = goW;
+      strip.height = stripDisplayH;
+      strip.position.set(-goW / 2, -goH / 2 + i * stripDisplayH);
+      // This strip's own vertical center, relative to the text's vertical
+      // center (0) — negative = upper half (no glow), 0..goH/2 = lower half,
+      // linearly faded.
+      const centerY = (i + 0.5) * stripDisplayH - goH / 2;
+      strip._baseAlpha = centerY <= 0 ? 0 : Math.min(1, centerY / (goH / 2));
+      this._gameOverGlowContainer.addChild(strip);
+      this._gameOverGlowStrips.push(strip);
+    }
 
     this._gameOverSprite = new PIXI.Sprite(textures.gameOverText);
     this._gameOverSprite.anchor.set(0.5);
     this._gameOverSprite.width = goW; this._gameOverSprite.height = goH;
-    this._gameOverContainer.addChild(this._gameOverGlow, goGlowMask, this._gameOverSprite);
+    this._gameOverContainer.addChild(this._gameOverGlowContainer, this._gameOverSprite);
     this._gameOverH = goH;
 
     // Bottom 3-button pill — one image, 3 equal interactive hit-zones (home /
@@ -190,7 +198,8 @@ const GameOverPixi = {
     this._gameOverContainer.y = 560 + this._gameOverH / 2;
     this._gameOverContainer.scale.set(t);
     this._gameOverContainer.alpha = fadeIn;
-    this._gameOverGlow.alpha = Math.max(0, 0.9 * flicker);
+    const flickerMul = Math.max(0, 0.9 * flicker);
+    for (const strip of this._gameOverGlowStrips) strip.alpha = strip._baseAlpha * flickerMul;
 
     const bottomIsLevels = PlayScreen.mode === 'level1';
     this._barFreeplay.visible = !bottomIsLevels;
