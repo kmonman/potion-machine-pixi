@@ -41,10 +41,10 @@ const FREE_PLAY_PHASES = [
 // translation of GDevelop's Box2D numbers). tiltForce matches the original's own
 // per-stage value directly since that one's just a multiplier, not physics-engine-specific.
 const TUBE_STAGE_PARAMS = {
-  Cool: { grip: 0.90, tiltForce: 1, color: [112, 43, 245] },
-  Warm: { grip: 0.78, tiltForce: 0.85, color: [175, 31, 229] },
-  Hot: { grip: 0.60, tiltForce: 0.7, color: [255, 0, 195] },
-  Fire: { grip: 0.40, tiltForce: 0.6, color: [255, 0, 85] },
+  Cool: { grip: 0.90, tiltForce: 1, color: [255, 0, 195] }, // #ff00c3
+  Warm: { grip: 0.78, tiltForce: 0.85, color: [126, 190, 252] }, // #7ebefc
+  Hot: { grip: 0.60, tiltForce: 0.7, color: [42, 148, 244] }, // #2a94f4
+  Fire: { grip: 0.40, tiltForce: 0.6, color: [0, 104, 255] }, // #0068ff
 };
 
 // Each platform's tube runs its own copy of this schedule (see platform.js's
