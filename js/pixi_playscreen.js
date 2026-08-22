@@ -155,32 +155,28 @@ const PlayScreenPixi = {
 
     // Hinge — z-order matters a lot here: bubbles behind everything (the
     // sprite's own opaque pixels are what hides them at the dot), then the
-    // sprite, then the dot glow, then HingeMagic smoke, then the ring glow,
-    // then HingeSparks on top. The ball gets re-inserted right after
-    // hingeBubbleContainer each frame (see _restackBall) so it renders behind
-    // whichever platform's hinge it's currently nearest.
+    // sprite, then the glow (dot + both rings) so it reads bright in front of
+    // the sprite's own flat art, THEN the ball (see _restackBall — it gets
+    // re-inserted right before hingeMagicContainer each frame, i.e. right
+    // after the glow), so the ball sits in front of the sprite *and* the
+    // glow — covering whatever small arc of the ring would otherwise overlap
+    // it, without hiding the glow behind the opaque sprite the way an
+    // earlier version of this ordering did (Rob: "the glow of the hinge is
+    // missing" — that version put the glow behind the sprite too, not just
+    // behind the ball).
     v.hingeBubbleContainer = new PIXI.Container();
     wc.addChild(v.hingeBubbleContainer);
-
-    // Glow (dot + both rings) now built *before* the hinge sprite/ball, so it
-    // sits behind both — Rob: the ring visibly cut across the ball where they
-    // overlapped, since it used to render in front of everything including
-    // the ball. Almost all of the ring's circumference is outside the ball's
-    // footprint anyway, so this only changes the small overlapping arc; the
-    // ring still reads as surrounding the ball everywhere else. _restackBall
-    // still re-inserts the ball right before hingeSprite each frame, so this
-    // ordering (glow, then [ball, hingeSprite]) holds regardless of which
-    // platform the ball is currently nearest.
-    v.hingeGlowBlurred = new PIXI.Graphics();
-    v.hingeGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 4 })];
-    v.hingeGlowSolid = new PIXI.Graphics();
-    wc.addChild(v.hingeGlowBlurred, v.hingeGlowSolid);
 
     v.hingeSprite = new PIXI.Sprite(textures.hinge);
     v.hingeSprite.anchor.set(0.5);
     v.hingeSprite.width = 112 * p.visualScale; v.hingeSprite.height = 112 * p.visualScale;
     v.hingeSprite.position.set(p.pivot.x, p.pivot.y);
     wc.addChild(v.hingeSprite);
+
+    v.hingeGlowBlurred = new PIXI.Graphics();
+    v.hingeGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 4 })];
+    v.hingeGlowSolid = new PIXI.Graphics();
+    wc.addChild(v.hingeGlowBlurred, v.hingeGlowSolid);
 
     v.hingeMagicContainer = new PIXI.Container();
     v.hingeMagicContainer.blendMode = 'add';
@@ -238,16 +234,25 @@ const PlayScreenPixi = {
     this._updateCamera();
   },
 
-  // Re-inserts the ball sprite right after whichever platform's hinge-bubble
-  // container it currently belongs to (Physics.currentPlatform — the platform
-  // it's resting on, or last rested on while mid-flight), so it renders behind
-  // that platform's hinge/bubbles the same way the Phase 1 single-platform
-  // version did. addChildAt on a child already in the tree just reorders it,
-  // not a create/destroy, so this is cheap to do every frame.
+  // Re-inserts the ball sprite right after whichever platform's hinge glow it
+  // currently belongs to (Physics.currentPlatform — the platform it's resting
+  // on, or last rested on while mid-flight) — i.e. in front of that
+  // platform's sprite and glow, but behind its HingeMagic/HingeSparks, same
+  // as the Phase 1 single-platform version.
+  //
+  // Explicitly removes the ball before computing the target index — calling
+  // addChildAt on a child that's already elsewhere in the same container
+  // reorders it, but the index has to be computed on the list *without* the
+  // ball already in it. An earlier version computed the index first (with
+  // the ball still present), which meant the removal-then-insert could land
+  // the ball one slot off from where the index was measured, alternating
+  // which side of hingeMagicContainer it ended up on frame to frame — Rob
+  // caught this as the ball visibly flickering in and out of place.
   _restackBall() {
     const p = Physics.currentPlatform || PlayScreen.platforms[0];
     const v = p._visual;
-    const idx = this.worldContainer.getChildIndex(v.hingeSprite);
+    this.worldContainer.removeChild(this._ballSprite);
+    const idx = this.worldContainer.getChildIndex(v.hingeMagicContainer);
     this.worldContainer.addChildAt(this._ballSprite, idx);
   },
 
