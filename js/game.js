@@ -107,6 +107,19 @@ Music.el.muted = state.muted;
 window.addEventListener('pointerdown', () => Music.tryStart());
 window.addEventListener('keydown', () => Music.tryStart());
 
+// Desktop testing convenience (Rob) — Input.js already has arrow-key tilt as a
+// fallback for testing without a phone; the other half of playing without a
+// mouse is firing a Potion Blast, which was mouse/touch-only (the HUD button).
+// Space does that now, but only during actual gameplay — guarding on screen
+// avoids stealing the space bar from the name field on Home, where typing a
+// literal space in your name should still just work normally.
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && (state.screen === 'level1' || state.screen === 'freeplay')) {
+    e.preventDefault(); // stop the page itself from scrolling on spacebar
+    PlayScreen.fireBlast();
+  }
+});
+
 const images = {}; // raw HTMLImageElement per key — kept around for any code
 // not yet migrated off direct pixel access; being phased out screen by screen.
 const textures = {}; // PIXI.Texture per key — what Pixi Sprites actually draw from.
