@@ -154,8 +154,16 @@ const GameOverPixi = {
     const filled = PlayScreen._potionsFilled();
     this._potionIcons.forEach((s, i) => { s.texture = i < filled ? textures.potionFilled : textures.potionEmpty; });
 
+    // Three sine layers with deliberately non-aligned periods/phases (not simple
+    // multiples of each other) instead of the original's two fast ones (180ms/
+    // 47ms) — that combination repeated often enough to read as a fast, regular
+    // pulse rather than a flicker. Slower and less obviously periodic (Rob).
     const now = Date.now();
-    const flicker = 0.7 + 0.3 * (0.6 * Math.sin(now / 180) + 0.4 * Math.sin(now / 47));
+    const flicker = 0.75 + 0.25 * (
+      0.45 * Math.sin(now / 900) +
+      0.35 * Math.sin(now / 550 + 1.3) +
+      0.2 * Math.sin(now / 1300 + 2.7)
+    );
     this._gameOverContainer.y = 560 + this._gameOverH / 2;
     this._gameOverContainer.scale.set(t);
     this._gameOverContainer.alpha = fadeIn;
