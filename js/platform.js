@@ -118,20 +118,27 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       // HingeMagic — ambient smoke, constant regardless of touch state (Rob).
       // `while`, not `if` — a slower/less consistent frame rate otherwise silently
       // caps the real spawn rate at the frame rate instead of the intended flow rate.
+      // Capped at 15 (down from the single-platform version's 20) — this runs
+      // nonstop on EVERY platform in the tower simultaneously now, not just one, so
+      // a phone GPU crashed ("Aw, Snap!") on the fully uncapped version (Rob's
+      // phone test). Skip-when-full rather than trimming the oldest, same reasoning
+      // as HingeBubbles below.
       this.hingeMagicTimer -= dt;
       let magicGuard = 0;
       while (this.hingeMagicTimer <= 0 && magicGuard < 30) {
         this.hingeMagicTimer += 0.5; // flow=2/s
         magicGuard++;
-        const a = Math.random() * Math.PI * 2;
-        const force = 1 + Math.random() * 2;
-        this.hingeMagicParticles.push({
-          x: this.pivot.x, y: this.pivot.y,
-          vx: Math.cos(a) * force, vy: Math.sin(a) * force,
-          life: 0,
-          maxLife: 2 + Math.random() * 2,
-          maxSize: 30,
-        });
+        if (this.hingeMagicParticles.length < 15) {
+          const a = Math.random() * Math.PI * 2;
+          const force = 1 + Math.random() * 2;
+          this.hingeMagicParticles.push({
+            x: this.pivot.x, y: this.pivot.y,
+            vx: Math.cos(a) * force, vy: Math.sin(a) * force,
+            life: 0,
+            maxLife: 2 + Math.random() * 2,
+            maxSize: 30,
+          });
+        }
       }
       for (const p of this.hingeMagicParticles) {
         p.x += p.vx * dt;
@@ -141,21 +148,25 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       this.hingeMagicParticles = this.hingeMagicParticles.filter((p) => p.life < p.maxLife);
 
       // HingeSparks — fast radiating burst, constant at the full rate (Rob liked
-      // how active it looked while touching and wants that always-on).
+      // how active it looked while touching and wants that always-on). Capped at
+      // 30 (down from 40) for the same multi-platform-GPU-crash reason as
+      // HingeMagic above.
       const sparkFlow = 60;
       this.hingeSparkTimer -= dt;
       let sparkGuard = 0;
       while (this.hingeSparkTimer <= 0 && sparkGuard < 30) {
         this.hingeSparkTimer += 1 / sparkFlow;
         sparkGuard++;
-        const a = Math.random() * Math.PI * 2;
-        const spawnR = Math.random() * 30;
-        const force = 50 + Math.random() * 40;
-        this.hingeSparkParticles.push({
-          x: this.pivot.x + Math.cos(a) * spawnR, y: this.pivot.y + Math.sin(a) * spawnR,
-          vx: Math.cos(a) * force, vy: Math.sin(a) * force,
-          life: 0, maxLife: 0.2 + Math.random() * 0.8,
-        });
+        if (this.hingeSparkParticles.length < 30) {
+          const a = Math.random() * Math.PI * 2;
+          const spawnR = Math.random() * 30;
+          const force = 50 + Math.random() * 40;
+          this.hingeSparkParticles.push({
+            x: this.pivot.x + Math.cos(a) * spawnR, y: this.pivot.y + Math.sin(a) * spawnR,
+            vx: Math.cos(a) * force, vy: Math.sin(a) * force,
+            life: 0, maxLife: 0.2 + Math.random() * 0.8,
+          });
+        }
       }
       for (const p of this.hingeSparkParticles) {
         p.x += p.vx * dt;

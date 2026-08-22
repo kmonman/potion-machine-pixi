@@ -78,6 +78,14 @@ function createHingeBubbles() {
       this.spawnTimer = 0;
     },
 
+    // Capped at 60 (down from the single-platform version's 80) — only one
+    // platform's bubbles can be emitting at a time (the ball can only touch one
+    // hinge at once), but the tower's other constant-running effects (HingeMagic/
+    // HingeSparks on all 3 platforms) already eat into the same GPU budget, so
+    // this got trimmed a bit too after a phone GPU crash ("Aw, Snap!") on the
+    // fully uncapped version (Rob's phone test).
+    MAX_BUBBLES: 60,
+
     update(dt, emitting, x, y) {
       if (emitting) {
         this.spawnTimer -= dt;
@@ -85,6 +93,7 @@ function createHingeBubbles() {
         while (this.spawnTimer <= 0 && bubbleGuard < 20) {
           this.spawnTimer += 1 / 50; // flow=50/s
           bubbleGuard++;
+          if (this.bubbles.length >= this.MAX_BUBBLES) continue;
           // angleA=0/angleB=180 in the source — spread across the whole upper
           // half (never aims downward), matching gravityY pulling everything
           // up regardless of its initial direction.
