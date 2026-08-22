@@ -191,27 +191,14 @@ const Difficulty = {
           spawnGuard++;
           const spread = (Math.random() - 0.5) * (2 * Math.PI / 180); // ~1° angle spread
           const force = 300 + Math.random() * 300;
-          // Hard cap per jet — up to 4 jets can be active at once (some Free
-          // Play phases run 3), and each particle is drawn via
-          // drawTintedParticle (expensive per-call), so uncapped this was a
-          // real measured contributor to the mobile lag Rob reported
-          // (~200 particles across 4 jets at the natural ~50/jet steady
-          // state). Skipping the spawn (not trimming an existing particle)
-          // when at cap — trimming the oldest looked fine here since life is
-          // short and fixed (0.5s either way), but skip-when-full is the
-          // more correct pattern generally (see the same fix on
-          // HingeBubbles, which had variable lifetimes where trimming the
-          // oldest cut particles off early) so kept it consistent.
-          if (jet.particles.length < 25) {
-            jet.particles.push({
-              x: jet.x + (Math.random() - 0.5) * 4, // zoneRadius=4
-              y: jet.y,
-              vx: Math.sin(spread) * force,
-              vy: -Math.cos(spread) * force,
-              life: 0,
-              maxLife: 0.5,
-            });
-          }
+          jet.particles.push({
+            x: jet.x + (Math.random() - 0.5) * 4, // zoneRadius=4
+            y: jet.y,
+            vx: Math.sin(spread) * force,
+            vy: -Math.cos(spread) * force,
+            life: 0,
+            maxLife: 0.5,
+          });
         }
       } else {
         jet.wasInRange = false;

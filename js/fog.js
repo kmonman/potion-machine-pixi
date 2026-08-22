@@ -76,17 +76,6 @@ const HingeBubbles = {
     this.spawnTimer = 0;
   },
 
-  // Hard cap on concurrent bubbles — each one is drawn via drawTintedParticle
-  // (an offscreen-canvas re-tint per particle per frame, not a cheap draw),
-  // and the real emitter's flow/lifetime combination steadies out around
-  // ~230 concurrent bubbles on its own, which measured at ~20ms/frame of
-  // draw time alone — enough on its own to blow a 60fps frame budget, and
-  // the likely main cause of Rob's "game is lagging a lot" report. Trimming
-  // from the *oldest* end when over cap costs little visually since those
-  // are already faded to near-nothing (alpha/size both shrink to 0 near the
-  // end of life) — same idea as the game's other hard-clamp safety nets.
-  MAX_BUBBLES: 80,
-
   update(dt, emitting, x, y) {
     if (emitting) {
       this.spawnTimer -= dt;
@@ -94,16 +83,6 @@ const HingeBubbles = {
       while (this.spawnTimer <= 0 && bubbleGuard < 20) {
         this.spawnTimer += 1 / 50; // flow=50/s
         bubbleGuard++;
-        // Skip spawning past the cap rather than killing an existing bubble
-        // to make room — this emitter's lifetimes vary a lot (0.2-9.2s), so
-        // trimming the *oldest* one on every overflow (the previous version
-        // of this cap) was constantly cutting off bubbles that still had
-        // most of their life ahead of them, well before they'd risen or
-        // faded naturally — that's why they read as "barely going up"
-        // (Rob). Skipping the spawn instead just pauses new bubbles until
-        // an existing one dies of natural causes, so every bubble that does
-        // spawn lives out its full randomly-assigned lifetime undisturbed.
-        if (this.bubbles.length >= this.MAX_BUBBLES) continue;
         // angleA=0/angleB=180 in the source — spread across the whole upper
         // half (never aims downward), matching gravityY pulling everything
         // up regardless of its initial direction.

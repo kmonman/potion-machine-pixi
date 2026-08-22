@@ -131,19 +131,13 @@ const Platform = {
       magicGuard++;
       const a = Math.random() * Math.PI * 2;
       const force = 1 + Math.random() * 2;
-      // Skip spawning past the cap rather than trimming an existing
-      // particle — lifetimes vary (2-4s), so cutting the oldest short on
-      // every overflow risks the same "cut off before it finishes" look
-      // that turned up on the hinge bubbles (Rob).
-      if (this.hingeMagicParticles.length < 20) {
-        this.hingeMagicParticles.push({
-          x: this.pivot.x, y: this.pivot.y,
-          vx: Math.cos(a) * force, vy: Math.sin(a) * force,
-          life: 0,
-          maxLife: 2 + Math.random() * 2,
-          maxSize: 30,
-        });
-      }
+      this.hingeMagicParticles.push({
+        x: this.pivot.x, y: this.pivot.y,
+        vx: Math.cos(a) * force, vy: Math.sin(a) * force,
+        life: 0,
+        maxLife: 2 + Math.random() * 2,
+        maxSize: 30,
+      });
     }
     for (const p of this.hingeMagicParticles) {
       p.x += p.vx * dt;
@@ -165,13 +159,11 @@ const Platform = {
       const a = Math.random() * Math.PI * 2;
       const spawnR = Math.random() * 30;
       const force = 50 + Math.random() * 40;
-      if (this.hingeSparkParticles.length < 40) {
-        this.hingeSparkParticles.push({
-          x: this.pivot.x + Math.cos(a) * spawnR, y: this.pivot.y + Math.sin(a) * spawnR,
-          vx: Math.cos(a) * force, vy: Math.sin(a) * force,
-          life: 0, maxLife: 0.2 + Math.random() * 0.8,
-        });
-      }
+      this.hingeSparkParticles.push({
+        x: this.pivot.x + Math.cos(a) * spawnR, y: this.pivot.y + Math.sin(a) * spawnR,
+        vx: Math.cos(a) * force, vy: Math.sin(a) * force,
+        life: 0, maxLife: 0.2 + Math.random() * 0.8,
+      });
     }
     for (const p of this.hingeSparkParticles) {
       p.x += p.vx * dt;
