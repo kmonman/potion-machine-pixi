@@ -190,7 +190,7 @@ const GO_SCORE_FONT_SIZE = 68;
 // edge 634) rather than the board's real border (681) — Rob: the score's right
 // edge was creeping too close to the border and past the bottles underneath it.
 const GO_SCORE_RIGHT = 634;
-const GO_SCORE_Y = 233;
+const GO_SCORE_Y = 220; // moved up slightly from 233 (Rob)
 const GO_BUBBLE_GAP = 20; // gap between the bubble cluster and the score text
 const GO_BUBBLE_MASK_W = 90;
 const GO_BUBBLE_MASK_Y = 200;

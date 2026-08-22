@@ -71,10 +71,32 @@ const GameOverPixi = {
     this._gameOverGlow.width = goW; this._gameOverGlow.height = goH;
     this._gameOverGlow.tint = 0xffffff;
     this._gameOverGlow.filters = [new PIXI.BlurFilter({ strength: 6 })];
+
+    // Mask the glow to just the bottom half of the letters, gradient-faded so
+    // it's brightest right at the bottom edge and dissipates to nothing by
+    // the vertical center (Rob) — rather than glowing uniformly top to
+    // bottom. The mask's own top edge sits exactly at y=0 (the text's
+    // vertical center) with the gradient itself fading to transparent there,
+    // so there's no visible seam; left/right/bottom are padded 60px past the
+    // glow's own bounds so the mask's hard edges don't clip the blur's
+    // natural soft spread on those sides (only the top is meant to be a
+    // real cutoff).
+    const goGlowMask = new PIXI.Graphics();
+    const glowGrad = new PIXI.FillGradient({
+      type: 'linear', x0: 0, y0: 0, x1: 0, y1: goH / 2,
+      colorStops: [
+        { offset: 0, color: 'rgba(255,255,255,0)' },
+        { offset: 1, color: 'rgba(255,255,255,1)' },
+      ],
+      textureSpace: 'local',
+    });
+    goGlowMask.rect(-goW / 2 - 60, 0, goW + 120, goH / 2 + 60).fill(glowGrad);
+    this._gameOverGlow.mask = goGlowMask;
+
     this._gameOverSprite = new PIXI.Sprite(textures.gameOverText);
     this._gameOverSprite.anchor.set(0.5);
     this._gameOverSprite.width = goW; this._gameOverSprite.height = goH;
-    this._gameOverContainer.addChild(this._gameOverGlow, this._gameOverSprite);
+    this._gameOverContainer.addChild(this._gameOverGlow, goGlowMask, this._gameOverSprite);
     this._gameOverH = goH;
 
     // Bottom 3-button pill — one image, 3 equal interactive hit-zones (home /
