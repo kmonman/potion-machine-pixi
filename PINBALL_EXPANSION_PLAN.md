@@ -262,9 +262,34 @@ resting on the base platform successfully carries the ball up and lands it resti
 the middle platform (confirmed via `Physics.currentPlatform` and y-position, not just a
 screenshot); collision resolves correctly against the middle platform in isolation too.
 Screenshotted mid-flight between platforms with the camera correctly tracking the
-ball's world position. Not yet done: verifying it feels right with a human actually
-playing (tilting a phone) rather than scripted physics steps — that's the point of the
-phone test Rob asked for next.
+ball's world position.
+
+**Phone test #1 crashed ("Aw, Snap!") — three fix attempts before finding the real
+cause:**
+1. First guess: removed particle caps earlier in the session assuming Pixi's native
+   `.tint` made the old Canvas 2D bottleneck moot — reinstated them, tuned down for 3
+   simultaneous platforms. Didn't fix it.
+2. Second guess: every jet nozzle had its own real-time `BlurFilter` — up to 12 active
+   across the tower plus 3 more on hinges, each a genuine render-to-texture pass.
+   Removed the jet ones (aura/core gradients already read as glowy without it).
+   Didn't fix it either.
+3. Rob pushed back, correctly: plenty of games handle far more particles than this
+   without crashing, so raw counts were the wrong thing to chase. That reframing led
+   to the real bug: `_refreshJets()` built a **brand new `PIXI.FillGradient` every
+   frame, for every active jet** (up to 24/frame across the tower) — each one bakes
+   its own small GPU texture, none of which ever got freed. A genuine, continuously
+   growing GPU memory leak, not a one-time cost — which also explains why it "loaded
+   fine, crashed once playing" rather than crashing instantly. Fixed by positioning
+   each jet's Graphics at its world location and drawing in local (0,0) coordinates,
+   so the gradient definitions are static and can be built once in `build()` and
+   reused forever instead of reallocated. Verified visually (all 12 jets forced
+   active, no visual change) — not yet reverified on Rob's actual phone.
+
+**Lesson for future sessions:** when chasing a GPU crash, check for anything
+constructing new Pixi objects that bake their own textures (FillGradient, filters,
+RenderTexture, etc.) inside a per-frame refresh loop before assuming it's a raw
+particle-count or draw-call problem — a leak explains "fine at first, crashes after
+playing a while" much better than a one-time cost does.
 
 ## Open questions for Rob before Phase 1 starts
 1. Whole-canvas Pixi migration, or particles-only to start?
