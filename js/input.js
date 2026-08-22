@@ -38,16 +38,25 @@ const Input = (() => {
   const gameWrapEl = document.getElementById('gameWrap');
   let mouseTilt = null; // null until the mouse actually moves — don't force tilt to 0 just because deviceorientation/keys haven't fired yet
   window.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse' || !gameWrapEl) return;
+    // document.hasFocus() guards against the browser window itself being in
+    // the background — Rob: the ball kept responding to mouse movement even
+    // while he was working in a different window/app entirely. A background
+    // tab/window can still receive pointermove in some cases (the OS just
+    // reports cursor position crossing that window's screen bounds,
+    // regardless of which window is actually focused), so pointerType alone
+    // wasn't enough to stop it.
+    if (e.pointerType !== 'mouse' || !gameWrapEl || !document.hasFocus()) return;
     const rect = gameWrapEl.getBoundingClientRect();
     const norm = (e.clientX - (rect.left + rect.width / 2)) / (rect.width / 2);
     mouseTilt = Math.max(-1, Math.min(1, norm));
   });
-  // Let it drift back to center on leaving the game area, same spirit as the
-  // keyboard fallback centering when no arrow key is held.
+  // Let it drift back to center on leaving the game area, or on the browser
+  // window losing focus entirely (switching to another app/window) — same
+  // spirit as the keyboard fallback centering when no arrow key is held.
   window.addEventListener('pointerleave', (e) => {
     if (e.pointerType === 'mouse') mouseTilt = null;
   });
+  window.addEventListener('blur', () => { mouseTilt = null; });
 
   function handleOrientation(event) {
     if (event.gamma === null) return;
