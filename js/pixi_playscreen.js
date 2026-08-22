@@ -28,6 +28,31 @@ const PlayScreenPixi = {
     const c = new PIXI.Container();
     this.container = c;
 
+    // Built once and reused by every jet on every platform, every frame (see
+    // _refreshJets) — a FillGradient bakes its own small GPU texture, so
+    // constructing a fresh one per jet per frame (as an earlier version did)
+    // leaked GPU memory continuously until it crashed a phone. Center is (0,0)
+    // since each jet's nozzle Graphics gets positioned at the jet's world
+    // location instead (nozzle.position.set), so the gradient itself never
+    // needs to know where any particular jet actually is.
+    this._jetAuraGradient = new PIXI.FillGradient({
+      type: 'radial', center: { x: 0, y: 0 }, innerRadius: 0, outerCenter: { x: 0, y: 0 }, outerRadius: 24,
+      colorStops: [
+        { offset: 0, color: 'rgba(120,170,255,0.35)' },
+        { offset: 1, color: 'rgba(90,140,255,0)' },
+      ],
+      textureSpace: 'local',
+    });
+    this._jetCoreGradient = new PIXI.FillGradient({
+      type: 'radial', center: { x: 0, y: 0 }, innerRadius: 0, outerCenter: { x: 0, y: 0 }, outerRadius: 6,
+      colorStops: [
+        { offset: 0, color: 'rgba(255,255,255,0.95)' },
+        { offset: 0.5, color: 'rgba(180,210,255,0.6)' },
+        { offset: 1, color: 'rgba(180,210,255,0)' },
+      ],
+      textureSpace: 'local',
+    });
+
     const bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
     c.addChild(bg);
 
@@ -381,43 +406,37 @@ const PlayScreenPixi = {
 
       nozzle.clear();
       if (!jet.active) continue;
-      const bx = jet.x, by = jet.y;
       const pulse = 0.5 + 0.5 * Math.sin(time * 6);
 
-      const aura = new PIXI.FillGradient({
-        type: 'radial', center: { x: bx, y: by }, innerRadius: 0, outerCenter: { x: bx, y: by }, outerRadius: 24,
-        colorStops: [
-          { offset: 0, color: 'rgba(120,170,255,0.35)' },
-          { offset: 1, color: 'rgba(90,140,255,0)' },
-        ],
-        textureSpace: 'local',
-      });
-      nozzle.circle(bx, by, 24).fill(aura);
+      // Position the whole nozzle Graphics at the jet's world location and draw
+      // everything relative to its own local (0,0) — this is what lets the aura/
+      // core gradients below be built ONCE and reused instead of constructed
+      // fresh every frame (see the cached gradients set up in build()). An
+      // earlier version created a brand new PIXI.FillGradient here every frame,
+      // for every active jet (up to 24/frame across the tower) — each one bakes
+      // its own small GPU texture, and none of that ever got freed, so it was a
+      // genuine memory leak that grew until a phone's GPU ran out and crashed
+      // ("Aw, Snap!" — Rob's test). This was the real fix; the particle-count
+      // and jet-blur changes before it were real improvements but not the
+      // actual cause.
+      nozzle.position.set(jet.x, jet.y);
+      nozzle.circle(0, 0, 24).fill(this._jetAuraGradient);
 
       // toFixed avoids JS stringifying a near-zero alpha as exponential notation
       // (e.g. "2.04e-7"), which Pixi's color parser rejects — Canvas 2D's parser
       // (the source this was ported from, difficulty.js) tolerates that fine.
-      nozzle.circle(bx, by, 5 + pulse * 9).stroke({ width: 1.5, color: `rgba(180,210,255,${(0.5 * (1 - pulse)).toFixed(3)})` });
+      nozzle.circle(0, 0, 5 + pulse * 9).stroke({ width: 1.5, color: `rgba(180,210,255,${(0.5 * (1 - pulse)).toFixed(3)})` });
 
       const angleCenter = -Math.PI / 2, spread = 0.9, rayCount = 5;
       for (let r = 0; r < rayCount; r++) {
         const a = angleCenter - spread + (2 * spread) * (r / (rayCount - 1)) + Math.sin(time * 2 + r) * 0.05;
         const len = 9 + pulse * 4;
-        nozzle.moveTo(bx + Math.cos(a) * 3, by + Math.sin(a) * 3)
-          .lineTo(bx + Math.cos(a) * len, by + Math.sin(a) * len)
+        nozzle.moveTo(Math.cos(a) * 3, Math.sin(a) * 3)
+          .lineTo(Math.cos(a) * len, Math.sin(a) * len)
           .stroke({ width: 1, color: 'rgba(200,220,255,0.5)' });
       }
 
-      const core = new PIXI.FillGradient({
-        type: 'radial', center: { x: bx, y: by }, innerRadius: 0, outerCenter: { x: bx, y: by }, outerRadius: 6,
-        colorStops: [
-          { offset: 0, color: 'rgba(255,255,255,0.95)' },
-          { offset: 0.5, color: 'rgba(180,210,255,0.6)' },
-          { offset: 1, color: 'rgba(180,210,255,0)' },
-        ],
-        textureSpace: 'local',
-      });
-      nozzle.circle(bx, by, 6).fill(core);
+      nozzle.circle(0, 0, 6).fill(this._jetCoreGradient);
     }
   },
 
