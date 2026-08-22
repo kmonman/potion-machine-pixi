@@ -55,9 +55,16 @@ const ASSET_PATHS = {
 };
 
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
 const gameWrap = document.getElementById('gameWrap');
 const nameInput = document.getElementById('nameInput');
+
+// Pixi Application — the GPU rendering foundation for this rebuild (see
+// PINBALL_EXPANSION_PLAN.md). Reuses the existing <canvas> element (rather
+// than letting Pixi create its own) so gameWrap's CSS sizing/scaling and the
+// nameInput DOM overlay positioned on top of it don't need to change at all.
+// `app` isn't usable until `app.init()` resolves (Pixi v8's init is async) —
+// see main() below.
+const app = new PIXI.Application();
 
 const state = {
   screen: 'home', // 'home' | 'levels' | 'level1' | 'freeplay'
@@ -91,10 +98,14 @@ Music.el.muted = state.muted;
 window.addEventListener('pointerdown', () => Music.tryStart());
 window.addEventListener('keydown', () => Music.tryStart());
 
-const images = {};
+const images = {}; // raw HTMLImageElement per key — kept around for any code
+// not yet migrated off direct pixel access; being phased out screen by screen.
+const textures = {}; // PIXI.Texture per key — what Pixi Sprites actually draw from.
 
 // Retries on failure — matters on real phones with flaky mobile connections,
-// not just for local dev testing.
+// not just for local dev testing. Unchanged from the Canvas 2D version: this
+// part has nothing to do with rendering, just fetching image files, so it
+// carries over as-is.
 function loadImage(src, attemptsLeft = 3) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -121,7 +132,12 @@ async function loadAssets() {
     while (cursor < entries.length) {
       const i = cursor++;
       const [key, path] = entries[i];
-      images[key] = await loadImage(path);
+      const img = await loadImage(path);
+      images[key] = img;
+      // PIXI.Texture.from() accepts an already-loaded HTMLImageElement
+      // directly and uploads it to the GPU — no separate Pixi-side loading
+      // step needed on top of the existing retry logic above.
+      textures[key] = PIXI.Texture.from(img);
     }
   }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
@@ -178,45 +194,54 @@ function toggleMute() {
   Music.el.muted = state.muted;
 }
 
-// ---------- Input wiring ----------
-function canvasPointFromEvent(clientX, clientY) {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = CONFIG.WIDTH / rect.width;
-  const scaleY = CONFIG.HEIGHT / rect.height;
-  return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+// ---------- Screens (Pixi containers, one per screen, toggled visible/hidden
+// rather than redrawn from scratch every frame — see pixi_home.js's header
+// comment for why this replaces the old ctx-based draw()/hitTest() pattern). ----------
+// Only Home is really rebuilt so far (see PINBALL_EXPANSION_PLAN.md — this is
+// the first proven slice, not the whole game). Levels/PlayScreen are simple
+// placeholders for now so the app is fully navigable without crashing while
+// the rest of the rebuild is still in progress.
+const screenContainers = {};
+
+function buildPlaceholderScreen(label) {
+  const c = new PIXI.Container();
+  const bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
+  c.addChild(bg);
+  const text = new PIXI.Text({
+    text: label,
+    style: { fontFamily: 'PotionTitle', fontSize: 36, fill: 0xffffff, align: 'center', wordWrap: true, wordWrapWidth: 600 },
+  });
+  text.anchor.set(0.5);
+  text.position.set(360, 500);
+  c.addChild(text);
+
+  const homeBtn = new PIXI.Graphics().rect(0, 0, 160, 60).stroke({ width: 2, color: 0x9013fe });
+  const homeBtnText = new PIXI.Text({ text: 'Home', style: { fontFamily: 'PotionBody', fontSize: 22, fill: 0x9013fe } });
+  homeBtnText.anchor.set(0.5);
+  homeBtnText.position.set(80, 30);
+  homeBtn.addChild(homeBtnText);
+  homeBtn.position.set(280, 600);
+  homeBtn.eventMode = 'static';
+  homeBtn.cursor = 'pointer';
+  homeBtn.on('pointertap', () => goHome());
+  c.addChild(homeBtn);
+
+  return c;
 }
 
-function handleTap(clientX, clientY) {
-  const { x, y } = canvasPointFromEvent(clientX, clientY);
-
-  if (state.screen === 'home') {
-    const target = HomeScreen.hitTest(x, y);
-    if (target === 'freePlay') tryEnterGame('FreePlay');
-    else if (target === 'levelMode') tryEnterGame('Levels');
-    else if (target === 'mute') toggleMute();
-    return;
-  }
-
-  if (state.screen === 'levels') {
-    const hit = LevelsScreen.hitTest(x, y, state);
-    if (hit && hit.target === 'home') goHome();
-    else if (hit && hit.target === 'playLevel1') enterPlayScreen('level1');
-    return;
-  }
-
-  if (state.screen === 'level1' || state.screen === 'freeplay') {
-    const hit = PlayScreen.hitTest(x, y);
-    if (hit && hit.target === 'home') goHome();
-    else if (hit && hit.target === 'retry') PlayScreen.enter(state.screen);
-    else if (hit && hit.target === 'mute') toggleMute();
-    else if (hit && hit.target === 'blast') PlayScreen.fireBlast();
-    else if (hit && hit.target === 'levels') state.screen = 'levels';
-    else if (hit && hit.target === 'leaderboard') PlayScreen.showLeaderboardComingSoon();
-    return;
+// level1/freeplay share one container (both use PlayScreenPixi), so this
+// compares by container identity rather than by key — comparing by key alone
+// would have two keys fighting over the same object's .visible flag.
+function showScreen(name) {
+  const target = screenContainers[name];
+  const seen = new Set();
+  for (const key in screenContainers) {
+    const container = screenContainers[key];
+    if (seen.has(container)) continue;
+    seen.add(container);
+    container.visible = container === target;
   }
 }
-
-canvas.addEventListener('pointerdown', (e) => handleTap(e.clientX, e.clientY));
 
 // ---------- Resize (keeps the fixed 720x1280 internal coordinate space; only
 // the CSS box around it scales — matches the approach used in Halloween-Platformer) ----------
@@ -230,44 +255,55 @@ function fitGameWrap() {
 window.addEventListener('resize', fitGameWrap);
 
 // ---------- Main loop ----------
+// Driven by Pixi's own ticker (app.ticker) instead of a hand-rolled
+// requestAnimationFrame loop — Pixi already renders every tick on its own, so
+// this only needs to run game *logic* (input, physics) and screen switching,
+// not manually trigger drawing the way the Canvas 2D version had to.
 const MAX_DT = 1 / 20; // clamp so a stalled tab doesn't cause a huge physics jump on return
+let lastScreen = null;
 
-function update(dt) {
+function tick(ticker) {
+  const dt = Math.min(MAX_DT, ticker.deltaMS / 1000);
   Input.update();
-  if (state.screen === 'level1' || state.screen === 'freeplay') {
-    PlayScreen.update(dt, Input.tiltX);
-  }
-}
 
-function render() {
+  if (state.screen !== lastScreen) {
+    showScreen(state.screen);
+    lastScreen = state.screen;
+  }
   if (state.screen === 'home') {
-    HomeScreen.draw(ctx, images, state);
+    HomeScreenPixi.refresh(textures, state);
   } else if (state.screen === 'levels') {
-    LevelsScreen.draw(ctx, images, state);
-  } else if (state.screen === 'level1') {
-    PlayScreen.draw(ctx, images, 'Level 1');
-  } else if (state.screen === 'freeplay') {
-    PlayScreen.draw(ctx, images, 'Free Play');
+    LevelsScreenPixi.refresh(state);
+  } else if (state.screen === 'level1' || state.screen === 'freeplay') {
+    PlayScreenPixi.update(dt, Input.tiltX);
+    PlayScreenPixi.refresh();
   }
-}
-
-let lastTime = null;
-function loop(now) {
-  if (lastTime === null) lastTime = now;
-  const dt = Math.min(MAX_DT, (now - lastTime) / 1000);
-  lastTime = now;
-
-  update(dt);
-  render();
-  requestAnimationFrame(loop);
 }
 
 // ---------- Boot ----------
 async function main() {
   fitGameWrap();
   nameInput.value = state.playerName;
+
+  // Pixi v8's init is async — resizeTo keeps its internal render resolution
+  // matched to the canvas's own backing size, and reuses the existing
+  // #gameCanvas element rather than inserting a second one.
+  await app.init({ canvas, width: CONFIG.WIDTH, height: CONFIG.HEIGHT, backgroundColor: 0x0a0410, antialias: true });
+
   await loadAssets();
-  requestAnimationFrame(loop);
+
+  HomeScreenPixi.build(textures, state);
+  screenContainers.home = HomeScreenPixi.container;
+  LevelsScreenPixi.build(textures, state);
+  screenContainers.levels = LevelsScreenPixi.container;
+  PlayScreenPixi.build(textures);
+  screenContainers.level1 = PlayScreenPixi.container;
+  screenContainers.freeplay = PlayScreenPixi.container;
+  for (const key in screenContainers) app.stage.addChild(screenContainers[key]);
+  showScreen(state.screen);
+  lastScreen = state.screen;
+
+  app.ticker.add(tick);
 }
 
 main();

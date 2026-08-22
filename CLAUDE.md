@@ -200,6 +200,31 @@ database called directly from the game's JS:
   phase list stays external data, not hardcoded logic), but no new mechanics beyond what's
   in the original game get built now.
 - Friend-group leaderboards (see above).
+- **"Pinball machine" expansion — scoped as its own separate project, not yet
+  started (decided 2026-08-22).** Rob's vision: multiple platforms (not just
+  the one see-saw), each with their own jets/emitters/other effects, with the
+  ball getting launched higher to reach other platforms/levels — like a
+  pinball table, likely showing a good chunk of the playfield/several
+  platforms at once rather than one section at a time. This came out of a
+  performance conversation (see fix #71/#72 above — a real, measured particle
+  lag bug, since fixed via hard caps) where Rob pushed back that a
+  multi-platform version with more simultaneous emitters would hit the same
+  wall harder. Conclusion: this specific game's current single-platform scope
+  is fine on today's plain Canvas 2D rendering (measured: the ball's own
+  physics+draw cost is ~0.002ms/frame, nowhere near the bottleneck — the slow
+  part was always the particle-tinting technique, now capped); but a true
+  multi-platform pinball table showing several platforms' worth of effects
+  at once would need a real GPU rendering foundation to have headroom,
+  rather than the cheaper same-Canvas fix (a pre-tinted texture cache) that
+  would suit "more of the same effects" but not "many platforms active at
+  once." Two GPU paths discussed, neither started: hand-rolled WebGL (more
+  work, no new dependency, stays fully in code Claude wrote/understands) vs.
+  PixiJS (less work since it's pre-built, but a real external dependency —
+  the same library GDevelop's own runtime is built on). Rob's call, not
+  decided yet. Since it's a new platform-mechanics + rendering-foundation
+  project, not a tweak to the current game, do the rendering foundation
+  first if this gets picked up, before building new platform mechanics on
+  top of it — otherwise that work risks getting done twice.
 
 ---
 
