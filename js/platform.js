@@ -15,20 +15,26 @@ function easeInOutSine(t) {
 }
 
 function createPlatform(pivotX, pivotY, opts = {}) {
-  // Top and middle platforms are smaller than the base (Rob: 60% size) — scaling
-  // length/thickness/hingeRingRadius here (not just the Pixi rendering) means
-  // Physics's collision math, which reads these directly, automatically matches
-  // whatever size actually gets drawn.
+  // Two independent size knobs: `scale` shrinks everything about a platform
+  // uniformly (thickness, hinge sprite/glow, the works) — Rob tried this at
+  // 0.6 for the top/middle platforms and reverted it. `lengthScale` only
+  // narrows how far the tube stretches left/right, leaving its thickness and
+  // the hinge completely alone (Rob's actual ask). Scaling these here (not
+  // just the Pixi rendering) means Physics's collision math, which reads
+  // length/thickness/hingeRingRadius directly, automatically matches whatever
+  // size actually gets drawn.
   const scale = opts.scale ?? 1;
+  const lengthScale = opts.lengthScale ?? 1;
   return {
     pivot: { x: pivotX, y: pivotY },
     visualScale: scale,
+    lengthScale,
     // Shortened from the original's 674 (Rob's phone test: the tube reached close
     // enough to the screen edges that the ball couldn't actually fall down the gap
     // between the tube's end and the side wall). Widened back up 520→620 (Rob: felt
     // too small) — the 100px fall-through margin (Physics._checkBoundaries) still
     // gives room to drop.
-    length: 620 * scale,
+    length: 620 * scale * lengthScale,
     thickness: 52 * scale,
     // The sprite's own outer ring (Hinge.png), measured directly from the asset
     // pixels: it sits at radius 42-49 of the 100x100 source, scaled to the 112px

@@ -270,17 +270,18 @@ const PlayScreen = {
   // layout, not procedural), each running its own independent jets/hinge-bubbles
   // (Rob: "each platform should function independently", not share one global
   // simulation). Only the base platform gets a pole (Rob: the ones above it are
-  // just floating bars). Top/middle platforms are back to full/original size
-  // (Rob — tried 60% scale, decided against it) but keep their single-jet
-  // restriction — middle only its outer-left jet (index 0), top only its
-  // outer-right jet (index 1) — rather than the base platform's full
-  // independently-randomizing set of 4.
+  // just floating bars). Top/middle platforms are full height/thickness and
+  // keep a full-size hinge (Rob tried uniformly shrinking everything at 60%
+  // and reverted it) — the only thing narrower on them is the tube's length,
+  // via lengthScale. They also keep their single-jet restriction — middle
+  // only its outer-left jet (index 0), top only its outer-right jet (index 1)
+  // — rather than the base platform's full independently-randomizing set of 4.
   _buildTower() {
     const baseX = 360, baseY = 652;
     const platforms = [
       createPlatform(baseX, baseY, { hasPole: true }),
-      createPlatform(baseX, baseY - this.TOWER_SPACING),
-      createPlatform(baseX, baseY - this.TOWER_SPACING * 2),
+      createPlatform(baseX, baseY - this.TOWER_SPACING, { lengthScale: 0.7 }),
+      createPlatform(baseX, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7 }),
     ];
     platforms[0].jetSystem = createJetSystem();
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0] });
@@ -328,7 +329,10 @@ const PlayScreen = {
     if (!this.isOver) {
       for (const p of this.platforms) {
         p.update(dt);
-        p.jetSystem.update(dt, p.pivot, p.dir, p.visualScale);
+        // Jet mount points are distances along the bar, so they scale with
+        // lengthScale specifically (how far the bar itself reaches), not the
+        // general visualScale (which is 1 for every platform right now).
+        p.jetSystem.update(dt, p.pivot, p.dir, p.lengthScale);
       }
       Difficulty.update(dt);
       Physics.update(dt, tiltX);
