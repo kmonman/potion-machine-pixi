@@ -61,31 +61,32 @@ const PlayScreenPixi = {
     vignette.rect(0, 0, 720, 1280).fill(grad);
     c.addChild(vignette);
 
-    // Pole — static sprite + a glowing rounded-rect outline drawn with a
-    // vertical alpha fade (matches Platform.draw()'s two-pass shadowBlur
-    // technique, approximated here with Pixi's blur filter since ctx's
-    // per-stroke shadowBlur doesn't have a direct Pixi equivalent — a filter
-    // blurs the whole graphics object instead of just its stroke, which
-    // reads close enough at this glow's scale).
+    // Pole — static sprite + a glowing rounded-rect outline. First attempt
+    // used one blurred pass and read noticeably dimmer than the live Canvas
+    // version — switched to the same two-pass technique already working
+    // well on the hinge (a blurred layer underneath + a crisp solid layer on
+    // top), instead of trying to tune a single blur pass to compensate.
     const poleX = Platform.pivot.x - 25;
     this._poleSprite = new PIXI.Sprite(textures.pole);
     this._poleSprite.position.set(poleX, Platform.pivot.y);
     this._poleSprite.width = 50; this._poleSprite.height = Platform.poleHeight;
     c.addChild(this._poleSprite);
 
-    this._poleGlow = new PIXI.Graphics();
     const poleGrad = new PIXI.FillGradient({
       type: 'linear', x0: 0, y0: Platform.pivot.y, x1: 0, y1: Platform.pivot.y + Platform.poleHeight,
       colorStops: [
-        { offset: 0, color: 'rgba(170,100,255,0.35)' },
-        { offset: 0.6, color: 'rgba(170,100,255,0.2)' },
+        { offset: 0, color: 'rgba(170,100,255,0.9)' },
+        { offset: 0.6, color: 'rgba(170,100,255,0.55)' },
         { offset: 1, color: 'rgba(170,100,255,0)' },
       ],
       textureSpace: 'local',
     });
-    this._poleGlow.roundRect(poleX, Platform.pivot.y, 50, Platform.poleHeight, 10).stroke({ width: 3, fill: poleGrad });
-    this._poleGlow.filters = [new PIXI.BlurFilter({ strength: 6 })];
-    c.addChild(this._poleGlow);
+    this._poleGlowBlurred = new PIXI.Graphics()
+      .roundRect(poleX, Platform.pivot.y, 50, Platform.poleHeight, 10).stroke({ width: 6, fill: poleGrad });
+    this._poleGlowBlurred.filters = [new PIXI.BlurFilter({ strength: 8 })];
+    this._poleGlowSolid = new PIXI.Graphics()
+      .roundRect(poleX, Platform.pivot.y, 50, Platform.poleHeight, 10).stroke({ width: 3, fill: poleGrad });
+    c.addChild(this._poleGlowBlurred, this._poleGlowSolid);
 
     // Platform bar — a Container so the whole assembly (bar sprite, and later
     // liquid/glass) rotates together around the pivot, same coordinate-space
@@ -176,11 +177,21 @@ const PlayScreenPixi = {
     // empty array and is only populated by Difficulty.reset() (called from
     // PlayScreen.enter(), i.e. only once the player actually starts a run),
     // which hasn't happened yet at boot time when build() runs.
+    // Each jet's base "nozzle" glow (aura + pulsing ring + spark rays + core —
+    // see Difficulty.drawJets) is its own small rebuilt-every-frame Graphics,
+    // same pattern as the hinge dot/ring, wrapped in a blurred+additive
+    // container matching the ctx version's `filter='blur(3px)'` +
+    // `globalCompositeOperation='lighter'` pairing.
     this._jetContainers = JET_DEFS.map(() => {
       const jc = new PIXI.Container();
       jc.blendMode = 'add';
-      c.addChild(jc);
-      return { particleContainer: jc, pool: [] };
+      const nozzle = new PIXI.Graphics();
+      const nozzleWrap = new PIXI.Container();
+      nozzleWrap.blendMode = 'add';
+      nozzleWrap.filters = [new PIXI.BlurFilter({ strength: 3 })];
+      nozzleWrap.addChild(nozzle);
+      c.addChild(jc, nozzleWrap);
+      return { particleContainer: jc, pool: [], nozzle };
     });
 
     // Ball — Physics.draw()'s equivalent: a sprite rotating around its own
@@ -311,9 +322,10 @@ const PlayScreenPixi = {
   },
 
   _refreshJets() {
+    const time = PlayScreen.elapsed;
     for (let i = 0; i < Difficulty.jets.length; i++) {
       const jet = Difficulty.jets[i];
-      const { particleContainer, pool } = this._jetContainers[i];
+      const { particleContainer, pool, nozzle } = this._jetContainers[i];
       this._syncParticlePool(pool, particleContainer, jet.particles, textures.jetParticle, (p, t) => ({
         x: p.x, y: p.y,
         size: (60 + (20 - 60) * t) * 0.85,
@@ -321,6 +333,43 @@ const PlayScreenPixi = {
         tint: rgbToHex(40 + (64 - 40) * t, 80 + (0 - 80) * t, 160 + (128 - 160) * t),
         additive: true,
       }));
+
+      nozzle.clear();
+      if (!jet.active) continue;
+      const bx = jet.x, by = jet.y;
+      const pulse = 0.5 + 0.5 * Math.sin(time * 6);
+
+      const aura = new PIXI.FillGradient({
+        type: 'radial', center: { x: bx, y: by }, innerRadius: 0, outerCenter: { x: bx, y: by }, outerRadius: 24,
+        colorStops: [
+          { offset: 0, color: 'rgba(120,170,255,0.35)' },
+          { offset: 1, color: 'rgba(90,140,255,0)' },
+        ],
+        textureSpace: 'local',
+      });
+      nozzle.circle(bx, by, 24).fill(aura);
+
+      nozzle.circle(bx, by, 5 + pulse * 9).stroke({ width: 1.5, color: `rgba(180,210,255,${0.5 * (1 - pulse)})` });
+
+      const angleCenter = -Math.PI / 2, spread = 0.9, rayCount = 5;
+      for (let r = 0; r < rayCount; r++) {
+        const a = angleCenter - spread + (2 * spread) * (r / (rayCount - 1)) + Math.sin(time * 2 + r) * 0.05;
+        const len = 9 + pulse * 4;
+        nozzle.moveTo(bx + Math.cos(a) * 3, by + Math.sin(a) * 3)
+          .lineTo(bx + Math.cos(a) * len, by + Math.sin(a) * len)
+          .stroke({ width: 1, color: 'rgba(200,220,255,0.5)' });
+      }
+
+      const core = new PIXI.FillGradient({
+        type: 'radial', center: { x: bx, y: by }, innerRadius: 0, outerCenter: { x: bx, y: by }, outerRadius: 6,
+        colorStops: [
+          { offset: 0, color: 'rgba(255,255,255,0.95)' },
+          { offset: 0.5, color: 'rgba(180,210,255,0.6)' },
+          { offset: 1, color: 'rgba(180,210,255,0)' },
+        ],
+        textureSpace: 'local',
+      });
+      nozzle.circle(bx, by, 6).fill(core);
     }
   },
 

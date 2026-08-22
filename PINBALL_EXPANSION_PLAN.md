@@ -62,14 +62,36 @@ running side by side).
   correctly (score, bubbles, 3 filled potions, glowing "GAME OVER", buttons), clicked
   Home and confirmed it navigates cleanly back.
 
-**Phase 1 is essentially feature-complete** — every screen (Home, Levels, gameplay,
-HUD, Game Over) and every gameplay system (platform, liquid, ball, hinge glow + all 3
-of its particle effects, jets) is built and verified on Pixi. Two small polish items
-left, not full features: the jet's base "nozzle" glow (aura/core/rays — still
-Canvas-only), and brightening the pole's glow, which reads dimmer on Pixi than the live
-Canvas version right now. After those: a real side-by-side comparison pass against the
-live game (including on Rob's phone, not just desktop preview) before calling Phase 1
-actually done and starting Phase 2 (the new platform mechanics).
+- **Jet nozzle glow + pole brightness, the last two polish items** — the jet's base
+  "nozzle" effect (aura, pulsing ring, spark rays, core) ported from
+  `Difficulty.drawJets`, rebuilt every frame per jet as a small Graphics object inside
+  a blurred+additive container (same pattern as the hinge dot/ring). The pole's glow
+  switched from one blurred pass to the same two-pass technique (blurred layer + crisp
+  solid layer on top) already working well on the hinge — the earlier single-pass
+  version really was just under-tuned, not a wrong technique.
+
+  **Verification detour worth recording:** the nozzle glow initially looked broken —
+  a GPU pixel readback (`app.renderer.extract.pixels(app.stage)`) kept finding nothing
+  but background color near the jet, even after accounting for the Browser-pane
+  screenshot tool's one-action-behind lag (confirmed separately, real and consistent —
+  worth remembering for future sessions in this environment). Chased it all the way to
+  suspecting the radial `FillGradient` params, the `BlurFilter`, even a plain solid-color
+  draw — none of which fixed it. Root cause: `extract.pixels(app.stage)` sizes its
+  output to the *content bounds* of everything on stage, not the logical 720×1280
+  canvas — so the manual `width/720`/`height/1280` scale factors used to convert a
+  canvas coordinate into a pixel index were simply wrong, and every sample landed on
+  the wrong spot. Extracting the specific display object directly
+  (`extract.pixels(someObject)`, tightly cropped to *its own* bounds) instead of the
+  whole stage sidesteps the ambiguity entirely — confirmed the real gradient-based
+  glow was painting correctly (630 of 2304 sampled pixels had real alpha) the whole
+  time. Nothing in the actual game code was ever broken.
+
+**Phase 1 is feature-complete** — every screen (Home, Levels, gameplay, HUD, Game
+Over) and every gameplay system (platform, liquid, ball, hinge glow + all 3 of its
+particle effects, jets + their nozzle glow) is built and verified on Pixi, matching the
+live Canvas version. Left before calling this done for real: a real side-by-side
+comparison pass against the live game, including on Rob's phone, not just the desktop
+preview — then decide when to start Phase 2 (the new platform mechanics).
 
 **Two real bugs caught and fixed this session:**
 1. The jet particle containers were built once in `build()` by mapping over
