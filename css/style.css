@@ -26,15 +26,18 @@ html, body {
    fill a landscape screen (see fitGameWrap() in game.js), nothing about the
    actual gameplay/HUD/canvas changed. On devices wider than the rotated
    game's own aspect ratio, that leaves empty margins on the sides — this
-   fills them with the same atmospheric background art the game uses
-   in-canvas (Background 1.png), instead of the flat solid color, so the
-   margins read as "more of the same world" rather than empty bars. Doesn't
-   affect portrait layout at all: in portrait the game already fills the
-   screen edge to edge, so this background is never actually visible there. */
+   fills them with atmosphere instead of a flat color. First attempt used
+   Background 1.png with background-size:cover, but that image has a
+   distinct bottle/tube illustration in it — cropped into a thin side
+   margin, a fragment of it looked like a second, duplicate game (Rob
+   caught this, thought something was broken). FogBack3.png is one of the
+   game's own ambient fog layers instead: no distinct shapes, designed to
+   tile seamlessly, so repeated fragments in the margins just read as haze.
+   Doesn't affect portrait layout at all: in portrait the game already
+   fills the screen edge to edge, so this background is never visible there. */
 body {
-  background-image: url('../assets/Background 1.png');
-  background-size: cover;
-  background-position: center;
+  background-image: url('../assets/FogBack3.png');
+  background-repeat: repeat;
 }
 
 #viewport {
