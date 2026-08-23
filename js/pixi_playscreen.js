@@ -29,7 +29,7 @@ const PlayScreenPixi = {
     const c = new PIXI.Container();
     this.container = c;
 
-    const bg = new PIXI.Graphics().rect(0, 0, CONFIG.WIDTH, CONFIG.HEIGHT).fill(0x0a0410);
+    const bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
     c.addChild(bg);
 
     // Fog — 3 layers, each 2 stacked sprites (see Fog.layers in fog.js for the
@@ -37,9 +37,9 @@ const PlayScreenPixi = {
     // not part of the panning world — it doesn't need to scroll with the camera.
     for (const l of Fog.layers) {
       const img = new PIXI.Sprite(textures[l.key]);
-      img.width = CONFIG.WIDTH; img.height = CONFIG.HEIGHT;
+      img.width = 720; img.height = 1280;
       const imgFlip = new PIXI.Sprite(textures[l.key + 'Flip']);
-      imgFlip.width = CONFIG.WIDTH; imgFlip.height = CONFIG.HEIGHT;
+      imgFlip.width = 720; imgFlip.height = 1280;
       c.addChild(img, imgFlip);
       this._fogSprites.push({ key: l.key, sprite: img, spriteFlip: imgFlip });
     }
@@ -48,7 +48,7 @@ const PlayScreenPixi = {
     // Graphics fill using Pixi's gradient fill support.
     const vignette = new PIXI.Graphics();
     const grad = new PIXI.FillGradient({
-      type: 'linear', x0: 0, y0: 0, x1: 0, y1: CONFIG.HEIGHT,
+      type: 'linear', x0: 0, y0: 0, x1: 0, y1: 1280,
       colorStops: [
         { offset: 0, color: 'rgba(10,4,16,1)' },
         { offset: 0.55, color: 'rgba(10,4,16,1)' },
@@ -58,7 +58,7 @@ const PlayScreenPixi = {
       ],
       textureSpace: 'local',
     });
-    vignette.rect(0, 0, CONFIG.WIDTH, CONFIG.HEIGHT).fill(grad);
+    vignette.rect(0, 0, 720, 1280).fill(grad);
     c.addChild(vignette);
 
     // The panning world — every platform and the ball live in here. Built once
@@ -280,14 +280,10 @@ const PlayScreenPixi = {
     // an earlier version had these two swapped, which pinned the camera at
     // one bound permanently since min > max made the clamp always pick the
     // min. Same care applies to X below.
-    // Anchor points scale with CONFIG now instead of being hardcoded for the
-    // old 720x1280 portrait canvas — screenAnchorX is just the horizontal
-    // center; screenAnchorY sits a bit below center (0.65 down), same
-    // relative weighting the old fixed 760-of-1280 anchor had.
-    this._camY = this._updateCameraAxis(this._camY, CONFIG.HEIGHT * 0.65, Physics.y, Math.max(...pivotYs), Math.min(...pivotYs) - 260);
+    this._camY = this._updateCameraAxis(this._camY, 760, Physics.y, Math.max(...pivotYs), Math.min(...pivotYs) - 260);
     this.worldContainer.y = this._camY;
 
-    this._camX = this._updateCameraAxis(this._camX, CONFIG.WIDTH / 2, Physics.x, Math.max(...pivotXs) + 260, Math.min(...pivotXs) - 260);
+    this._camX = this._updateCameraAxis(this._camX, 360, Physics.x, Math.max(...pivotXs) + 260, Math.min(...pivotXs) - 260);
     this.worldContainer.x = this._camX;
   },
 
