@@ -22,6 +22,21 @@ html, body {
   user-select: none;
 }
 
+/* Landscape "quick look" (Rob) — the game itself is still rotated 90deg to
+   fill a landscape screen (see fitGameWrap() in game.js), nothing about the
+   actual gameplay/HUD/canvas changed. On devices wider than the rotated
+   game's own aspect ratio, that leaves empty margins on the sides — this
+   fills them with the same atmospheric background art the game uses
+   in-canvas (Background 1.png), instead of the flat solid color, so the
+   margins read as "more of the same world" rather than empty bars. Doesn't
+   affect portrait layout at all: in portrait the game already fills the
+   screen edge to edge, so this background is never actually visible there. */
+body {
+  background-image: url('../assets/Background 1.png');
+  background-size: cover;
+  background-position: center;
+}
+
 #viewport {
   width: 100%;
   height: 100%;
