@@ -273,6 +273,13 @@ const PlayScreen = {
   // base. Middle goes right, top goes left, so climbing the tower zigzags
   // rather than going straight up.
   TOWER_X_OFFSET: 130,
+  // How far off to the side the 4th platform sits — well outside the 720px
+  // screen width (Rob: wants platforms placed off to the left/right of the
+  // visible area, with the camera panning sideways to reach them, rather than
+  // widening the game's actual portrait canvas). See PlayScreenPixi's
+  // _updateCamera, which now clamps against whichever platform is furthest
+  // left/right, not just furthest up.
+  SIDE_PLATFORM_X_OFFSET: 500,
 
   // Builds the tower — a fixed, hand-placed stack of platforms (Rob: hand-designed
   // layout, not procedural), each running its own independent jets/hinge-bubbles
@@ -284,6 +291,9 @@ const PlayScreen = {
   // via lengthScale. They also keep their single-jet restriction — middle
   // only its outer-left jet (index 0), top only its outer-right jet (index 1)
   // — rather than the base platform's full independently-randomizing set of 4.
+  // A 4th platform sits off to the right of the base, well past the screen's
+  // own width, reachable with a sideways blast — the first real test of the
+  // horizontal camera pan.
   _buildTower() {
     const baseX = 360, baseY = 652;
     // Different tubeSpeed per platform (Rob: the three tubes should change at
@@ -294,10 +304,12 @@ const PlayScreen = {
       createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1 }),
       createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.75 }),
       createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7, tubeSpeed: 1.3 }),
+      createPlatform(baseX + this.SIDE_PLATFORM_X_OFFSET, baseY - 100, { lengthScale: 0.7, tubeSpeed: 1.1 }),
     ];
     platforms[0].jetSystem = createJetSystem();
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0] });
     platforms[2].jetSystem = createJetSystem({ allowedIndices: [1] });
+    platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] }); // inner jets, for variety from the outer-only mid/top
     for (const p of platforms) {
       p.hingeBubbles = createHingeBubbles();
     }

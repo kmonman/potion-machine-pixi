@@ -22,6 +22,7 @@ const PlayScreenPixi = {
   _fogSprites: [],
   _ballSprite: null,
   _camY: 0,
+  _camX: 0,
   _dt: 1 / 60,
 
   build(textures) {
@@ -258,32 +259,46 @@ const PlayScreenPixi = {
     this.worldContainer.addChildAt(this._ballSprite, idx);
   },
 
-  // Camera — pans worldContainer.y so the ball stays roughly at the same
-  // screen-space height the single-platform version always kept it at
+  // Camera — pans worldContainer.x/y so the ball stays roughly at the same
+  // screen-space position the single-platform version always kept it at
   // (Rob: camera follows the ball, rather than showing the whole tower at
   // once), smoothed rather than snapping frame to frame, and clamped so it
-  // never scrolls past the top of the tower or below the base platform's
-  // original resting view.
+  // never scrolls past the tower's actual extent in either direction.
+  //
+  // Horizontal panning (Rob: wants platforms placed off to the left/right of
+  // the visible area, "expand the width of the game" without actually
+  // changing the game's real portrait canvas — the phone display stays
+  // exactly as it is) mirrors the vertical logic exactly, just computed from
+  // the tower's leftmost/rightmost pivot X instead of its lowest/highest
+  // pivot Y — see _updateCameraAxis for the shared math.
   _updateCamera() {
-    const screenAnchorY = 760; // where the ball sits on screen at the base platform, matching the old fixed framing
-    const basePivotY = PlayScreen.platforms[0].pivot.y;
-    const topPivotY = PlayScreen.platforms[PlayScreen.platforms.length - 1].pivot.y;
+    const pivotYs = PlayScreen.platforms.map((p) => p.pivot.y);
+    const pivotXs = PlayScreen.platforms.map((p) => p.pivot.x);
 
-    // worldContainer.y is added to every child's world position, so camY = screenAnchorY
-    // - worldY: it's smallest (camY barely shifts anything) when the ball is down at the
-    // base platform, and largest (shifts the world well down the screen, revealing what
-    // was far above) when the ball is up near the top platform — so the base gives the
-    // *lower* clamp bound and the top-plus-headroom gives the *upper* one, not the other
-    // way around (an earlier version of this had the two swapped, which pinned the camera
-    // at the upper bound permanently since min > max made the clamp always pick the min).
-    const targetCamY = screenAnchorY - Physics.y;
-    const camYAtBase = screenAnchorY - basePivotY;
-    const camYAtTopHeadroom = screenAnchorY - (topPivotY - 260);
-    const clamped = Math.max(camYAtBase, Math.min(camYAtTopHeadroom, targetCamY));
-
-    const lerp = Math.min(1, this._dt * 6);
-    this._camY += (clamped - this._camY) * lerp;
+    // Y: base platform (largest Y) gives the *lower* clamp bound, the
+    // highest platform (smallest Y, plus headroom) gives the *upper* one —
+    // an earlier version had these two swapped, which pinned the camera at
+    // one bound permanently since min > max made the clamp always pick the
+    // min. Same care applies to X below.
+    this._camY = this._updateCameraAxis(this._camY, 760, Physics.y, Math.max(...pivotYs), Math.min(...pivotYs) - 260);
     this.worldContainer.y = this._camY;
+
+    this._camX = this._updateCameraAxis(this._camX, 360, Physics.x, Math.max(...pivotXs) + 260, Math.min(...pivotXs) - 260);
+    this.worldContainer.x = this._camX;
+  },
+
+  // Shared camera-axis math: pans by (screenAnchor - target), clamped so the
+  // pan never reveals past `worldAtLowerBound`/`worldAtUpperBound` (world
+  // positions, not camera values — this computes the correct camera-space
+  // clamp direction from them), smoothed toward the new value rather than
+  // snapping frame to frame.
+  _updateCameraAxis(current, screenAnchor, target, worldAtLowerBound, worldAtUpperBound) {
+    const targetCam = screenAnchor - target;
+    const camAtLower = screenAnchor - worldAtLowerBound;
+    const camAtUpper = screenAnchor - worldAtUpperBound;
+    const clamped = Math.max(camAtLower, Math.min(camAtUpper, targetCam));
+    const lerp = Math.min(1, this._dt * 6);
+    return current + (clamped - current) * lerp;
   },
 
   // Syncs a pool of reusable Sprites to however many particles are currently
