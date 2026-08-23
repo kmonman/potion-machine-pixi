@@ -304,8 +304,13 @@ const PlayScreen = {
       createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1 }),
       createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.75 }),
       createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7, tubeSpeed: 1.3 }),
-      createPlatform(baseX + this.SIDE_PLATFORM_X_OFFSET, baseY - 100, { lengthScale: 0.7, tubeSpeed: 1.1 }),
     ];
+    // New platforms go higher than whatever's already there, not at some
+    // in-between height that overlaps the existing ones (Rob) — this one
+    // sits above the current topmost platform (the zigzag's top, index 2),
+    // not just above the base.
+    const topPivotY = platforms[2].pivot.y;
+    platforms.push(createPlatform(baseX + this.SIDE_PLATFORM_X_OFFSET, topPivotY - 200, { lengthScale: 0.7, tubeSpeed: 1.1 }));
     platforms[0].jetSystem = createJetSystem();
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0] });
     platforms[2].jetSystem = createJetSystem({ allowedIndices: [1] });
