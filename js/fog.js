@@ -7,6 +7,11 @@
 // All three are drawn behind the gameplay (platform/ball) — the original layered
 // "front" fog above the action, but that risks obscuring the ball on a phone
 // screen, so this port keeps every fog layer as background atmosphere only.
+// The -1280 literals below are just placeholder initial values (this object
+// literal evaluates before game.js's CONFIG exists yet, given the script
+// load order) — reset()/update() below use CONFIG.HEIGHT for real, and
+// reset() always runs before Fog is actually used (PlayScreen.enter() calls
+// it), so these placeholders are overwritten before they matter.
 const Fog = {
   layers: [
     { key: 'fogBack', speed: -6, y1: 0, y2: -1280 },
@@ -15,15 +20,15 @@ const Fog = {
   ],
 
   reset() {
-    for (const l of this.layers) { l.y1 = 0; l.y2 = -1280; }
+    for (const l of this.layers) { l.y1 = 0; l.y2 = -CONFIG.HEIGHT; }
   },
 
   update(dt) {
     for (const l of this.layers) {
       l.y1 += l.speed * dt;
       l.y2 += l.speed * dt;
-      if (l.y1 < -1280) l.y1 = l.y2 + 1280;
-      if (l.y2 < -1280) l.y2 = l.y1 + 1280;
+      if (l.y1 < -CONFIG.HEIGHT) l.y1 = l.y2 + CONFIG.HEIGHT;
+      if (l.y2 < -CONFIG.HEIGHT) l.y2 = l.y1 + CONFIG.HEIGHT;
     }
   },
 

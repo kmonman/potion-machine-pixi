@@ -183,13 +183,18 @@ const LevelsScreen = {
 // GameOver11.png's actual visible border, measured directly from the asset
 // pixels (not the image's own x/y/w/h bounding box, which has a lot of glow
 // padding around the real line): the purple line sits at roughly
-// x37-681 y186-412 of the drawn board.
-const GO_BOARD_BORDER = { left: 37, right: 681, top: 186, bottom: 412 };
+// x37-681 y186-412 of the drawn board (that was for the old 720-wide
+// portrait canvas — landscape's wider 1280 canvas re-centers the board, which
+// shifts every x-coordinate tied to its own art right by 280px; y is
+// untouched since only the width changed. See GO_X_SHIFT in
+// pixi_gameover.js's build() for where 280 comes from).
+const GO_BOARD_BORDER = { left: 317, right: 961, top: 186, bottom: 412 };
 const GO_SCORE_FONT_SIZE = 68;
 // Right-anchored to line up with the rightmost potion icon (x562, w72 -> right
-// edge 634) rather than the board's real border (681) — Rob: the score's right
-// edge was creeping too close to the border and past the bottles underneath it.
-const GO_SCORE_RIGHT = 634;
+// edge 634 in the old canvas, now 914) rather than the board's real border —
+// Rob: the score's right edge was creeping too close to the border and past
+// the bottles underneath it.
+const GO_SCORE_RIGHT = 914;
 const GO_SCORE_Y = 220; // moved up slightly from 233 (Rob)
 const GO_BUBBLE_GAP = 20; // gap between the bubble cluster and the score text
 const GO_BUBBLE_MASK_W = 90;
@@ -205,7 +210,9 @@ const PlayScreen = {
   homeBtn: { x: 20, y: 138, w: 100, h: 44 },
   // Bottom-right corner, matching the Home screen's own mute button placement
   // (Rob: move it out of the top-right so the potion counter can go there).
-  muteBtn: { x: 637, y: 1186, w: 57, h: 68 },
+  // Landscape (1280x720): same margin from the right/bottom edges the old
+  // portrait position had (83px right, 94px bottom of the old 720x1280).
+  muteBtn: { x: 1197, y: 626, w: 57, h: 68 },
   // Whole pill structure (sprite + digit together, not just the digit font)
   // scaled 15% bigger (Rob), anchored at the same top-left corner as before.
   PILL_SCALE: 1.15,
@@ -234,7 +241,7 @@ const PlayScreen = {
     const w = h * (potionNativeW / potionNativeH); // preserve native aspect so the rounded ends stay circular
     const scoreOvalBottom = 20 + scoreOvalY1 * scoreScale; // score pill's own oval bottom, in canvas y
     const y = scoreOvalBottom - potionOvalY1 * potionScale; // bottom-align the ovals themselves
-    return { x: 720 - w, y, w, h };
+    return { x: 1280 - w, y, w, h }; // right-anchored to the landscape canvas's own width (was 720)
   })(),
   score: 0,
   elapsed: 0,
@@ -252,17 +259,19 @@ const PlayScreen = {
   // whole box shrank, making the bottle too small — not that the box itself
   // needed to be smaller). Kept centered on the same point as the original
   // 100x100 buttons (center 125,1000 / 595,1000).
-  blastLeftBtn: { x: 45, y: 920, w: 160, h: 160 },
-  blastRightBtn: { x: 515, y: 920, w: 160, h: 160 },
+  // Landscape (1280x720): y kept at the same ~72%-down proportion the old
+  // 920-of-1280 position had; x kept at the same 45px margin from each edge
+  // (right button's x recomputed for the new 1280-wide canvas).
+  blastLeftBtn: { x: 45, y: 518, w: 160, h: 160 },
+  blastRightBtn: { x: 1075, y: 518, w: 160, h: 160 },
   // 0-1, eased toward 1 while the potion counter is above 0 and toward 0
   // otherwise — drives a subtle grow+fade instead of an instant show/hide
   // (Rob). See _drawBlastButtons.
   blastButtonsT: 0,
 
-  // Vertical gap (world px) between platform pivots in the tower. Bumped from
-  // 260 to 300 (Rob: move the top/middle platforms up higher). A blast's peak
-  // vertical reach alone is still roughly force^2/(2*gravityY) ≈ 300px, but
-  // the platforms are no longer stacked directly above one another (see
+  // Vertical gap (world px) between platform pivots in the tower. A blast's
+  // peak vertical reach alone is still roughly force^2/(2*gravityY) ≈ 300px,
+  // but the platforms are no longer stacked directly above one another (see
   // TOWER_X_OFFSET below), so the real distance a blast needs to cover is the
   // diagonal to a horizontally-offset target, well inside a 950-force blast's
   // actual projectile range (v^2/gravityY ≈ 600px) once aimed toward it rather
@@ -271,14 +280,12 @@ const PlayScreen = {
   // Horizontal offset (world px) for the middle/top platforms — Rob: move one
   // right and one left instead of stacking every platform straight above the
   // base. Middle goes right, top goes left, so climbing the tower zigzags
-  // rather than going straight up.
+  // rather than going straight up. In landscape's much wider 1280px canvas
+  // this (plus SIDE_PLATFORM_X_OFFSET below) comfortably fits on-screen at
+  // once without needing the horizontal camera pan just to see it — that pan
+  // still exists for platforms placed further out than these.
   TOWER_X_OFFSET: 130,
-  // How far off to the side the 4th platform sits — well outside the 720px
-  // screen width (Rob: wants platforms placed off to the left/right of the
-  // visible area, with the camera panning sideways to reach them, rather than
-  // widening the game's actual portrait canvas). See PlayScreenPixi's
-  // _updateCamera, which now clamps against whichever platform is furthest
-  // left/right, not just furthest up.
+  // How far off to the side the 4th platform sits, relative to the base.
   SIDE_PLATFORM_X_OFFSET: 500,
 
   // Builds the tower — a fixed, hand-placed stack of platforms (Rob: hand-designed
@@ -295,7 +302,12 @@ const PlayScreen = {
   // own width, reachable with a sideways blast — the first real test of the
   // horizontal camera pan.
   _buildTower() {
-    const baseX = 360, baseY = 652;
+    // Centered horizontally in the new 1280-wide landscape canvas (was
+    // 360, half of the old 720-wide portrait one). baseY sits lower in the
+    // much-shorter 720-tall canvas than the old 652-of-1280 did, leaving
+    // headroom above for the zigzag/side platforms and room below for the
+    // HUD/blast buttons.
+    const baseX = CONFIG.WIDTH / 2, baseY = 480;
     // Different tubeSpeed per platform (Rob: the three tubes should change at
     // different intervals) — 1 is TUBE_STAGE_SCHEDULE's own pacing, so these
     // drift the middle/top platforms out of sync with the base rather than

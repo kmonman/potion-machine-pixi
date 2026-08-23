@@ -12,14 +12,19 @@ const GameOverPixi = {
     this.container = c;
 
     this._skyBg = new PIXI.Sprite(textures.sky);
-    this._skyBg.position.set(-19, -17);
-    this._skyBg.width = 752; this._skyBg.height = 1309;
+    this._skyBg.position.set(-20, -20);
+    this._skyBg.width = CONFIG.WIDTH + 40; this._skyBg.height = CONFIG.HEIGHT + 40;
     c.addChild(this._skyBg);
 
-    this._blackFade = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x000000);
+    this._blackFade = new PIXI.Graphics().rect(0, 0, CONFIG.WIDTH, CONFIG.HEIGHT).fill(0x000000);
     c.addChild(this._blackFade);
 
-    const boardX = (720 - 759) / 2, boardY = 127, boardW = 759, boardH = 343;
+    // Board stays its own real pixel size (759x343, the source art's own
+    // dimensions) and just re-centers for the wider landscape canvas — was
+    // (720-759)/2 = -19.5 (yes, negative — even in the old 720-wide portrait
+    // canvas this board was a few px wider than the canvas and intentionally
+    // bled off both edges slightly).
+    const boardX = (CONFIG.WIDTH - 759) / 2, boardY = 127, boardW = 759, boardH = 343;
     this._board = new PIXI.Container();
     this._board.position.set(boardX, boardY);
     c.addChild(this._board);
@@ -28,8 +33,16 @@ const GameOverPixi = {
     boardSprite.width = boardW; boardSprite.height = boardH;
     this._board.addChild(boardSprite);
 
+    // GO_X_SHIFT: the board recentered by this many px moving from the old
+    // 720-wide portrait canvas to the new landscape width — every other
+    // absolute-coordinate constant tied to the board's own art (ballOff,
+    // potion icon slots, GO_SCORE_RIGHT, GO_BOARD_BORDER) needs the same
+    // shift to stay visually aligned with where the art itself moved,
+    // computed symbolically here rather than as separately hand-shifted
+    // literals so it can't drift out of sync with boardX above.
+    const GO_X_SHIFT = boardX - (720 - 759) / 2;
     const ballOff = new PIXI.Sprite(textures.gameOverBallOff);
-    ballOff.position.set(92 - boardX, 261 - boardY);
+    ballOff.position.set(92 + GO_X_SHIFT - boardX, 261 - boardY);
     ballOff.width = 172; ballOff.height = 106;
     this._board.addChild(ballOff);
 
@@ -47,12 +60,16 @@ const GameOverPixi = {
     this._scoreText = new PIXI.Text({
       text: '0', style: { fontFamily: 'PotionTitle', fontSize: GO_SCORE_FONT_SIZE, fill: 0x9b9b9b },
     });
+    // GO_SCORE_RIGHT/GO_SCORE_Y (ui.js) are already shifted for the new
+    // canvas width directly (module-level constants there can't reference
+    // GO_X_SHIFT, which only exists inside this method) — see the comment
+    // by GO_SCORE_RIGHT itself.
     this._scoreText.position.set(0, GO_SCORE_Y - boardY);
     this._board.addChild(this._scoreText);
 
     this._potionIcons = [428, 497, 562].map((px) => {
       const s = new PIXI.Sprite(textures.potionEmpty);
-      s.position.set(px - boardX, 311 - boardY);
+      s.position.set(px + GO_X_SHIFT - boardX, 311 - boardY);
       s.width = 72; s.height = 88;
       this._board.addChild(s);
       return s;
@@ -63,7 +80,7 @@ const GameOverPixi = {
     // version (shadowBlur has no direct Pixi equivalent; a blurred tinted
     // copy behind the crisp sprite reads the same way).
     this._gameOverContainer = new PIXI.Container();
-    this._gameOverContainer.position.set(360, 0); // y set per-frame once texture aspect is known
+    this._gameOverContainer.position.set(CONFIG.WIDTH / 2, 0); // y set per-frame once texture aspect is known
     c.addChild(this._gameOverContainer);
     const goW = 560, goH = goW * (textures.gameOverText.height / textures.gameOverText.width);
 
@@ -112,7 +129,7 @@ const GameOverPixi = {
     // third-split logic exactly, just as real Pixi event zones instead of a
     // manual x-coordinate check.
     const barW = 430 * 1.6 * 1.1, barH = barW * (358 / 855);
-    const barX = (720 - barW) / 2, barY = 1280 - barH - 20;
+    const barX = (CONFIG.WIDTH - barW) / 2, barY = CONFIG.HEIGHT - barH - 20;
     this._barRect = { x: barX, y: barY, w: barW, h: barH };
     this._barFreeplay = new PIXI.Sprite(textures.bottomButtonsFreeplay);
     this._barLevels = new PIXI.Sprite(textures.bottomButtonsLevels);
@@ -140,7 +157,7 @@ const GameOverPixi = {
       text: 'Leaderboard coming soon!', style: { fontFamily: 'PotionBody', fontSize: 24, fill: 0xffffff, align: 'center' },
     });
     this._leaderboardMsg.anchor.set(0.5, 0);
-    this._leaderboardMsg.position.set(360, barY - 40);
+    this._leaderboardMsg.position.set(CONFIG.WIDTH / 2, barY - 40);
     c.addChild(this._leaderboardMsg);
   },
 
@@ -195,7 +212,9 @@ const GameOverPixi = {
       0.35 * Math.sin(now / 300 + 1.3) +
       0.2 * Math.sin(now / 700 + 2.7)
     );
-    this._gameOverContainer.y = 560 + this._gameOverH / 2;
+    // 560 was ~43.75% down the old 1280-tall canvas — same proportion of the
+    // new (much shorter) 720-tall one.
+    this._gameOverContainer.y = CONFIG.HEIGHT * 0.4375 + this._gameOverH / 2;
     this._gameOverContainer.scale.set(t);
     this._gameOverContainer.alpha = fadeIn;
     const flickerMul = Math.max(0, 0.9 * flicker);

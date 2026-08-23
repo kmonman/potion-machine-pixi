@@ -3,9 +3,13 @@
 // (drawing). Physics/platform/difficulty gameplay itself arrives in later stages —
 // this stage proves the skeleton (screens, navigation, tilt input) works end to end.
 
+// Landscape-native now (Rob, 2026-08-23) — was 720x1280 portrait; the rotate-
+// the-whole-canvas "quick look" wasn't enough to actually judge, so this is
+// the real thing: the game's own coordinate space is landscape-shaped, and
+// every screen's layout gets repositioned for it rather than rotated into it.
 const CONFIG = {
-  WIDTH: 720,
-  HEIGHT: 1280,
+  WIDTH: 1280,
+  HEIGHT: 720,
 };
 
 const ASSET_PATHS = {
@@ -270,39 +274,19 @@ function showScreen(name) {
   nameInput.style.display = name === 'home' ? '' : 'none';
 }
 
-// ---------- Resize (keeps the fixed 720x1280 internal coordinate space; only
-// the CSS box around it scales — matches the approach used in Halloween-Platformer) ----------
-// Landscape "quick look" (Rob, 2026-08-23) — rather than redesigning the
-// whole layout (HUD positions, tower spacing, background art all still
-// assume portrait) before seeing whether it's worth it, this rotates the
-// existing portrait game 90° to fill a landscape screen, the same trick
-// portrait-only mobile games commonly use for a landscape mode. Everything
-// about the actual game (coordinate space, HUD, platforms) is completely
-// unchanged — only how the rendered result is displayed. Input (tilt, mouse)
-// isn't remapped for the rotation yet — this pass is about the look only.
+// ---------- Resize (keeps the fixed internal coordinate space; only the CSS
+// box around it scales — matches the approach used in Halloween-Platformer) ----------
+// Back to a plain scale-to-fit, no rotation — CONFIG itself is landscape-
+// shaped now (1280x720), so there's nothing to rotate into anymore. The
+// rotate-90°-to-fill-landscape trick from the earlier "quick look" pass is
+// gone; that was only ever meant to answer "is this worth building for
+// real", not to ship.
 function fitGameWrap() {
-  const isLandscape = window.innerWidth > window.innerHeight;
+  const scale = Math.min(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT);
+  gameWrap.style.transform = `scale(${scale})`;
+  gameWrap.style.left = `${(window.innerWidth - CONFIG.WIDTH * scale) / 2}px`;
+  gameWrap.style.top = `${(window.innerHeight - CONFIG.HEIGHT * scale) / 2}px`;
   gameWrap.style.position = 'absolute';
-  // transform-origin '0 0' (not CSS's 50% 50% default) makes the position
-  // math tractable to verify by hand: with rotate(90deg) around the element's
-  // own top-left corner, the rendered box lands at
-  // x = left - CONFIG.HEIGHT*scale, y = top (confirmed empirically via
-  // getBoundingClientRect(), not just derived — an earlier version using
-  // `translate(-50%,-50%) rotate(90deg) scale()` positioned the canvas
-  // hundreds of pixels off-screen because that combination doesn't compose
-  // the way "just center everything" intuition suggests).
-  gameWrap.style.transformOrigin = '0 0';
-  if (isLandscape) {
-    const scale = Math.min(window.innerWidth / CONFIG.HEIGHT, window.innerHeight / CONFIG.WIDTH);
-    gameWrap.style.left = `${(window.innerWidth + CONFIG.HEIGHT * scale) / 2}px`;
-    gameWrap.style.top = `${(window.innerHeight - CONFIG.WIDTH * scale) / 2}px`;
-    gameWrap.style.transform = `rotate(90deg) scale(${scale})`;
-  } else {
-    const scale = Math.min(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT);
-    gameWrap.style.left = `${(window.innerWidth - CONFIG.WIDTH * scale) / 2}px`;
-    gameWrap.style.top = `${(window.innerHeight - CONFIG.HEIGHT * scale) / 2}px`;
-    gameWrap.style.transform = `scale(${scale})`;
-  }
 }
 window.addEventListener('resize', fitGameWrap);
 
