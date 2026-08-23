@@ -296,3 +296,17 @@ playing a while" much better than a one-time cost does.
 2. Any timeline/priority relative to the current game's remaining backlog (Level 2-10,
    the Firebase leaderboard — see CLAUDE.md Stage 6)?
 3. Should this live as a new folder/branch alongside `html5-port/`, or evolve in place?
+
+## Backlog — landscape mode (not started, Rob: "I will likely do this")
+
+Raised 2026-08-23. Not a quick toggle — the game's whole coordinate space
+(`CONFIG.WIDTH`/`HEIGHT` = 720x1280 in game.js) is a fixed portrait shape;
+`fitGameWrap()` already lets the device rotate today, but it just shrinks the same
+tall/narrow layout to fit, leaving big empty bars on the sides in landscape rather
+than actually using the wider space. A real landscape mode means redesigning the
+layout for a wide/short shape: HUD element positions, platform/tower spacing, and
+background art all assume portrait right now. Given this session's platforms have
+already started spreading out horizontally (the 4th side platform + horizontal
+camera pan), landscape might suit the tower's direction well — worth scoping
+properly (screen layout, whether the tower itself gets rethought) when Rob's ready
+to start, not assumed/started speculatively.
