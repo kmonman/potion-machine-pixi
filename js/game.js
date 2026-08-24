@@ -272,37 +272,56 @@ function showScreen(name) {
 
 // ---------- Resize (keeps the fixed 720x1280 internal coordinate space; only
 // the CSS box around it scales — matches the approach used in Halloween-Platformer) ----------
-// Landscape "quick look" (Rob, 2026-08-23) — rather than redesigning the
-// whole layout (HUD positions, tower spacing, background art all still
-// assume portrait) before seeing whether it's worth it, this rotates the
-// existing portrait game 90° to fill a landscape screen, the same trick
-// portrait-only mobile games commonly use for a landscape mode. Everything
-// about the actual game (coordinate space, HUD, platforms) is completely
-// unchanged — only how the rendered result is displayed. Input (tilt, mouse)
-// isn't remapped for the rotation yet — this pass is about the look only.
+// Landscape (Rob, 2026-08-23) — tried rotating the whole game 90° to fill a
+// landscape screen, but that spun the art/text/HUD along with it (e.g. "GAME
+// OVER" rendering sideways), which was confusing to read. Rob's call: don't
+// rotate anything — the game should stay upright and zoom in to mostly fill
+// a wide screen, cropping the top/bottom of the tower rather than shrinking
+// to fit with side margins. Portrait keeps the original shrink-to-fit
+// (Math.min) since phones are already close to the design aspect ratio there
+// and letterboxing is barely noticeable.
+//
+// Landscape's vertical zoom level is still the same Math.max(...) *
+// LANDSCAPE_ZOOM_OUT as before, but width is no longer clamped to a fixed
+// 720 with CSS filling the leftover sides — that looked like a visibly
+// cropped box floating over a mismatched background (flat color inside the
+// canvas, static image outside it). Instead `renderWidth` grows to exactly
+// however much world-space is visible at that scale, and the actual Pixi
+// canvas/renderer resizes to match — so the game's own animated fog
+// background genuinely extends into that space (see
+// PlayScreenPixi.setRenderWidth), not a fake CSS approximation of it.
+// CONFIG.WIDTH itself stays 720 throughout — that's still the "design
+// width" every gameplay object/HUD position is authored against; only the
+// screen-fixed background and the camera's horizontal anchor know about the
+// wider render target.
+const LANDSCAPE_ZOOM_OUT = 0.64;
+let renderWidth = CONFIG.WIDTH;
 function fitGameWrap() {
   const isLandscape = window.innerWidth > window.innerHeight;
-  gameWrap.style.position = 'absolute';
-  // transform-origin '0 0' (not CSS's 50% 50% default) makes the position
-  // math tractable to verify by hand: with rotate(90deg) around the element's
-  // own top-left corner, the rendered box lands at
-  // x = left - CONFIG.HEIGHT*scale, y = top (confirmed empirically via
-  // getBoundingClientRect(), not just derived — an earlier version using
-  // `translate(-50%,-50%) rotate(90deg) scale()` positioned the canvas
-  // hundreds of pixels off-screen because that combination doesn't compose
-  // the way "just center everything" intuition suggests).
-  gameWrap.style.transformOrigin = '0 0';
-  if (isLandscape) {
-    const scale = Math.min(window.innerWidth / CONFIG.HEIGHT, window.innerHeight / CONFIG.WIDTH);
-    gameWrap.style.left = `${(window.innerWidth + CONFIG.HEIGHT * scale) / 2}px`;
-    gameWrap.style.top = `${(window.innerHeight - CONFIG.WIDTH * scale) / 2}px`;
-    gameWrap.style.transform = `rotate(90deg) scale(${scale})`;
-  } else {
-    const scale = Math.min(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT);
-    gameWrap.style.left = `${(window.innerWidth - CONFIG.WIDTH * scale) / 2}px`;
-    gameWrap.style.top = `${(window.innerHeight - CONFIG.HEIGHT * scale) / 2}px`;
-    gameWrap.style.transform = `scale(${scale})`;
+  const scale = isLandscape
+    ? Math.max(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT) * LANDSCAPE_ZOOM_OUT
+    : Math.min(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT);
+  renderWidth = isLandscape ? Math.round(window.innerWidth / scale) : CONFIG.WIDTH;
+
+  canvas.style.width = `${renderWidth}px`;
+  canvas.style.height = `${CONFIG.HEIGHT}px`;
+  gameWrap.style.width = `${renderWidth}px`;
+  if (app.renderer) app.renderer.resize(renderWidth, CONFIG.HEIGHT);
+  if (typeof PlayScreenPixi !== 'undefined') PlayScreenPixi.setRenderWidth(renderWidth);
+  if (typeof GameOverPixi !== 'undefined') GameOverPixi.setRenderWidth(renderWidth, isLandscape);
+  if (typeof HomeScreenPixi !== 'undefined') {
+    // Bottom edge of the visible landscape crop, in canvas/world coordinates
+    // — the crop is always vertically centered on y=640 (see the left/top
+    // math below), so its bottom is just 640 plus half the viewport height
+    // converted back into world units via the same scale.
+    const visibleBottomY = isLandscape ? 640 + (window.innerHeight / 2) / scale : CONFIG.HEIGHT;
+    HomeScreenPixi.setLandscapeMode(isLandscape, renderWidth, visibleBottomY);
   }
+
+  gameWrap.style.transform = `scale(${scale})`;
+  gameWrap.style.left = `${(window.innerWidth - renderWidth * scale) / 2}px`;
+  gameWrap.style.top = `${(window.innerHeight - CONFIG.HEIGHT * scale) / 2}px`;
+  gameWrap.style.position = 'absolute';
 }
 window.addEventListener('resize', fitGameWrap);
 
@@ -369,6 +388,13 @@ async function main() {
   for (const key in screenContainers) app.stage.addChild(screenContainers[key]);
   showScreen(state.screen);
   lastScreen = state.screen;
+
+  // The very first fitGameWrap() call (top of main()) ran before app.renderer
+  // and PlayScreenPixi existed, so if the page loaded already in landscape,
+  // that call skipped the renderer resize/background widening entirely. Redo
+  // it now that both exist, so landscape is correct from the first frame
+  // instead of only fixing itself on the next window resize.
+  fitGameWrap();
 
   app.ticker.add(tick);
 }

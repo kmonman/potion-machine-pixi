@@ -37,13 +37,26 @@ const HomeScreenPixi = {
     logo.width = 677; logo.height = 369;
     c.addChild(logo);
 
+    // Free Play + Levels buttons and their captions, grouped so landscape can
+    // move the pair as one unit (see setLandscapeMode) without touching their
+    // authored portrait positions — same "wrapper + offset" approach used for
+    // Game Over's board/bar (Rob liked that this doesn't disturb portrait at
+    // all: the group just sits at offset (0,0) there).
+    this._playButtonsGroup = new PIXI.Container();
+    c.addChild(this._playButtonsGroup);
+    // Bottom edge of the buttons in design coordinates (721 + 285) and the
+    // x-midpoint between their two centers (187.5 and 532.5) — both used by
+    // setLandscapeMode to reposition the group without re-deriving them.
+    this._playButtonsBottom = 721 + 285;
+    this._playButtonsCenterX = 360;
+
     const freePlayBtn = new PIXI.Sprite(textures.freePlayButton);
     freePlayBtn.position.set(45, 721);
     freePlayBtn.width = 285; freePlayBtn.height = 285;
     freePlayBtn.eventMode = 'static';
     freePlayBtn.cursor = 'pointer';
     freePlayBtn.on('pointertap', () => tryEnterGame('FreePlay'));
-    c.addChild(freePlayBtn);
+    this._playButtonsGroup.addChild(freePlayBtn);
 
     const levelModeBtn = new PIXI.Sprite(textures.levelModeButton);
     levelModeBtn.position.set(390, 721);
@@ -51,10 +64,10 @@ const HomeScreenPixi = {
     levelModeBtn.eventMode = 'static';
     levelModeBtn.cursor = 'pointer';
     levelModeBtn.on('pointertap', () => tryEnterGame('Levels'));
-    c.addChild(levelModeBtn);
+    this._playButtonsGroup.addChild(levelModeBtn);
 
-    c.addChild(this._centeredText('FREE PLAY for high score', 81, 970, 209, 22, 'PotionBody', 0x77a3fc));
-    c.addChild(this._centeredText('Make potion to advance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc));
+    this._playButtonsGroup.addChild(this._centeredText('FREE PLAY for high score', 81, 970, 209, 22, 'PotionBody', 0x77a3fc));
+    this._playButtonsGroup.addChild(this._centeredText('Make potion to advance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc));
 
     this._nameWarningText = this._centeredText('Enter name before starting game', 133, 1132, 454, 24, 'PotionBody', 0xbd10e0);
     this._nameWarningText.visible = false;
@@ -103,6 +116,26 @@ const HomeScreenPixi = {
     t.anchor.set(0.5, 0);
     t.position.set(x + w / 2, y);
     return t;
+  },
+
+  // Called by game.js's fitGameWrap() on every resize/orientation change.
+  // Moves the Free Play / Levels button pair as one unit (no scaling — Rob
+  // wants them the same size and the same distance apart, just repositioned)
+  // so they sit just above the bottom of the visible landscape crop and stay
+  // centered as that crop's width changes, instead of sitting off past the
+  // bottom of a portrait-height design entirely out of view. Portrait passes
+  // isLandscape=false and the group sits at its authored (0,0) offset,
+  // unchanged.
+  setLandscapeMode(isLandscape, renderWidth, visibleBottomY) {
+    if (!this._playButtonsGroup) return;
+    if (isLandscape) {
+      const BOTTOM_MARGIN = 40; // "slightly above the bottom" (Rob)
+      const offsetY = (visibleBottomY - BOTTOM_MARGIN) - this._playButtonsBottom;
+      const offsetX = renderWidth / 2 - this._playButtonsCenterX;
+      this._playButtonsGroup.position.set(offsetX, offsetY);
+    } else {
+      this._playButtonsGroup.position.set(0, 0);
+    }
   },
 
   // Called every frame (cheap — just visibility/texture swaps, no rebuilding)

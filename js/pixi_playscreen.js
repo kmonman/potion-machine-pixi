@@ -24,29 +24,37 @@ const PlayScreenPixi = {
   _camY: 0,
   _camX: 0,
   _dt: 1 / 60,
+  // Screen-fixed background width in world units — 720 (CONFIG.WIDTH) in
+  // portrait. In landscape, game.js widens this so the background/fog
+  // genuinely extends to fill the sides (Rob: didn't want empty CSS margin
+  // there, wanted the game itself to extend) rather than being a fixed
+  // 720-wide box with flat color/static image padding around it.
+  renderWidth: 720,
 
   build(textures) {
     const c = new PIXI.Container();
     this.container = c;
 
-    const bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
-    c.addChild(bg);
+    this._bg = new PIXI.Graphics().rect(0, 0, this.renderWidth, 1280).fill(0x0a0410);
+    c.addChild(this._bg);
 
     // Fog — 3 layers, each 2 stacked sprites (see Fog.layers in fog.js for the
     // actual scroll/wrap math, unchanged). Screen-fixed background atmosphere,
     // not part of the panning world — it doesn't need to scroll with the camera.
     for (const l of Fog.layers) {
       const img = new PIXI.Sprite(textures[l.key]);
-      img.width = 720; img.height = 1280;
+      img.width = this.renderWidth; img.height = 1280;
       const imgFlip = new PIXI.Sprite(textures[l.key + 'Flip']);
-      imgFlip.width = 720; imgFlip.height = 1280;
+      imgFlip.width = this.renderWidth; imgFlip.height = 1280;
       c.addChild(img, imgFlip);
       this._fogSprites.push({ key: l.key, sprite: img, spriteFlip: imgFlip });
     }
 
     // Vignette — same gradient shape as Fog._drawVignette, built once as a
-    // Graphics fill using Pixi's gradient fill support.
-    const vignette = new PIXI.Graphics();
+    // Graphics fill using Pixi's gradient fill support. Purely a vertical
+    // gradient (x0/x1 both 0) so its width can change without touching the
+    // gradient itself — only the rect() needs redrawing on resize.
+    this._vignette = new PIXI.Graphics();
     const grad = new PIXI.FillGradient({
       type: 'linear', x0: 0, y0: 0, x1: 0, y1: 1280,
       colorStops: [
@@ -58,8 +66,8 @@ const PlayScreenPixi = {
       ],
       textureSpace: 'local',
     });
-    vignette.rect(0, 0, 720, 1280).fill(grad);
-    c.addChild(vignette);
+    this._vignette.rect(0, 0, this.renderWidth, 1280).fill(grad);
+    c.addChild(this._vignette);
 
     // The panning world — every platform and the ball live in here. Built once
     // PlayScreen.platforms exists (PlayScreen.enter() runs before the first
@@ -271,9 +279,18 @@ const PlayScreenPixi = {
   // exactly as it is) mirrors the vertical logic exactly, just computed from
   // the tower's leftmost/rightmost pivot X instead of its lowest/highest
   // pivot Y — see _updateCameraAxis for the shared math.
+  //
+  // X tracks the CURRENT PLATFORM's pivot rather than the ball's exact live
+  // x (Rob: with the wider landscape view, chasing every wobble of the ball
+  // rolling back and forth under tilt read as the camera "moving around too
+  // much" — it should hold still while the ball's on one platform and only
+  // pan when the ball actually moves to a different one). Y still tracks the
+  // ball's exact position — that's the intentional "camera follows the ball
+  // up the tower" behavior, unaffected by this.
   _updateCamera() {
     const pivotYs = PlayScreen.platforms.map((p) => p.pivot.y);
     const pivotXs = PlayScreen.platforms.map((p) => p.pivot.x);
+    const currentPlatform = Physics.currentPlatform || PlayScreen.platforms[0];
 
     // Y: base platform (largest Y) gives the *lower* clamp bound, the
     // highest platform (smallest Y, plus headroom) gives the *upper* one —
@@ -283,8 +300,36 @@ const PlayScreenPixi = {
     this._camY = this._updateCameraAxis(this._camY, 760, Physics.y, Math.max(...pivotYs), Math.min(...pivotYs) - 260);
     this.worldContainer.y = this._camY;
 
-    this._camX = this._updateCameraAxis(this._camX, 360, Physics.x, Math.max(...pivotXs) + 260, Math.min(...pivotXs) - 260);
+    this._camX = this._updateCameraAxis(this._camX, this.renderWidth / 2, currentPlatform.pivot.x, Math.max(...pivotXs) + 260, Math.min(...pivotXs) - 260);
     this.worldContainer.x = this._camX;
+  },
+
+  // Called by game.js's fitGameWrap() whenever the landscape background gets
+  // wider/narrower — resizes the screen-fixed background/fog/vignette to
+  // match (they aren't part of worldContainer, so nothing else touches them)
+  // and updates the camera's horizontal anchor so the ball still centers in
+  // the new width instead of staying pinned to the old 360 (half of 720).
+  setRenderWidth(width) {
+    if (this.renderWidth === width || !this._bg) return;
+    this.renderWidth = width;
+    this._bg.clear().rect(0, 0, width, CONFIG.HEIGHT).fill(0x0a0410);
+    this._vignette.clear();
+    const grad = new PIXI.FillGradient({
+      type: 'linear', x0: 0, y0: 0, x1: 0, y1: CONFIG.HEIGHT,
+      colorStops: [
+        { offset: 0, color: 'rgba(10,4,16,1)' },
+        { offset: 0.55, color: 'rgba(10,4,16,1)' },
+        { offset: 0.68, color: 'rgba(10,4,16,0.78)' },
+        { offset: 0.82, color: 'rgba(10,4,16,0.6)' },
+        { offset: 1, color: 'rgba(10,4,16,0.45)' },
+      ],
+      textureSpace: 'local',
+    });
+    this._vignette.rect(0, 0, width, CONFIG.HEIGHT).fill(grad);
+    for (const f of this._fogSprites) {
+      f.sprite.width = width;
+      f.spriteFlip.width = width;
+    }
   },
 
   // Shared camera-axis math: pans by (screenAnchor - target), clamped so the

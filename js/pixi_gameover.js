@@ -18,11 +18,25 @@ const GameOverPixi = {
 
     this._blackFade = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x000000);
     c.addChild(this._blackFade);
+    this._renderWidth = 720;
+    this._isLandscape = false;
+
+    // Everything below except the sky/black-fade background sits inside this
+    // wrapper — in landscape it's scaled down and re-centered as one unit
+    // (see setRenderWidth) rather than showing only whatever narrow vertical
+    // slice of the full-size board/title/buttons happened to fall inside the
+    // crop. Portrait leaves it at identity scale/position, matching the
+    // original unwrapped layout exactly. Pixi's hit-testing follows the full
+    // transform chain automatically, so the bottom-button tap zones (added
+    // to this same wrapper below) still land correctly once scaled.
+    this._foreground = new PIXI.Container();
+    c.addChild(this._foreground);
 
     const boardX = (720 - 759) / 2, boardY = 127, boardW = 759, boardH = 343;
+    this._boardY = boardY; // remembered so setRenderWidth can nudge it for landscape without disturbing this authored portrait value
     this._board = new PIXI.Container();
     this._board.position.set(boardX, boardY);
-    c.addChild(this._board);
+    this._foreground.addChild(this._board);
 
     const boardSprite = new PIXI.Sprite(textures.gameOverBoard);
     boardSprite.width = boardW; boardSprite.height = boardH;
@@ -64,7 +78,7 @@ const GameOverPixi = {
     // copy behind the crisp sprite reads the same way).
     this._gameOverContainer = new PIXI.Container();
     this._gameOverContainer.position.set(360, 0); // y set per-frame once texture aspect is known
-    c.addChild(this._gameOverContainer);
+    this._foreground.addChild(this._gameOverContainer);
     const goW = 560, goH = goW * (textures.gameOverText.height / textures.gameOverText.width);
 
     // Glow: sliced into thin horizontal strips, each its own Sprite (cropped
@@ -111,6 +125,19 @@ const GameOverPixi = {
     // retry / leaderboard-or-levels) matching PlayScreen.hitTest()'s own
     // third-split logic exactly, just as real Pixi event zones instead of a
     // manual x-coordinate check.
+    // Wrapped in its own sub-container so landscape can lift the whole
+    // bottom bar closer to the board/title (see setRenderWidth) by moving
+    // just this one container's y — every position below is still authored
+    // in the original portrait coordinates and stays exactly where it was
+    // when this offset is 0 (portrait, and landscape before the lift).
+    this._bottomBar = new PIXI.Container();
+    this._foreground.addChild(this._bottomBar);
+    // How far to lift the bar / drop the board in landscape (see
+    // setRenderWidth) — pulls both toward the title in the middle, closing
+    // portrait's tall empty gaps so there's room to size everything up.
+    this._BOTTOM_BAR_LIFT = 250;
+    this._BOARD_DROP = 50;
+
     const barW = 430 * 1.6 * 1.1, barH = barW * (358 / 855);
     const barX = (720 - barW) / 2, barY = 1280 - barH - 20;
     this._barRect = { x: barX, y: barY, w: barW, h: barH };
@@ -120,7 +147,7 @@ const GameOverPixi = {
       s.position.set(barX, barY);
       s.width = barW; s.height = barH;
     }
-    c.addChild(this._barFreeplay, this._barLevels);
+    this._bottomBar.addChild(this._barFreeplay, this._barLevels);
     const thirdW = barW / 3;
     ['home', 'retry', 'third'].forEach((target, i) => {
       const zone = new PIXI.Graphics().rect(barX + thirdW * i, barY, thirdW, barH).fill({ color: 0xffffff, alpha: 0.001 });
@@ -133,7 +160,7 @@ const GameOverPixi = {
         else if (PlayScreen.mode === 'level1') state.screen = 'levels';
         else PlayScreen.showLeaderboardComingSoon();
       });
-      c.addChild(zone);
+      this._bottomBar.addChild(zone);
     });
 
     this._leaderboardMsg = new PIXI.Text({
@@ -141,7 +168,66 @@ const GameOverPixi = {
     });
     this._leaderboardMsg.anchor.set(0.5, 0);
     this._leaderboardMsg.position.set(360, barY - 40);
-    c.addChild(this._leaderboardMsg);
+    this._bottomBar.addChild(this._leaderboardMsg);
+  },
+
+  // Mirrors PlayScreenPixi.setRenderWidth — the sky/black-fade overlay was
+  // fixed at the 720-wide design size, so in landscape's widened canvas
+  // (see game.js's fitGameWrap) it left a visible seam where the tint just
+  // stopped partway across and whatever was behind it showed through
+  // unfaded. Both extend to match, keeping the sky's original left/right
+  // overscan (originally 752 wide, 16px past each edge of a 720 canvas).
+  // isLandscape is passed separately from width because the foreground
+  // transform depends on it directly (identity in portrait, scaled+
+  // recentered in landscape) — width alone can't distinguish "portrait at
+  // 720" from some hypothetical landscape render that also happened to come
+  // out to 720.
+  setRenderWidth(width, isLandscape) {
+    if (!this._skyBg) return;
+    if (this._renderWidth === width && this._isLandscape === isLandscape) return;
+    if (this._renderWidth !== width) {
+      this._skyBg.position.x = -16;
+      this._skyBg.width = width + 32;
+      this._blackFade.clear().rect(0, 0, width, CONFIG.HEIGHT).fill(0x000000);
+    }
+    this._renderWidth = width;
+    this._isLandscape = isLandscape;
+    if (isLandscape) {
+      // Portrait has a lot of empty vertical space between the board
+      // (bottom ~470) and the button bar (top 943, always authored for a
+      // tall screen) — in the short landscape crop that gap is what was
+      // pushing content off-screen even after the 50% scale. Pulling the
+      // board down and the bar up (each via its own sub-container, so their
+      // authored portrait positions are untouched) closes those gaps,
+      // freeing up enough room to size everything up another 25% on top of
+      // the original 50% (Rob: "make all the images bigger if you move them
+      // closer to the center" — the two go together, closing the gaps is
+      // what makes room for the extra size).
+      this._board.position.y = this._boardY + this._BOARD_DROP;
+      this._bottomBar.position.y = -this._BOTTOM_BAR_LIFT;
+
+      // Re-centered on the CONTENT's own vertical center — not the canvas's
+      // numeric center (640), which sits well above where this content
+      // actually lives. Recomputed using the board/bar's new (moved)
+      // positions, not their original portrait ones.
+      const boardTop = this._boardY + this._BOARD_DROP;
+      const barTop = this._barRect.y - this._BOTTOM_BAR_LIFT;
+      const barBottom = barTop + this._barRect.h;
+      const contentCenterY = (boardTop + barBottom) / 2;
+      this._foreground.pivot.set(360, contentCenterY);
+      this._foreground.scale.set(0.625); // 50% * 1.25 (Rob: 25% bigger)
+      // Target position is 640 (the canvas's own vertical center), not
+      // contentCenterY — pivot picks *which point in the content* aligns,
+      // position picks *where on screen* it lands, and the visible landscape
+      // crop is centered on the canvas's middle (640), not the content's.
+      this._foreground.position.set(width / 2, 640);
+    } else {
+      this._board.position.y = this._boardY;
+      this._bottomBar.position.y = 0;
+      this._foreground.pivot.set(0, 0);
+      this._foreground.scale.set(1);
+      this._foreground.position.set(0, 0);
+    }
   },
 
   refresh() {
