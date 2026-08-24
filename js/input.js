@@ -79,8 +79,11 @@ const Input = (() => {
   function handleOrientation(event) {
     const angle = getScreenAngle();
     let tiltDeg;
-    if (angle === 90) tiltDeg = -event.beta;
-    else if (angle === 270 || angle === -90) tiltDeg = event.beta;
+    // Landscape signs flipped from the initial guess (Rob tested on Android:
+    // came out inverted — tilting right made the ball go left). Still
+    // unverified on iOS, which can differ here; that's a follow-up check.
+    if (angle === 90) tiltDeg = event.beta;
+    else if (angle === 270 || angle === -90) tiltDeg = -event.beta;
     else if (angle === 180) tiltDeg = -event.gamma;
     else tiltDeg = event.gamma;
     if (tiltDeg === null || tiltDeg === undefined) return;
