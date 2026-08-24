@@ -294,7 +294,7 @@ function showScreen(name) {
 // width" every gameplay object/HUD position is authored against; only the
 // screen-fixed background and the camera's horizontal anchor know about the
 // wider render target.
-const LANDSCAPE_ZOOM_OUT = 0.64;
+const LANDSCAPE_ZOOM_OUT = 0.5; // Rob: the platform read too big in landscape, zoom out to see more of the tower
 let renderWidth = CONFIG.WIDTH;
 // Guards the GPU-touching work below (renderer.resize + the gradient
 // rebuilds inside setRenderWidth) so it only actually runs when the render
@@ -324,12 +324,22 @@ function fitGameWrap() {
   canvas.style.height = `${CONFIG.HEIGHT}px`;
   gameWrap.style.width = `${renderWidth}px`;
 
-  if (renderWidth !== _lastAppliedRenderWidth || isLandscape !== _lastAppliedIsLandscape) {
+  // Gated on app.renderer existing, not just on width/isLandscape having
+  // changed — the very first fitGameWrap() call (top of main(), before
+  // app.init() resolves) would otherwise mark this width as "already
+  // applied" despite the renderer.resize() below being skipped (no renderer
+  // to resize yet), permanently starving every later call of ever actually
+  // resizing it. Caught before shipping: the canvas's CSS box was growing to
+  // fit a wide landscape screen while the renderer stayed at its original
+  // 720x1280 resolution underneath, stretching every rendered pixel ~2x
+  // horizontally instead of showing more of the game at the right scale.
+  if (app.renderer && (renderWidth !== _lastAppliedRenderWidth || isLandscape !== _lastAppliedIsLandscape)) {
     _lastAppliedRenderWidth = renderWidth;
     _lastAppliedIsLandscape = isLandscape;
-    if (app.renderer) app.renderer.resize(renderWidth, CONFIG.HEIGHT);
+    app.renderer.resize(renderWidth, CONFIG.HEIGHT);
     if (typeof PlayScreenPixi !== 'undefined') PlayScreenPixi.setRenderWidth(renderWidth);
     if (typeof GameOverPixi !== 'undefined') GameOverPixi.setRenderWidth(renderWidth, isLandscape);
+    if (typeof HudPixi !== 'undefined') HudPixi.setLandscapeMode(isLandscape, renderWidth);
     if (typeof HomeScreenPixi !== 'undefined') {
       // Bottom edge of the visible landscape crop, in canvas/world
       // coordinates — the crop is always vertically centered on y=640 (see

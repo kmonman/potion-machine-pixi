@@ -77,6 +77,30 @@ const HudPixi = {
       c.addChild(bc);
       return { container: bc, badge, btn };
     });
+    this._isLandscape = false;
+  },
+
+  // Called by game.js's fitGameWrap() on every resize/orientation change.
+  // The two "potion bottle" blast buttons (Rob's term) pop in near the
+  // bottom-left/right of the portrait design (y=920) — fine there, but in
+  // the short landscape crop that's off past the visible area. Moves each
+  // to hug its own screen edge instead, vertically centered on the canvas's
+  // own middle (640 — same "centered top to bottom" reference point used
+  // for Game Over/Home). Portrait passes isLandscape=false and each button
+  // goes back to its authored (btn.x+w/2, btn.y+h/2) position, unchanged.
+  setLandscapeMode(isLandscape, renderWidth) {
+    if (!this._blastButtons) return;
+    this._isLandscape = isLandscape;
+    const EDGE_MARGIN = 50;
+    for (let i = 0; i < this._blastButtons.length; i++) {
+      const { container, btn } = this._blastButtons[i];
+      if (isLandscape) {
+        const x = i === 0 ? EDGE_MARGIN + btn.w / 2 : renderWidth - EDGE_MARGIN - btn.w / 2;
+        container.position.set(x, 640);
+      } else {
+        container.position.set(btn.x + btn.w / 2, btn.y + btn.h / 2);
+      }
+    }
   },
 
   refresh() {
