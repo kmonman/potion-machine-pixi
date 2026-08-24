@@ -427,17 +427,35 @@ const PlayScreenPixi = {
     body.lineTo(last.x, halfT);
     body.closePath();
 
+    // Rebuilding a FillGradient bakes a new GPU texture — tubeColor lerps by
+    // tiny fractions every frame (see platform.js), so comparing for exact
+    // equality would still rebuild on essentially every frame, one leaking
+    // texture per platform per frame, continuously, for as long as the game
+    // runs. That's the same "new PIXI.FillGradient() every frame" pattern
+    // that caused a real GPU crash once already (the jet nozzle, fixed
+    // earlier) — just far more frequent here, and the likely cause of
+    // temporary freeze-then-recover crashes seen on a real phone (GPU
+    // memory pressure building up over a play session until the driver has
+    // to stall and clean up). Only rebuilding once the color has visibly
+    // shifted keeps the transition looking smooth while capping the rebuild
+    // rate to something sane instead of every frame forever.
     const [tr, tg, tb] = p.tubeColor;
-    const bodyGrad = new PIXI.FillGradient({
-      type: 'linear', x0: 0, y0: -halfT, x1: 0, y1: halfT,
-      colorStops: [
-        { offset: 0, color: `rgba(${lighten(tr, 90)},${lighten(tg, 90)},${lighten(tb, 20)},0.9)` },
-        { offset: 0.35, color: `rgba(${tr | 0},${tg | 0},${tb | 0},0.95)` },
-        { offset: 1, color: `rgba(${darken(tr, 0.55)},${darken(tg, 0.55)},${darken(tb, 0.55)},0.92)` },
-      ],
-      textureSpace: 'local',
-    });
-    body.fill(bodyGrad);
+    const cached = v._liquidGradColor;
+    const changed = !cached
+      || Math.abs(cached[0] - tr) >= 2 || Math.abs(cached[1] - tg) >= 2 || Math.abs(cached[2] - tb) >= 2;
+    if (changed) {
+      v._liquidGradColor = [tr, tg, tb];
+      v._liquidGradient = new PIXI.FillGradient({
+        type: 'linear', x0: 0, y0: -halfT, x1: 0, y1: halfT,
+        colorStops: [
+          { offset: 0, color: `rgba(${lighten(tr, 90)},${lighten(tg, 90)},${lighten(tb, 20)},0.9)` },
+          { offset: 0.35, color: `rgba(${tr | 0},${tg | 0},${tb | 0},0.95)` },
+          { offset: 1, color: `rgba(${darken(tr, 0.55)},${darken(tg, 0.55)},${darken(tb, 0.55)},0.92)` },
+        ],
+        textureSpace: 'local',
+      });
+    }
+    body.fill(v._liquidGradient);
 
     const shine = v.liquidShine;
     shine.clear();
