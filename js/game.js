@@ -296,6 +296,23 @@ function showScreen(name) {
 // wider render target.
 const LANDSCAPE_ZOOM_OUT = 0.64;
 let renderWidth = CONFIG.WIDTH;
+// Guards the GPU-touching work below (renderer.resize + the gradient
+// rebuilds inside setRenderWidth) so it only actually runs when the render
+// target genuinely changed size — not on every fitGameWrap() call. Mobile
+// browsers (Android Chrome especially) fire native 'resize' events
+// spuriously and repeatedly — the address bar hiding/showing, minor
+// viewport-chrome changes — with no actual size change involved. Before
+// this guard, every one of those redundant firings still called
+// app.renderer.resize() and reconstructed FillGradient textures
+// unconditionally, real GPU work on every firing. Rob saw the game
+// temporarily freeze (audio kept playing, so it wasn't a full crash — more
+// like the GPU/render thread stalling) then come back with the ball fallen
+// off; a burst of this from spurious resize events is the leading suspect,
+// given it's the same "reallocating GPU resources every frame" pattern that
+// caused an actual GPU crash earlier in this project (see the jet nozzle
+// gradient leak writeup in PINBALL_EXPANSION_PLAN.md).
+let _lastAppliedRenderWidth = null;
+let _lastAppliedIsLandscape = null;
 function fitGameWrap() {
   const isLandscape = window.innerWidth > window.innerHeight;
   const scale = isLandscape
@@ -306,16 +323,21 @@ function fitGameWrap() {
   canvas.style.width = `${renderWidth}px`;
   canvas.style.height = `${CONFIG.HEIGHT}px`;
   gameWrap.style.width = `${renderWidth}px`;
-  if (app.renderer) app.renderer.resize(renderWidth, CONFIG.HEIGHT);
-  if (typeof PlayScreenPixi !== 'undefined') PlayScreenPixi.setRenderWidth(renderWidth);
-  if (typeof GameOverPixi !== 'undefined') GameOverPixi.setRenderWidth(renderWidth, isLandscape);
-  if (typeof HomeScreenPixi !== 'undefined') {
-    // Bottom edge of the visible landscape crop, in canvas/world coordinates
-    // — the crop is always vertically centered on y=640 (see the left/top
-    // math below), so its bottom is just 640 plus half the viewport height
-    // converted back into world units via the same scale.
-    const visibleBottomY = isLandscape ? 640 + (window.innerHeight / 2) / scale : CONFIG.HEIGHT;
-    HomeScreenPixi.setLandscapeMode(isLandscape, renderWidth, visibleBottomY);
+
+  if (renderWidth !== _lastAppliedRenderWidth || isLandscape !== _lastAppliedIsLandscape) {
+    _lastAppliedRenderWidth = renderWidth;
+    _lastAppliedIsLandscape = isLandscape;
+    if (app.renderer) app.renderer.resize(renderWidth, CONFIG.HEIGHT);
+    if (typeof PlayScreenPixi !== 'undefined') PlayScreenPixi.setRenderWidth(renderWidth);
+    if (typeof GameOverPixi !== 'undefined') GameOverPixi.setRenderWidth(renderWidth, isLandscape);
+    if (typeof HomeScreenPixi !== 'undefined') {
+      // Bottom edge of the visible landscape crop, in canvas/world
+      // coordinates — the crop is always vertically centered on y=640 (see
+      // the left/top math below), so its bottom is just 640 plus half the
+      // viewport height converted back into world units via the same scale.
+      const visibleBottomY = isLandscape ? 640 + (window.innerHeight / 2) / scale : CONFIG.HEIGHT;
+      HomeScreenPixi.setLandscapeMode(isLandscape, renderWidth, visibleBottomY);
+    }
   }
 
   gameWrap.style.transform = `scale(${scale})`;
@@ -323,7 +345,14 @@ function fitGameWrap() {
   gameWrap.style.top = `${(window.innerHeight - CONFIG.HEIGHT * scale) / 2}px`;
   gameWrap.style.position = 'absolute';
 }
-window.addEventListener('resize', fitGameWrap);
+
+// Debounced — collapses a burst of native resize events (common on mobile,
+// see above) into a single fitGameWrap() call instead of one per event.
+let _resizeDebounceTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeDebounceTimer);
+  _resizeDebounceTimer = setTimeout(fitGameWrap, 150);
+});
 
 // ---------- Main loop ----------
 // Driven by Pixi's own ticker (app.ticker) instead of a hand-rolled
