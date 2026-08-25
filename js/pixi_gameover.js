@@ -245,8 +245,17 @@ const GameOverPixi = {
     this._scoreText.text = goLayout.scoreStr;
     this._scoreText.x = goLayout.scoreLeft - this._board.x;
 
+    // m.y comes from PlayScreen._goScoreLayout(), a fixed absolute-space
+    // constant that has no idea the board gets dropped lower in landscape
+    // (see setRenderWidth's _BOARD_DROP) — converting it with the board's
+    // *current* (possibly dropped) y would shift the mask up relative to
+    // the board by however much it dropped, letting bubbles spill out above
+    // the board's top edge. this._boardY (the original, undropped
+    // reference) is the same basis every other board-local child already
+    // uses (e.g. the score text's y, set once at build time against it) —
+    // using anything else here is the one inconsistency.
     const m = goLayout.mask;
-    this._bubbleMask.clear().rect(m.x - this._board.x, m.y - this._board.y, m.w, m.h).fill(0xffffff);
+    this._bubbleMask.clear().rect(m.x - this._board.x, m.y - this._boardY, m.w, m.h).fill(0xffffff);
     const maskBottom = m.y + m.h;
     const bubbles = PlayScreen.goBubbles;
     while (this._bubblePool.length < bubbles.length) {
@@ -262,7 +271,7 @@ const GameOverPixi = {
       const topFade = Math.min(1, Math.max(0, (b.y - m.y) / 20));
       const bottomFade = Math.min(1, Math.max(0, (maskBottom - b.y) / 25));
       const s = this._bubblePool[i];
-      s.position.set(x - this._board.x, b.y - this._board.y);
+      s.position.set(x - this._board.x, b.y - this._boardY);
       s.width = s.height = b.r * 2;
       s.alpha = Math.max(0, Math.min(topFade, bottomFade));
     }
