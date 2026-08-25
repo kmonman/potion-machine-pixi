@@ -11,7 +11,7 @@ const CONFIG = {
 const ASSET_PATHS = {
   sky: 'assets/Background 1.png',
   logo: 'assets/Potion Logo 7.11.png',
-  liveGame: 'assets/LiveGame4.png',
+  liveGame: 'assets/Home Page Landscape-8.png',
   freePlayButton: 'assets/FreePlay.png',
   levelModeButton: 'assets/LevelsButton.png',
   motionButton: 'assets/MotionButton.png',

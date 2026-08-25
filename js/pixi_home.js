@@ -38,11 +38,18 @@ const HomeScreenPixi = {
     // (scale 1, pivot/position 0,0), matching the original unwrapped layout.
     this._illustrationGroup = new PIXI.Container();
     c.addChild(this._illustrationGroup);
+    // New tightly-cropped illustration (Rob) — no dead transparent margin
+    // baked in like the old LiveGame4.png had, and a much wider aspect
+    // ratio (423x280 native, ~1.51:1) instead of nearly square. Sized to
+    // preserve that aspect ratio rather than force-fitting the old
+    // dimensions, which would have stretched it.
     const liveGame = new PIXI.Sprite(textures.liveGame);
-    liveGame.position.set(-10, 286);
-    liveGame.width = 692; liveGame.height = 721;
+    const illusW = 692, illusH = illusW * (280 / 423);
+    const illusX = (720 - illusW) / 2, illusY = 300; // moved up on portrait (Rob)
+    liveGame.position.set(illusX, illusY);
+    liveGame.width = illusW; liveGame.height = illusH;
     this._illustrationGroup.addChild(liveGame);
-    this._illustrationCenter = { x: -10 + 692 / 2, y: 286 + 721 / 2 };
+    this._illustrationCenter = { x: illusX + illusW / 2, y: illusY + illusH / 2 };
 
     this._logoGroup = new PIXI.Container();
     c.addChild(this._logoGroup);
@@ -65,7 +72,7 @@ const HomeScreenPixi = {
     freePlayBtn.cursor = 'pointer';
     freePlayBtn.on('pointertap', () => tryEnterGame('FreePlay'));
     this._freePlayGroup.addChild(freePlayBtn);
-    this._freePlayCaption = this._centeredText('FREE PLAY for high score', 81, 970, 209, 22, 'PotionBody', 0x77a3fc);
+    this._freePlayCaption = this._centeredText('FREE PLAY\nfor high score', 81, 970, 209, 22, 'PotionBody', 0x77a3fc);
     this._freePlayGroup.addChild(this._freePlayCaption);
     this._freePlayCenter = { x: 45 + 285 / 2, y: 721 + 285 / 2 };
 
@@ -78,7 +85,7 @@ const HomeScreenPixi = {
     levelModeBtn.cursor = 'pointer';
     levelModeBtn.on('pointertap', () => tryEnterGame('Levels'));
     this._levelsGroup.addChild(levelModeBtn);
-    this._levelsCaption = this._centeredText('Make potion to advance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc);
+    this._levelsCaption = this._centeredText('Make potion to\nadvance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc);
     this._levelsGroup.addChild(this._levelsCaption);
     this._levelsCenter = { x: 390 + 285 / 2, y: 721 + 285 / 2 };
 
@@ -176,13 +183,13 @@ const HomeScreenPixi = {
 
       // 10% bigger again + nudged up (Rob) — the +10 downward padding from
       // before became a small negative offset instead.
-      const logoScale = 0.45 * 1.1 * 1.1;
+      const logoScale = 0.45 * 1.1 * 1.1 * 1.1; // another 10% bigger (Rob)
       this._setGroupTransform(this._logoGroup, this._logoCenter, logoScale,
         renderWidth / 2, visibleTopY + (369 * logoScale) / 2 - 10);
 
       const illusScale = 0.5 * 1.1; // 50% was too big - 10% instead (Rob)
       this._setGroupTransform(this._illustrationGroup, this._illustrationCenter, illusScale,
-        renderWidth / 2, visibleTopY + cropHeight * 0.66);
+        renderWidth / 2, visibleTopY + cropHeight * 0.55);
 
       const btnScale = 0.45 * 1.4 * 1.5; // buttons left as-is (Rob: "leave the buttons as is")
       const btnY = visibleTopY + cropHeight * 0.5;
@@ -191,12 +198,6 @@ const HomeScreenPixi = {
         EDGE_MARGIN + (285 * btnScale) / 2, btnY);
       this._setGroupTransform(this._levelsGroup, this._levelsCenter, btnScale,
         renderWidth - EDGE_MARGIN - (285 * btnScale) / 2, btnY);
-      // Two lines instead of one long one that ran past the button/into the
-      // illustration (Rob) — align:'center' (already set in _centeredText)
-      // centers each line relative to the other automatically.
-      this._freePlayCaption.text = 'FREE PLAY\nfor high score';
-      this._levelsCaption.text = 'Make potion to\nadvance LEVELS';
-
       const muteScale = 0.8;
       this._setGroupTransform(this._muteGroup, this._muteCenter, muteScale,
         40, visibleBottomY - 30);
@@ -222,8 +223,6 @@ const HomeScreenPixi = {
       this._resetGroupTransform(this._freePlayGroup);
       this._resetGroupTransform(this._levelsGroup);
       this._resetGroupTransform(this._muteGroup);
-      this._freePlayCaption.text = 'FREE PLAY for high score';
-      this._levelsCaption.text = 'Make potion to advance LEVELS';
       nameInput.style.left = '88px';
       nameInput.style.top = '1066px';
       nameInput.style.width = '540px';

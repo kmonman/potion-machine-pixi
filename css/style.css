@@ -99,7 +99,7 @@ body {
    portrait/landscape scaling. Matches the game's purple-neon button look. */
 #fullscreenBtn {
   position: fixed;
-  bottom: 12px;
+  bottom: 86px; /* lined up with the mute button on portrait (Rob) */
   right: 12px;
   width: 44px;
   height: 44px;
@@ -119,4 +119,12 @@ body {
 }
 #fullscreenBtn:active {
   background: rgba(144, 19, 254, 0.25);
+}
+/* Landscape's own letterboxing puts the mute button much closer to the
+   real bottom edge than portrait's does — 86px (tuned for portrait) would
+   leave fullscreen stranded mid-screen there instead of lined up with it. */
+@media (orientation: landscape) {
+  #fullscreenBtn {
+    bottom: 2px;
+  }
 }
