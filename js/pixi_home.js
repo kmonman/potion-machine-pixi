@@ -27,66 +27,78 @@ const HomeScreenPixi = {
     sky.width = 752; sky.height = 1309;
     c.addChild(sky);
 
+    // Logo and the tube/hint illustration each get their own wrapper (pivot
+    // at the sprite's own center, in its authored portrait position/size) so
+    // landscape can scale+recenter them independently — same "pivot picks
+    // the point, position picks where it lands" technique used for Game
+    // Over's board/title. Portrait leaves both wrappers at identity
+    // (scale 1, pivot/position 0,0), matching the original unwrapped layout.
+    this._illustrationGroup = new PIXI.Container();
+    c.addChild(this._illustrationGroup);
     const liveGame = new PIXI.Sprite(textures.liveGame);
     liveGame.position.set(-10, 286);
     liveGame.width = 692; liveGame.height = 721;
-    c.addChild(liveGame);
+    this._illustrationGroup.addChild(liveGame);
+    this._illustrationCenter = { x: -10 + 692 / 2, y: 286 + 721 / 2 };
 
+    this._logoGroup = new PIXI.Container();
+    c.addChild(this._logoGroup);
     const logo = new PIXI.Sprite(textures.logo);
     logo.position.set(11, -12);
     logo.width = 677; logo.height = 369;
-    c.addChild(logo);
+    this._logoGroup.addChild(logo);
+    this._logoCenter = { x: 11 + 677 / 2, y: -12 + 369 / 2 };
 
-    // Free Play + Levels buttons and their captions, grouped so landscape can
-    // move the pair as one unit (see setLandscapeMode) without touching their
-    // authored portrait positions — same "wrapper + offset" approach used for
-    // Game Over's board/bar (Rob liked that this doesn't disturb portrait at
-    // all: the group just sits at offset (0,0) there).
-    this._playButtonsGroup = new PIXI.Container();
-    c.addChild(this._playButtonsGroup);
-    // Bottom edge of the buttons in design coordinates (721 + 285) and the
-    // x-midpoint between their two centers (187.5 and 532.5) — both used by
-    // setLandscapeMode to reposition the group without re-deriving them.
-    this._playButtonsBottom = 721 + 285;
-    this._playButtonsCenterX = 360;
-
+    // Free Play and Levels each get their OWN wrapper (button + its caption)
+    // rather than one shared group — landscape (Rob's mockup) sends them to
+    // opposite edges of the screen, not a single translated pair like the
+    // gameplay HUD's blast buttons.
+    this._freePlayGroup = new PIXI.Container();
+    c.addChild(this._freePlayGroup);
     const freePlayBtn = new PIXI.Sprite(textures.freePlayButton);
     freePlayBtn.position.set(45, 721);
     freePlayBtn.width = 285; freePlayBtn.height = 285;
     freePlayBtn.eventMode = 'static';
     freePlayBtn.cursor = 'pointer';
     freePlayBtn.on('pointertap', () => tryEnterGame('FreePlay'));
-    this._playButtonsGroup.addChild(freePlayBtn);
+    this._freePlayGroup.addChild(freePlayBtn);
+    this._freePlayGroup.addChild(this._centeredText('FREE PLAY for high score', 81, 970, 209, 22, 'PotionBody', 0x77a3fc));
+    this._freePlayCenter = { x: 45 + 285 / 2, y: 721 + 285 / 2 };
 
+    this._levelsGroup = new PIXI.Container();
+    c.addChild(this._levelsGroup);
     const levelModeBtn = new PIXI.Sprite(textures.levelModeButton);
     levelModeBtn.position.set(390, 721);
     levelModeBtn.width = 285; levelModeBtn.height = 285;
     levelModeBtn.eventMode = 'static';
     levelModeBtn.cursor = 'pointer';
     levelModeBtn.on('pointertap', () => tryEnterGame('Levels'));
-    this._playButtonsGroup.addChild(levelModeBtn);
-
-    this._playButtonsGroup.addChild(this._centeredText('FREE PLAY for high score', 81, 970, 209, 22, 'PotionBody', 0x77a3fc));
-    this._playButtonsGroup.addChild(this._centeredText('Make potion to advance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc));
+    this._levelsGroup.addChild(levelModeBtn);
+    this._levelsGroup.addChild(this._centeredText('Make potion to advance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc));
+    this._levelsCenter = { x: 390 + 285 / 2, y: 721 + 285 / 2 };
 
     this._nameWarningText = this._centeredText('Enter name before starting game', 133, 1132, 454, 24, 'PotionBody', 0xbd10e0);
     this._nameWarningText.visible = false;
     c.addChild(this._nameWarningText);
+    this._nameWarningY = 1132;
 
     // Mute button — hit area (muteHit, 64x64) is a bit bigger than the visible
     // sprite (muteBtn, 57x68) for an easier tap target, same as the old version.
+    this._muteGroup = new PIXI.Container();
+    c.addChild(this._muteGroup);
     const muteHitX = 631, muteHitY = 1184, muteHitW = 64, muteHitH = 64;
     const muteBtnX = 637, muteBtnY = 1186, muteBtnW = 57, muteBtnH = 68;
     this._muteSprite = new PIXI.Sprite(state.muted ? textures.muteMuted : textures.muteUnmuted);
     this._muteSprite.position.set(muteBtnX, muteBtnY);
     this._muteSprite.width = muteBtnW; this._muteSprite.height = muteBtnH;
-    c.addChild(this._muteSprite);
+    this._muteGroup.addChild(this._muteSprite);
 
     const muteHit = new PIXI.Graphics().rect(muteHitX, muteHitY, muteHitW, muteHitH).fill({ color: 0xffffff, alpha: 0.001 });
     muteHit.eventMode = 'static';
     muteHit.cursor = 'pointer';
     muteHit.on('pointertap', () => toggleMute());
-    c.addChild(muteHit);
+    this._muteGroup.addChild(muteHit);
+    this._muteCenter = { x: muteHitX + muteHitW / 2, y: muteHitY + muteHitH / 2 };
 
     this._motionOverlay = new PIXI.Container();
     this._motionOverlay.visible = false;
@@ -118,23 +130,78 @@ const HomeScreenPixi = {
     return t;
   },
 
+  // Pivot at a group's own authored-center (so it scales around itself, not
+  // its portrait top-left corner), then land that point at a target screen
+  // position — same technique as Game Over's board/title.
+  _setGroupTransform(group, center, scale, targetX, targetY) {
+    group.pivot.set(center.x, center.y);
+    group.scale.set(scale);
+    group.position.set(targetX, targetY);
+  },
+  _resetGroupTransform(group) {
+    group.pivot.set(0, 0);
+    group.scale.set(1);
+    group.position.set(0, 0);
+  },
+
   // Called by game.js's fitGameWrap() on every resize/orientation change.
-  // Moves the Free Play / Levels button pair as one unit (no scaling — Rob
-  // wants them the same size and the same distance apart, just repositioned)
-  // so they sit just above the bottom of the visible landscape crop and stay
-  // centered as that crop's width changes, instead of sitting off past the
-  // bottom of a portrait-height design entirely out of view. Portrait passes
-  // isLandscape=false and the group sits at its authored (0,0) offset,
-  // unchanged.
+  // Rob's landscape mockup: logo top-center, the tube/hint illustration
+  // centered below it, Free Play and Levels flanking it on opposite edges
+  // (each shrunk to fit), the name field centered near the bottom, mute in
+  // the bottom-right corner — a real landscape layout rather than the
+  // portrait one just cropped. Portrait passes isLandscape=false and every
+  // group resets to its authored (0,0)/scale-1 identity, unchanged.
   setLandscapeMode(isLandscape, renderWidth, visibleBottomY) {
-    if (!this._playButtonsGroup) return;
+    if (!this._logoGroup) return;
     if (isLandscape) {
-      const BOTTOM_MARGIN = 40; // "slightly above the bottom" (Rob)
-      const offsetY = (visibleBottomY - BOTTOM_MARGIN) - this._playButtonsBottom;
-      const offsetX = renderWidth / 2 - this._playButtonsCenterX;
-      this._playButtonsGroup.position.set(offsetX, offsetY);
+      // The crop is always vertically centered on canvas-y=640 (see
+      // game.js), so its top is exactly as far above 640 as visibleBottomY
+      // is below it.
+      const visibleTopY = 1280 - visibleBottomY;
+      const cropHeight = visibleBottomY - visibleTopY;
+
+      const logoScale = 0.45;
+      this._setGroupTransform(this._logoGroup, this._logoCenter, logoScale,
+        renderWidth / 2, visibleTopY + (369 * logoScale) / 2 + 10);
+
+      const illusScale = 0.5;
+      this._setGroupTransform(this._illustrationGroup, this._illustrationCenter, illusScale,
+        renderWidth / 2, visibleTopY + cropHeight * 0.56);
+
+      const btnScale = 0.45;
+      const btnY = visibleTopY + cropHeight * 0.5;
+      const EDGE_MARGIN = 60;
+      this._setGroupTransform(this._freePlayGroup, this._freePlayCenter, btnScale,
+        EDGE_MARGIN + (285 * btnScale) / 2, btnY);
+      this._setGroupTransform(this._levelsGroup, this._levelsCenter, btnScale,
+        renderWidth - EDGE_MARGIN - (285 * btnScale) / 2, btnY);
+
+      const muteScale = 0.8;
+      this._setGroupTransform(this._muteGroup, this._muteCenter, muteScale,
+        renderWidth - 40, visibleBottomY - 30);
+
+      // Name field is a real DOM element, not Pixi — but it's an absolutely
+      // positioned child of #gameWrap, so it lives in the same 0-720/0-1280
+      // coordinate space and gets carried along by gameWrap's shared CSS
+      // transform exactly like the canvas. Centered, tucked under the
+      // illustration near the bottom of the crop.
+      const nameW = 400, nameH = 60;
+      nameInput.style.left = `${renderWidth / 2 - nameW / 2}px`;
+      nameInput.style.top = `${visibleBottomY - nameH - 20}px`;
+      nameInput.style.width = `${nameW}px`;
+      nameInput.style.height = `${nameH}px`;
+      this._nameWarningText.position.set(renderWidth / 2, visibleBottomY - nameH - 45);
     } else {
-      this._playButtonsGroup.position.set(0, 0);
+      this._resetGroupTransform(this._logoGroup);
+      this._resetGroupTransform(this._illustrationGroup);
+      this._resetGroupTransform(this._freePlayGroup);
+      this._resetGroupTransform(this._levelsGroup);
+      this._resetGroupTransform(this._muteGroup);
+      nameInput.style.left = '88px';
+      nameInput.style.top = '1066px';
+      nameInput.style.width = '540px';
+      nameInput.style.height = '72px';
+      this._nameWarningText.position.set(360, this._nameWarningY);
     }
   },
 
