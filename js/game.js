@@ -294,7 +294,7 @@ function showScreen(name) {
 // width" every gameplay object/HUD position is authored against; only the
 // screen-fixed background and the camera's horizontal anchor know about the
 // wider render target.
-const LANDSCAPE_ZOOM_OUT = 0.5; // Rob: the platform read too big in landscape, zoom out to see more of the tower
+const LANDSCAPE_ZOOM_OUT = 0.4; // Rob: zoom out another 20% from 0.5 to see even more of the tower
 let renderWidth = CONFIG.WIDTH;
 // Guards the GPU-touching work below (renderer.resize + the gradient
 // rebuilds inside setRenderWidth) so it only actually runs when the render
