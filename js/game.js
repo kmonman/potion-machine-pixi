@@ -410,6 +410,25 @@ window.addEventListener('resize', () => {
   _resizeDebounceTimer = setTimeout(fitGameWrap, 150);
 });
 
+// iOS Safari has a well-documented quirk: right after a rotation,
+// window.innerWidth/innerHeight can briefly still report the *pre-rotation*
+// size before settling on the real one a moment later — since isLandscape
+// is decided purely by comparing those two numbers, reading them at the
+// wrong instant flips portrait/landscape backwards (Rob: confirmed on a
+// real iPhone; Android reports correctly right away, this never showed up
+// there). orientationchange only exists to catch exactly this, so rechecking
+// a few times as things settle is a safety net, not a replacement for the
+// resize listener above — on Android these are just harmless repeat calls
+// confirming the same already-correct numbers (fitGameWrap is cheap to call
+// redundantly; the GPU-touching work inside it only runs when something
+// actually changed).
+window.addEventListener('orientationchange', () => {
+  clearTimeout(_resizeDebounceTimer);
+  setTimeout(fitGameWrap, 50);
+  setTimeout(fitGameWrap, 300);
+  setTimeout(fitGameWrap, 600);
+});
+
 // ---------- Main loop ----------
 // Driven by Pixi's own ticker (app.ticker) instead of a hand-rolled
 // requestAnimationFrame loop — Pixi already renders every tick on its own, so
