@@ -313,11 +313,26 @@ let renderWidth = CONFIG.WIDTH;
 // gradient leak writeup in PINBALL_EXPANSION_PLAN.md).
 let _lastAppliedRenderWidth = null;
 let _lastAppliedIsLandscape = null;
+// Caps how wide the Pixi canvas/renderer is ever asked to be. Without this,
+// LANDSCAPE_ZOOM_OUT (0.4) pushes renderWidth to a *fixed* 720/0.4=1800
+// regardless of the actual device width — a normal phone (~800-950px wide
+// in landscape) ends up asking its GPU to rasterize an 1800x1280 canvas
+// (~2.3M px) just to downscale it back down, 5-7x more pixels than the
+// screen will ever show. Confirmed on a real phone: this produced a
+// genuinely broken layout (content mispositioned, background not fully
+// drawn) that didn't reproduce in desktop testing at typical phone CSS
+// widths — pointing at a real GPU/canvas-size limitation, not a math bug
+// (verified the position math itself is correct; testing very wide desktop
+// windows reproduced the same breakage past ~1200px, real width or not).
+// Capping trades some zoom-out amount on narrow phones for not overwhelming
+// weaker mobile GPUs.
+const MAX_RENDER_WIDTH = 1100;
 function fitGameWrap() {
   const isLandscape = window.innerWidth > window.innerHeight;
-  const scale = isLandscape
+  let scale = isLandscape
     ? Math.max(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT) * LANDSCAPE_ZOOM_OUT
     : Math.min(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT);
+  if (isLandscape) scale = Math.max(scale, window.innerWidth / MAX_RENDER_WIDTH);
   renderWidth = isLandscape ? Math.round(window.innerWidth / scale) : CONFIG.WIDTH;
 
   canvas.style.width = `${renderWidth}px`;
