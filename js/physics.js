@@ -20,7 +20,7 @@ const Physics = {
   rotation: 0, // radians — visual spin, doesn't affect physics
 
   gravityY: 1500, // px/s^2, constant downward pull — was 900, felt too floaty (Rob's feedback)
-  tiltAccel: 1260, // px/s^2 at full tilt (tiltX = ±1) — 10% down from 1400, felt too touchy (Rob)
+  tiltAccel: 1134, // px/s^2 at full tilt (tiltX = ±1) — another 10% down from 1260, still felt too touchy (Rob)
   airDamping: 0.999,
 
   // True if the ball is touching ANY platform's hinge (used for scoring — see

@@ -344,20 +344,19 @@ let renderWidth = CONFIG.WIDTH;
 // gradient leak writeup in PINBALL_EXPANSION_PLAN.md).
 let _lastAppliedRenderWidth = null;
 let _lastAppliedIsLandscape = null;
-// Caps how wide the Pixi canvas/renderer is ever asked to be. Without this,
-// LANDSCAPE_ZOOM_OUT (0.4) pushes renderWidth to a *fixed* 720/0.4=1800
-// regardless of the actual device width — a normal phone (~800-950px wide
-// in landscape) ends up asking its GPU to rasterize an 1800x1280 canvas
-// (~2.3M px) just to downscale it back down, 5-7x more pixels than the
-// screen will ever show. Confirmed on a real phone: this produced a
-// genuinely broken layout (content mispositioned, background not fully
-// drawn) that didn't reproduce in desktop testing at typical phone CSS
-// widths — pointing at a real GPU/canvas-size limitation, not a math bug
-// (verified the position math itself is correct; testing very wide desktop
-// windows reproduced the same breakage past ~1200px, real width or not).
-// Capping trades some zoom-out amount on narrow phones for not overwhelming
-// weaker mobile GPUs.
-const MAX_RENDER_WIDTH = 1100;
+// Caps how wide the Pixi canvas/renderer is ever asked to be — a safety net
+// against a real bug found once (very wide *desktop browser windows*,
+// 1200px+, produced a genuinely broken layout: content mispositioned,
+// background not fully drawn — pointed at a GPU/canvas-size limitation, not
+// a math bug). Raised from 1100 to 1800 (Rob: the earlier cap was quietly
+// overriding every "zoom out more" request on a real phone, since
+// LANDSCAPE_ZOOM_OUT (0.4) wants 720/0.4=1800 and 1100 was always smaller
+// than that, so the cap — not the zoom setting — was the actual binding
+// constraint the whole time). 1800 matches what 0.4 already wants, so this
+// is now a no-op for every realistic phone/tablet width (all well under
+// 1200px) and only still protects the actual bug case: a browser window
+// wider than any real device gets.
+const MAX_RENDER_WIDTH = 1800;
 function fitGameWrap() {
   const isLandscape = window.innerWidth > window.innerHeight;
   let scale = isLandscape
@@ -499,6 +498,17 @@ async function main() {
   // it now that both exist, so landscape is correct from the first frame
   // instead of only fixing itself on the next window resize.
   fitGameWrap();
+
+  // Forces one real frame to paint immediately, rather than only queuing
+  // Home's content and waiting for the ticker's next scheduled tick to
+  // actually composite it (Rob: on a real iPhone, Home didn't visibly
+  // appear until the screen was touched — nothing in this file's logic
+  // gates it behind a touch, so this reads like iOS Safari not promptly
+  // running the first rAF-driven frame for a canvas that was only just
+  // populated with content, with the touch itself being what nudges it
+  // to actually paint). Cheap and harmless if this isn't the real cause.
+  HomeScreenPixi.refresh(textures, state);
+  app.renderer.render(app.stage);
 
   app.ticker.add(tick);
 }

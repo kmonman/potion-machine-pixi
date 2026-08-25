@@ -258,6 +258,7 @@ const PlayScreen = {
   // otherwise — drives a subtle grow+fade instead of an instant show/hide
   // (Rob). See _drawBlastButtons.
   blastButtonsT: 0,
+  introT: 0, // seconds left in the pre-drop pause at the start of a run, set in enter()
 
   // Vertical gap (world px) between platform pivots in the tower. Bumped from
   // 260 to 300 (Rob: move the top/middle platforms up higher). A blast's peak
@@ -348,6 +349,12 @@ const PlayScreen = {
     this.blastCharges = 0;
     this.blastThreshold = 0;
     this.blastButtonsT = 0;
+    // Brief pause before anything moves (Rob): the new screen appears with
+    // the ball sitting at its starting spot just above the platform, held
+    // there for a beat so the player actually sees the layout before the
+    // ball drops, instead of it already falling the instant the screen
+    // shows up.
+    this.introT = 2;
   },
 
   get isOver() { return Physics.fellOff || this.timedOut; },
@@ -355,6 +362,14 @@ const PlayScreen = {
 
   update(dt, tiltX) {
     Fog.update(dt);
+    // Hold everything still for the intro pause — platforms, jets, physics,
+    // scoring, the run timer all stay frozen at their just-reset starting
+    // state (ball included) until it counts down to 0, then gameplay starts
+    // normally on the very next frame.
+    if (this.introT > 0) {
+      this.introT -= dt;
+      return;
+    }
     if (!this.isOver) {
       for (const p of this.platforms) {
         p.update(dt);
