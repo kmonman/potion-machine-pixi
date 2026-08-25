@@ -169,15 +169,15 @@ const HomeScreenPixi = {
       const visibleTopY = 1280 - visibleBottomY;
       const cropHeight = visibleBottomY - visibleTopY;
 
-      const logoScale = 0.45;
+      const logoScale = 0.45 * 1.1; // 50% was too big - 10% instead (Rob)
       this._setGroupTransform(this._logoGroup, this._logoCenter, logoScale,
         renderWidth / 2, visibleTopY + (369 * logoScale) / 2 + 10);
 
-      const illusScale = 0.5;
+      const illusScale = 0.5 * 1.1; // 50% was too big - 10% instead (Rob)
       this._setGroupTransform(this._illustrationGroup, this._illustrationCenter, illusScale,
         renderWidth / 2, visibleTopY + cropHeight * 0.72);
 
-      const btnScale = 0.45 * 1.4; // 40% bigger (Rob)
+      const btnScale = 0.45 * 1.4 * 1.5; // buttons left as-is (Rob: "leave the buttons as is")
       const btnY = visibleTopY + cropHeight * 0.5;
       const EDGE_MARGIN = 60;
       this._setGroupTransform(this._freePlayGroup, this._freePlayCenter, btnScale,
