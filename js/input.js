@@ -58,9 +58,36 @@ const Input = (() => {
   });
   window.addEventListener('blur', () => { mouseTilt = null; });
 
+  // gamma/beta from deviceorientation are DEVICE-relative, not SCREEN-relative
+  // — they describe rotation around the phone's own physical axes as if it
+  // were always held in its natural (portrait) orientation, regardless of how
+  // the page is actually being displayed. Landscape mode (Rob) rotates the
+  // physical device 90°, so "left/right tilt from the player's point of view"
+  // is now what the sensor reports as beta (front/back tilt), not gamma —
+  // reading gamma unconditionally, like this did before landscape existed,
+  // meant real landscape tilting barely registered while tilting the phone
+  // toward/away from the player (physically pitching it) did instead.
+  // screen.orientation.angle (falling back to the older window.orientation
+  // for older iOS Safari) says which physical rotation is currently in
+  // effect, so the right raw axis — and its sign — can be picked per angle.
+  function getScreenAngle() {
+    if (screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
+    if (typeof window.orientation === 'number') return window.orientation;
+    return 0;
+  }
+
   function handleOrientation(event) {
-    if (event.gamma === null) return;
-    const clamped = Math.max(-TILT_CLAMP_DEGREES, Math.min(TILT_CLAMP_DEGREES, event.gamma));
+    const angle = getScreenAngle();
+    let tiltDeg;
+    // Landscape signs flipped from the initial guess (Rob tested on Android:
+    // came out inverted — tilting right made the ball go left). Still
+    // unverified on iOS, which can differ here; that's a follow-up check.
+    if (angle === 90) tiltDeg = event.beta;
+    else if (angle === 270 || angle === -90) tiltDeg = -event.beta;
+    else if (angle === 180) tiltDeg = -event.gamma;
+    else tiltDeg = event.gamma;
+    if (tiltDeg === null || tiltDeg === undefined) return;
+    const clamped = Math.max(-TILT_CLAMP_DEGREES, Math.min(TILT_CLAMP_DEGREES, tiltDeg));
     rawTilt = clamped / TILT_CLAMP_DEGREES;
   }
 

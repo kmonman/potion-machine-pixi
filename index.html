@@ -15,6 +15,13 @@
   </div>
 </div>
 
+<!-- Fullscreen toggle — fixed to the real browser viewport, not gameWrap, so
+     it stays put and stays a consistent tappable size regardless of the
+     game's own portrait/landscape scaling underneath it. Placeholder glyph
+     for now (Rob's making a real icon to swap in — just point #fullscreenBtn
+     at an <img> instead of text once it's ready). -->
+<button id="fullscreenBtn" aria-label="Toggle fullscreen" type="button">⛶</button>
+
 <!-- PixiJS — the GPU/WebGL rendering foundation for the "pinball expansion" rebuild
      (see PINBALL_EXPANSION_PLAN.md). Loaded as a plain local file (downloaded from
      jsdelivr's pixi.js@8 build), same "no build step, just script tags" approach as

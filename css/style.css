@@ -22,6 +22,24 @@ html, body {
   user-select: none;
 }
 
+/* Landscape "quick look" (Rob) — the game itself is still rotated 90deg to
+   fill a landscape screen (see fitGameWrap() in game.js), nothing about the
+   actual gameplay/HUD/canvas changed. On devices wider than the rotated
+   game's own aspect ratio, that leaves empty margins on the sides — this
+   fills them with atmosphere instead of a flat color. First attempt used
+   Background 1.png with background-size:cover, but that image has a
+   distinct bottle/tube illustration in it — cropped into a thin side
+   margin, a fragment of it looked like a second, duplicate game (Rob
+   caught this, thought something was broken). FogBack3.png is one of the
+   game's own ambient fog layers instead: no distinct shapes, designed to
+   tile seamlessly, so repeated fragments in the margins just read as haze.
+   Doesn't affect portrait layout at all: in portrait the game already
+   fills the screen edge to edge, so this background is never visible there. */
+body {
+  background-image: url('../assets/FogBack3.png');
+  background-repeat: repeat;
+}
+
 #viewport {
   width: 100%;
   height: 100%;
@@ -74,4 +92,39 @@ html, body {
 }
 #nameInput::placeholder {
   color: rgba(144, 19, 254, 0.55);
+}
+
+/* Fixed to the real browser viewport (not #gameWrap) so it's always a
+   consistent size/position on screen, independent of the game's own
+   portrait/landscape scaling. Matches the game's purple-neon button look. */
+#fullscreenBtn {
+  position: fixed;
+  bottom: 86px; /* lined up with the mute button on portrait (Rob) */
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(144, 19, 254, 0.85);
+  background: rgba(10, 4, 16, 0.55);
+  color: rgba(144, 19, 254, 0.85);
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  padding: 0;
+  box-shadow: 0 0 8px rgba(144, 19, 254, 0.5);
+}
+#fullscreenBtn:active {
+  background: rgba(144, 19, 254, 0.25);
+}
+/* Landscape's own letterboxing puts the mute button much closer to the
+   real bottom edge than portrait's does — 86px (tuned for portrait) would
+   leave fullscreen stranded mid-screen there instead of lined up with it. */
+@media (orientation: landscape) {
+  #fullscreenBtn {
+    bottom: 2px;
+  }
 }

@@ -11,7 +11,7 @@ const CONFIG = {
 const ASSET_PATHS = {
   sky: 'assets/Background 1.png',
   logo: 'assets/Potion Logo 7.11.png',
-  liveGame: 'assets/LiveGame4.png',
+  liveGame: 'assets/Home Page Landscape-8.png',
   freePlayButton: 'assets/FreePlay.png',
   levelModeButton: 'assets/LevelsButton.png',
   motionButton: 'assets/MotionButton.png',
@@ -57,6 +57,37 @@ const ASSET_PATHS = {
 const canvas = document.getElementById('gameCanvas');
 const gameWrap = document.getElementById('gameWrap');
 const nameInput = document.getElementById('nameInput');
+
+// Fullscreen toggle (Rob: playing through a browser tab means dealing with
+// the address bar/chrome eating into the screen — "Add to Home Screen"
+// avoids it but asks every player to do that themselves first; a real
+// button using the browser's actual Fullscreen API doesn't). Requests
+// fullscreen on the whole <html> element rather than just #gameWrap so the
+// fullscreenBtn itself (fixed to the viewport, not gameWrap) stays visible
+// and tappable to exit again. Guarded with the vendor-prefixed fallbacks
+// still needed on some browsers (Safari in particular never adopted the
+// unprefixed API).
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+function toggleFullscreen() {
+  if (isFullscreen()) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else {
+    const el = document.documentElement;
+    (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  }
+}
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+// Swap the glyph so the button always reflects reality — e.g. after the
+// user exits fullscreen with their own device back/gesture rather than
+// this button.
+function updateFullscreenBtn() {
+  fullscreenBtn.textContent = isFullscreen() ? '⤢' : '⛶';
+}
+document.addEventListener('fullscreenchange', updateFullscreenBtn);
+document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 
 // A handful of PlayScreen's (old ui.js) own methods do real text-layout math
 // with a Canvas 2D context — not drawing, just using ctx.font/measureText to
@@ -272,14 +303,112 @@ function showScreen(name) {
 
 // ---------- Resize (keeps the fixed 720x1280 internal coordinate space; only
 // the CSS box around it scales — matches the approach used in Halloween-Platformer) ----------
+// Landscape (Rob, 2026-08-23) — tried rotating the whole game 90° to fill a
+// landscape screen, but that spun the art/text/HUD along with it (e.g. "GAME
+// OVER" rendering sideways), which was confusing to read. Rob's call: don't
+// rotate anything — the game should stay upright and zoom in to mostly fill
+// a wide screen, cropping the top/bottom of the tower rather than shrinking
+// to fit with side margins. Portrait keeps the original shrink-to-fit
+// (Math.min) since phones are already close to the design aspect ratio there
+// and letterboxing is barely noticeable.
+//
+// Landscape's vertical zoom level is still the same Math.max(...) *
+// LANDSCAPE_ZOOM_OUT as before, but width is no longer clamped to a fixed
+// 720 with CSS filling the leftover sides — that looked like a visibly
+// cropped box floating over a mismatched background (flat color inside the
+// canvas, static image outside it). Instead `renderWidth` grows to exactly
+// however much world-space is visible at that scale, and the actual Pixi
+// canvas/renderer resizes to match — so the game's own animated fog
+// background genuinely extends into that space (see
+// PlayScreenPixi.setRenderWidth), not a fake CSS approximation of it.
+// CONFIG.WIDTH itself stays 720 throughout — that's still the "design
+// width" every gameplay object/HUD position is authored against; only the
+// screen-fixed background and the camera's horizontal anchor know about the
+// wider render target.
+const LANDSCAPE_ZOOM_OUT = 0.4; // Rob: zoom out another 20% from 0.5 to see even more of the tower
+let renderWidth = CONFIG.WIDTH;
+// Guards the GPU-touching work below (renderer.resize + the gradient
+// rebuilds inside setRenderWidth) so it only actually runs when the render
+// target genuinely changed size — not on every fitGameWrap() call. Mobile
+// browsers (Android Chrome especially) fire native 'resize' events
+// spuriously and repeatedly — the address bar hiding/showing, minor
+// viewport-chrome changes — with no actual size change involved. Before
+// this guard, every one of those redundant firings still called
+// app.renderer.resize() and reconstructed FillGradient textures
+// unconditionally, real GPU work on every firing. Rob saw the game
+// temporarily freeze (audio kept playing, so it wasn't a full crash — more
+// like the GPU/render thread stalling) then come back with the ball fallen
+// off; a burst of this from spurious resize events is the leading suspect,
+// given it's the same "reallocating GPU resources every frame" pattern that
+// caused an actual GPU crash earlier in this project (see the jet nozzle
+// gradient leak writeup in PINBALL_EXPANSION_PLAN.md).
+let _lastAppliedRenderWidth = null;
+let _lastAppliedIsLandscape = null;
+// Caps how wide the Pixi canvas/renderer is ever asked to be. Without this,
+// LANDSCAPE_ZOOM_OUT (0.4) pushes renderWidth to a *fixed* 720/0.4=1800
+// regardless of the actual device width — a normal phone (~800-950px wide
+// in landscape) ends up asking its GPU to rasterize an 1800x1280 canvas
+// (~2.3M px) just to downscale it back down, 5-7x more pixels than the
+// screen will ever show. Confirmed on a real phone: this produced a
+// genuinely broken layout (content mispositioned, background not fully
+// drawn) that didn't reproduce in desktop testing at typical phone CSS
+// widths — pointing at a real GPU/canvas-size limitation, not a math bug
+// (verified the position math itself is correct; testing very wide desktop
+// windows reproduced the same breakage past ~1200px, real width or not).
+// Capping trades some zoom-out amount on narrow phones for not overwhelming
+// weaker mobile GPUs.
+const MAX_RENDER_WIDTH = 1100;
 function fitGameWrap() {
-  const scale = Math.min(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT);
+  const isLandscape = window.innerWidth > window.innerHeight;
+  let scale = isLandscape
+    ? Math.max(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT) * LANDSCAPE_ZOOM_OUT
+    : Math.min(window.innerWidth / CONFIG.WIDTH, window.innerHeight / CONFIG.HEIGHT);
+  if (isLandscape) scale = Math.max(scale, window.innerWidth / MAX_RENDER_WIDTH);
+  renderWidth = isLandscape ? Math.round(window.innerWidth / scale) : CONFIG.WIDTH;
+
+  canvas.style.width = `${renderWidth}px`;
+  canvas.style.height = `${CONFIG.HEIGHT}px`;
+  gameWrap.style.width = `${renderWidth}px`;
+
+  // Gated on app.renderer existing, not just on width/isLandscape having
+  // changed — the very first fitGameWrap() call (top of main(), before
+  // app.init() resolves) would otherwise mark this width as "already
+  // applied" despite the renderer.resize() below being skipped (no renderer
+  // to resize yet), permanently starving every later call of ever actually
+  // resizing it. Caught before shipping: the canvas's CSS box was growing to
+  // fit a wide landscape screen while the renderer stayed at its original
+  // 720x1280 resolution underneath, stretching every rendered pixel ~2x
+  // horizontally instead of showing more of the game at the right scale.
+  if (app.renderer && (renderWidth !== _lastAppliedRenderWidth || isLandscape !== _lastAppliedIsLandscape)) {
+    _lastAppliedRenderWidth = renderWidth;
+    _lastAppliedIsLandscape = isLandscape;
+    app.renderer.resize(renderWidth, CONFIG.HEIGHT);
+    if (typeof PlayScreenPixi !== 'undefined') PlayScreenPixi.setRenderWidth(renderWidth);
+    if (typeof GameOverPixi !== 'undefined') GameOverPixi.setRenderWidth(renderWidth, isLandscape);
+    if (typeof HudPixi !== 'undefined') HudPixi.setLandscapeMode(isLandscape, renderWidth);
+    if (typeof HomeScreenPixi !== 'undefined') {
+      // Bottom edge of the visible landscape crop, in canvas/world
+      // coordinates — the crop is always vertically centered on y=640 (see
+      // the left/top math below), so its bottom is just 640 plus half the
+      // viewport height converted back into world units via the same scale.
+      const visibleBottomY = isLandscape ? 640 + (window.innerHeight / 2) / scale : CONFIG.HEIGHT;
+      HomeScreenPixi.setLandscapeMode(isLandscape, renderWidth, visibleBottomY);
+    }
+  }
+
   gameWrap.style.transform = `scale(${scale})`;
-  gameWrap.style.left = `${(window.innerWidth - CONFIG.WIDTH * scale) / 2}px`;
+  gameWrap.style.left = `${(window.innerWidth - renderWidth * scale) / 2}px`;
   gameWrap.style.top = `${(window.innerHeight - CONFIG.HEIGHT * scale) / 2}px`;
   gameWrap.style.position = 'absolute';
 }
-window.addEventListener('resize', fitGameWrap);
+
+// Debounced — collapses a burst of native resize events (common on mobile,
+// see above) into a single fitGameWrap() call instead of one per event.
+let _resizeDebounceTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeDebounceTimer);
+  _resizeDebounceTimer = setTimeout(fitGameWrap, 150);
+});
 
 // ---------- Main loop ----------
 // Driven by Pixi's own ticker (app.ticker) instead of a hand-rolled
@@ -344,6 +473,13 @@ async function main() {
   for (const key in screenContainers) app.stage.addChild(screenContainers[key]);
   showScreen(state.screen);
   lastScreen = state.screen;
+
+  // The very first fitGameWrap() call (top of main()) ran before app.renderer
+  // and PlayScreenPixi existed, so if the page loaded already in landscape,
+  // that call skipped the renderer resize/background widening entirely. Redo
+  // it now that both exist, so landscape is correct from the first frame
+  // instead of only fixing itself on the next window resize.
+  fitGameWrap();
 
   app.ticker.add(tick);
 }
