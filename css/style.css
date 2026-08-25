@@ -93,3 +93,30 @@ body {
 #nameInput::placeholder {
   color: rgba(144, 19, 254, 0.55);
 }
+
+/* Fixed to the real browser viewport (not #gameWrap) so it's always a
+   consistent size/position on screen, independent of the game's own
+   portrait/landscape scaling. Matches the game's purple-neon button look. */
+#fullscreenBtn {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgba(144, 19, 254, 0.85);
+  background: rgba(10, 4, 16, 0.55);
+  color: rgba(144, 19, 254, 0.85);
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  padding: 0;
+  box-shadow: 0 0 8px rgba(144, 19, 254, 0.5);
+}
+#fullscreenBtn:active {
+  background: rgba(144, 19, 254, 0.25);
+}

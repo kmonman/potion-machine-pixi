@@ -58,6 +58,37 @@ const canvas = document.getElementById('gameCanvas');
 const gameWrap = document.getElementById('gameWrap');
 const nameInput = document.getElementById('nameInput');
 
+// Fullscreen toggle (Rob: playing through a browser tab means dealing with
+// the address bar/chrome eating into the screen — "Add to Home Screen"
+// avoids it but asks every player to do that themselves first; a real
+// button using the browser's actual Fullscreen API doesn't). Requests
+// fullscreen on the whole <html> element rather than just #gameWrap so the
+// fullscreenBtn itself (fixed to the viewport, not gameWrap) stays visible
+// and tappable to exit again. Guarded with the vendor-prefixed fallbacks
+// still needed on some browsers (Safari in particular never adopted the
+// unprefixed API).
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+function toggleFullscreen() {
+  if (isFullscreen()) {
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  } else {
+    const el = document.documentElement;
+    (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  }
+}
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+// Swap the glyph so the button always reflects reality — e.g. after the
+// user exits fullscreen with their own device back/gesture rather than
+// this button.
+function updateFullscreenBtn() {
+  fullscreenBtn.textContent = isFullscreen() ? '⤢' : '⛶';
+}
+document.addEventListener('fullscreenchange', updateFullscreenBtn);
+document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
+
 // A handful of PlayScreen's (old ui.js) own methods do real text-layout math
 // with a Canvas 2D context — not drawing, just using ctx.font/measureText to
 // figure out where things go (e.g. _goScoreLayout() sizing the Game Over
