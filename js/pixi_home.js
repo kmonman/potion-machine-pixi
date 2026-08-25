@@ -65,7 +65,8 @@ const HomeScreenPixi = {
     freePlayBtn.cursor = 'pointer';
     freePlayBtn.on('pointertap', () => tryEnterGame('FreePlay'));
     this._freePlayGroup.addChild(freePlayBtn);
-    this._freePlayGroup.addChild(this._centeredText('FREE PLAY for high score', 81, 970, 209, 22, 'PotionBody', 0x77a3fc));
+    this._freePlayCaption = this._centeredText('FREE PLAY for high score', 81, 970, 209, 22, 'PotionBody', 0x77a3fc);
+    this._freePlayGroup.addChild(this._freePlayCaption);
     this._freePlayCenter = { x: 45 + 285 / 2, y: 721 + 285 / 2 };
 
     this._levelsGroup = new PIXI.Container();
@@ -77,7 +78,8 @@ const HomeScreenPixi = {
     levelModeBtn.cursor = 'pointer';
     levelModeBtn.on('pointertap', () => tryEnterGame('Levels'));
     this._levelsGroup.addChild(levelModeBtn);
-    this._levelsGroup.addChild(this._centeredText('Make potion to advance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc));
+    this._levelsCaption = this._centeredText('Make potion to advance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc);
+    this._levelsGroup.addChild(this._levelsCaption);
     this._levelsCenter = { x: 390 + 285 / 2, y: 721 + 285 / 2 };
 
     this._nameWarningText = this._centeredText('Enter name before starting game', 133, 1132, 454, 24, 'PotionBody', 0xbd10e0);
@@ -87,10 +89,13 @@ const HomeScreenPixi = {
 
     // Mute button — hit area (muteHit, 64x64) is a bit bigger than the visible
     // sprite (muteBtn, 57x68) for an easier tap target, same as the old version.
+    // Moved to bottom-LEFT (Rob) — mirrored across from its original
+    // bottom-right spot, keeping the same margin from the edge (25/26px)
+    // just measured from the left side of the 720-wide design instead.
     this._muteGroup = new PIXI.Container();
     c.addChild(this._muteGroup);
-    const muteHitX = 631, muteHitY = 1184, muteHitW = 64, muteHitH = 64;
-    const muteBtnX = 637, muteBtnY = 1186, muteBtnW = 57, muteBtnH = 68;
+    const muteHitX = 25, muteHitY = 1184, muteHitW = 64, muteHitH = 64;
+    const muteBtnX = 26, muteBtnY = 1186, muteBtnW = 57, muteBtnH = 68;
     this._muteSprite = new PIXI.Sprite(state.muted ? textures.muteMuted : textures.muteUnmuted);
     this._muteSprite.position.set(muteBtnX, muteBtnY);
     this._muteSprite.width = muteBtnW; this._muteSprite.height = muteBtnH;
@@ -169,13 +174,15 @@ const HomeScreenPixi = {
       const visibleTopY = 1280 - visibleBottomY;
       const cropHeight = visibleBottomY - visibleTopY;
 
-      const logoScale = 0.45 * 1.1; // 50% was too big - 10% instead (Rob)
+      // 10% bigger again + nudged up (Rob) — the +10 downward padding from
+      // before became a small negative offset instead.
+      const logoScale = 0.45 * 1.1 * 1.1;
       this._setGroupTransform(this._logoGroup, this._logoCenter, logoScale,
-        renderWidth / 2, visibleTopY + (369 * logoScale) / 2 + 10);
+        renderWidth / 2, visibleTopY + (369 * logoScale) / 2 - 10);
 
       const illusScale = 0.5 * 1.1; // 50% was too big - 10% instead (Rob)
       this._setGroupTransform(this._illustrationGroup, this._illustrationCenter, illusScale,
-        renderWidth / 2, visibleTopY + cropHeight * 0.72);
+        renderWidth / 2, visibleTopY + cropHeight * 0.66);
 
       const btnScale = 0.45 * 1.4 * 1.5; // buttons left as-is (Rob: "leave the buttons as is")
       const btnY = visibleTopY + cropHeight * 0.5;
@@ -184,21 +191,28 @@ const HomeScreenPixi = {
         EDGE_MARGIN + (285 * btnScale) / 2, btnY);
       this._setGroupTransform(this._levelsGroup, this._levelsCenter, btnScale,
         renderWidth - EDGE_MARGIN - (285 * btnScale) / 2, btnY);
+      // Two lines instead of one long one that ran past the button/into the
+      // illustration (Rob) — align:'center' (already set in _centeredText)
+      // centers each line relative to the other automatically.
+      this._freePlayCaption.text = 'FREE PLAY\nfor high score';
+      this._levelsCaption.text = 'Make potion to\nadvance LEVELS';
 
       const muteScale = 0.8;
       this._setGroupTransform(this._muteGroup, this._muteCenter, muteScale,
-        renderWidth - 40, visibleBottomY - 30);
+        40, visibleBottomY - 30);
 
       // Name field is a real DOM element, not Pixi — but it's an absolutely
       // positioned child of #gameWrap, so it lives in the same 0-720/0-1280
       // coordinate space and gets carried along by gameWrap's shared CSS
       // transform exactly like the canvas. Centered, tucked under the
-      // illustration near the bottom of the crop.
-      const nameW = 400, nameH = 60;
+      // illustration near the bottom of the crop. 20% smaller (Rob) — box
+      // and font size both scaled down together so the text still fits it.
+      const nameW = 400 * 0.8, nameH = 60 * 0.8;
       nameInput.style.left = `${renderWidth / 2 - nameW / 2}px`;
       nameInput.style.top = `${visibleBottomY - nameH - 20}px`;
       nameInput.style.width = `${nameW}px`;
       nameInput.style.height = `${nameH}px`;
+      nameInput.style.fontSize = `${42 * 0.8}px`;
       this._nameWarningText.position.set(renderWidth / 2, visibleBottomY - nameH - 45);
     } else {
       this._bg.clear().rect(0, 0, 720, 1280).fill(0x0a0410);
@@ -208,10 +222,13 @@ const HomeScreenPixi = {
       this._resetGroupTransform(this._freePlayGroup);
       this._resetGroupTransform(this._levelsGroup);
       this._resetGroupTransform(this._muteGroup);
+      this._freePlayCaption.text = 'FREE PLAY for high score';
+      this._levelsCaption.text = 'Make potion to advance LEVELS';
       nameInput.style.left = '88px';
       nameInput.style.top = '1066px';
       nameInput.style.width = '540px';
       nameInput.style.height = '72px';
+      nameInput.style.fontSize = '42px';
       this._nameWarningText.position.set(360, this._nameWarningY);
     }
   },
