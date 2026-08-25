@@ -19,13 +19,16 @@ const HomeScreenPixi = {
     const c = new PIXI.Container();
     this.container = c;
 
-    const bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
-    c.addChild(bg);
+    // Both extended to renderWidth in landscape (see setLandscapeMode) — Rob
+    // caught these still fixed at the 720 portrait width, leaving a visible
+    // gap with nothing drawn past it on a wider landscape canvas.
+    this._bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
+    c.addChild(this._bg);
 
-    const sky = new PIXI.Sprite(textures.sky);
-    sky.position.set(-19, -17);
-    sky.width = 752; sky.height = 1309;
-    c.addChild(sky);
+    this._sky = new PIXI.Sprite(textures.sky);
+    this._sky.position.set(-19, -17);
+    this._sky.width = 752; this._sky.height = 1309;
+    c.addChild(this._sky);
 
     // Logo and the tube/hint illustration each get their own wrapper (pivot
     // at the sprite's own center, in its authored portrait position/size) so
@@ -154,6 +157,12 @@ const HomeScreenPixi = {
   setLandscapeMode(isLandscape, renderWidth, visibleBottomY) {
     if (!this._logoGroup) return;
     if (isLandscape) {
+      this._bg.clear().rect(0, 0, renderWidth, 1280).fill(0x0a0410);
+      // sky is a single non-repeating nebula image, not a tileable texture —
+      // stretching it to cover a much wider canvas distorts it, but that
+      // reads far better than a hard-edged gap with nothing drawn at all.
+      this._sky.width = renderWidth + 32;
+
       // The crop is always vertically centered on canvas-y=640 (see
       // game.js), so its top is exactly as far above 640 as visibleBottomY
       // is below it.
@@ -192,6 +201,8 @@ const HomeScreenPixi = {
       nameInput.style.height = `${nameH}px`;
       this._nameWarningText.position.set(renderWidth / 2, visibleBottomY - nameH - 45);
     } else {
+      this._bg.clear().rect(0, 0, 720, 1280).fill(0x0a0410);
+      this._sky.width = 752;
       this._resetGroupTransform(this._logoGroup);
       this._resetGroupTransform(this._illustrationGroup);
       this._resetGroupTransform(this._freePlayGroup);
