@@ -34,6 +34,14 @@ const Physics = {
   // used for things that need "the platform under the ball" specifically, like
   // the Potion Blast's launch direction.
   currentPlatform: null,
+  // True from the moment a Potion Blast launches until the ball actually
+  // lands somewhere (see applyBlast / _resolvePlatformCollision) — lets the
+  // camera tell "airborne mid-jump" apart from "resting on a platform"
+  // (Rob: while jumping the camera should pan to follow the ball left/right
+  // as it flies, then settle back on the landing platform's hinge once it's
+  // down — distinct from the camera intentionally NOT chasing every wobble
+  // while just resting/rolling on a platform).
+  airborne: false,
 
   reset(platforms) {
     this.platforms = platforms;
@@ -47,6 +55,7 @@ const Physics = {
     this.vy = 0;
     this.rotation = 0;
     this.touchingHinge = false;
+    this.airborne = false;
     this.fellOff = false;
     this.currentPlatform = base;
     for (const p of platforms) p.touching = false;
@@ -180,6 +189,7 @@ const Physics = {
         this.vx = dir.x * vAlong + normal.x * vNormal;
         this.vy = dir.y * vAlong + normal.y * vNormal;
         this.currentPlatform = p;
+        this.airborne = false;
         return;
       }
     }
@@ -236,6 +246,7 @@ const Physics = {
     const rad = (this.currentPlatform || this.platforms[0]).angleRad;
     this.vx += Math.sin(rad) * force;
     this.vy -= Math.cos(rad) * force;
+    this.airborne = true;
   },
 
   draw(ctx, images) {

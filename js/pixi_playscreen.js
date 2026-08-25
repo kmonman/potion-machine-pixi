@@ -281,16 +281,23 @@ const PlayScreenPixi = {
   // pivot Y — see _updateCameraAxis for the shared math.
   //
   // X tracks the CURRENT PLATFORM's pivot rather than the ball's exact live
-  // x (Rob: with the wider landscape view, chasing every wobble of the ball
-  // rolling back and forth under tilt read as the camera "moving around too
-  // much" — it should hold still while the ball's on one platform and only
-  // pan when the ball actually moves to a different one). Y still tracks the
-  // ball's exact position — that's the intentional "camera follows the ball
-  // up the tower" behavior, unaffected by this.
+  // x while resting (Rob: with the wider landscape view, chasing every
+  // wobble of the ball rolling back and forth under tilt read as the camera
+  // "moving around too much" — it should hold still while the ball's on one
+  // platform). But while airborne mid-Potion-Blast (Physics.airborne — see
+  // physics.js), it switches to following the ball's actual x instead, so
+  // the camera pans left/right to track the jump in flight rather than
+  // sitting locked on the platform just left behind, then settles back onto
+  // the landing platform's hinge automatically once Physics.airborne clears
+  // on touchdown (Rob: "move the camera left and right until it lands then
+  // back to the hinge"). Y still tracks the ball's exact position always —
+  // that's the intentional "camera follows the ball up the tower" behavior,
+  // unaffected by any of this.
   _updateCamera() {
     const pivotYs = PlayScreen.platforms.map((p) => p.pivot.y);
     const pivotXs = PlayScreen.platforms.map((p) => p.pivot.x);
     const currentPlatform = Physics.currentPlatform || PlayScreen.platforms[0];
+    const camTargetX = Physics.airborne ? Physics.x : currentPlatform.pivot.x;
 
     // Y: base platform (largest Y) gives the *lower* clamp bound, the
     // highest platform (smallest Y, plus headroom) gives the *upper* one —
@@ -300,7 +307,7 @@ const PlayScreenPixi = {
     this._camY = this._updateCameraAxis(this._camY, 760, Physics.y, Math.max(...pivotYs), Math.min(...pivotYs) - 260);
     this.worldContainer.y = this._camY;
 
-    this._camX = this._updateCameraAxis(this._camX, this.renderWidth / 2, currentPlatform.pivot.x, Math.max(...pivotXs) + 260, Math.min(...pivotXs) - 260);
+    this._camX = this._updateCameraAxis(this._camX, this.renderWidth / 2, camTargetX, Math.max(...pivotXs) + 260, Math.min(...pivotXs) - 260);
     this.worldContainer.x = this._camX;
   },
 
