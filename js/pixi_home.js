@@ -175,9 +175,9 @@ const HomeScreenPixi = {
 
       const illusScale = 0.5;
       this._setGroupTransform(this._illustrationGroup, this._illustrationCenter, illusScale,
-        renderWidth / 2, visibleTopY + cropHeight * 0.56);
+        renderWidth / 2, visibleTopY + cropHeight * 0.72);
 
-      const btnScale = 0.45;
+      const btnScale = 0.45 * 1.4; // 40% bigger (Rob)
       const btnY = visibleTopY + cropHeight * 0.5;
       const EDGE_MARGIN = 60;
       this._setGroupTransform(this._freePlayGroup, this._freePlayCenter, btnScale,
