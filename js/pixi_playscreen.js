@@ -89,6 +89,21 @@ const PlayScreenPixi = {
     const ballSize = Physics.displayRadius * 2;
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
     this.worldContainer.addChild(this._ballSprite);
+
+    // "Ready" / "Go!" during the pre-drop intro pause (Rob) — screen-fixed
+    // (added to `c`, not worldContainer, same reasoning as the HUD: it
+    // shouldn't pan with the camera), added after the ball so it draws on
+    // top of everything in the world. Demi = Berlin Sans FB Demi Bold, the
+    // same font as the "Potion"/"GAME OVER" titles (PotionTitle — BRLNSDB.TTF
+    // is that font's actual file), in the same grey used for score/HUD
+    // numbers elsewhere (0x9b9b9b) rather than introducing a new color.
+    this._introText = new PIXI.Text({
+      text: '', style: { fontFamily: 'PotionTitle', fontSize: 110, fill: 0x9b9b9b, align: 'center' },
+    });
+    this._introText.anchor.set(0.5);
+    this._introText.position.set(360, 640);
+    this._introText.visible = false;
+    c.addChild(this._introText);
   },
 
   // Builds one platform's full visual bundle (pole if it has one, bar+liquid+
@@ -241,6 +256,42 @@ const PlayScreenPixi = {
     this._ballSprite.rotation = Physics.rotation;
     this._restackBall();
     this._updateCamera();
+    this._updateIntroText();
+  },
+
+  // "Ready" for the first half of the intro pause, "Go!" for the second
+  // half, each popping in with a quick overshoot (easeOutBack — same
+  // function Game Over's board pop-in already uses) and fading out just
+  // before the next one takes over — Rob: "as ready disappears, go pops
+  // out then the ball drops". INTRO_DURATION must match PlayScreen.enter()'s
+  // starting introT value (ui.js) — they're kept as separate constants
+  // rather than one shared one since these files don't have a module system
+  // to import between them.
+  _updateIntroText() {
+    const INTRO_DURATION = 2;
+    const t = PlayScreen.introT;
+    if (!(t > 0)) { this._introText.visible = false; return; }
+
+    const phaseDuration = INTRO_DURATION / 2;
+    const elapsed = INTRO_DURATION - t; // 0 -> INTRO_DURATION as the pause plays out
+    const inReady = elapsed < phaseDuration;
+    const phaseElapsed = inReady ? elapsed : elapsed - phaseDuration;
+
+    const POP_IN = 0.2, FADE_OUT = 0.2;
+    let scale = 1, alpha = 1;
+    if (phaseElapsed < POP_IN) {
+      const p = phaseElapsed / POP_IN;
+      scale = easeOutBack(p);
+      alpha = Math.min(1, p * 2);
+    } else if (phaseElapsed > phaseDuration - FADE_OUT) {
+      alpha = Math.max(0, (phaseDuration - phaseElapsed) / FADE_OUT);
+    }
+
+    this._introText.text = inReady ? 'Ready' : 'Go!';
+    this._introText.position.x = this.renderWidth / 2;
+    this._introText.scale.set(Math.max(0, scale));
+    this._introText.alpha = alpha;
+    this._introText.visible = true;
   },
 
   // Re-inserts the ball sprite right after whichever platform's hinge sprite
