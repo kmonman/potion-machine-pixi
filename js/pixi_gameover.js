@@ -182,16 +182,23 @@ const GameOverPixi = {
   // recentered in landscape) — width alone can't distinguish "portrait at
   // 720" from some hypothetical landscape render that also happened to come
   // out to 720.
-  setRenderWidth(width, isLandscape) {
+  // offsetX (default 0) re-centers this whole screen within a wider canvas
+  // when width is deliberately kept narrower than the canvas itself — see
+  // game.js's fitGameWrap: gameplay uses the full wide zoom, but Game Over
+  // keeps its old, tighter width, so it needs shifting right by however much
+  // narrower it is than the real canvas to land back in the middle instead
+  // of hugging the left edge.
+  setRenderWidth(width, isLandscape, offsetX = 0) {
     if (!this._skyBg) return;
-    if (this._renderWidth === width && this._isLandscape === isLandscape) return;
-    if (this._renderWidth !== width) {
-      this._skyBg.position.x = -16;
+    if (this._renderWidth === width && this._isLandscape === isLandscape && this._offsetX === offsetX) return;
+    if (this._renderWidth !== width || this._offsetX !== offsetX) {
+      this._skyBg.position.x = -16 + offsetX;
       this._skyBg.width = width + 32;
-      this._blackFade.clear().rect(0, 0, width, CONFIG.HEIGHT).fill(0x000000);
+      this._blackFade.clear().rect(offsetX, 0, width, CONFIG.HEIGHT).fill(0x000000);
     }
     this._renderWidth = width;
     this._isLandscape = isLandscape;
+    this._offsetX = offsetX;
     if (isLandscape) {
       // Portrait has a lot of empty vertical space between the board
       // (bottom ~470) and the button bar (top 943, always authored for a
@@ -220,7 +227,7 @@ const GameOverPixi = {
       // contentCenterY — pivot picks *which point in the content* aligns,
       // position picks *where on screen* it lands, and the visible landscape
       // crop is centered on the canvas's middle (640), not the content's.
-      this._foreground.position.set(width / 2, 640);
+      this._foreground.position.set(width / 2 + offsetX, 640);
     } else {
       this._board.position.y = this._boardY;
       this._bottomBar.position.y = 0;

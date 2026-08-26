@@ -357,6 +357,11 @@ let _lastAppliedIsLandscape = null;
 // 1200px) and only still protects the actual bug case: a browser window
 // wider than any real device gets.
 const MAX_RENDER_WIDTH = 1800;
+// Home and Game Over's own reference width cap (Rob: keep those two looking
+// like they did before, only gameplay should use the fuller MAX_RENDER_WIDTH
+// zoom) — see the comment where this is used in fitGameWrap for the rest of
+// the story.
+const HOME_GAMEOVER_MAX_WIDTH = 1100;
 function fitGameWrap() {
   const isLandscape = window.innerWidth > window.innerHeight;
   let scale = isLandscape
@@ -383,15 +388,27 @@ function fitGameWrap() {
     _lastAppliedIsLandscape = isLandscape;
     app.renderer.resize(renderWidth, CONFIG.HEIGHT);
     if (typeof PlayScreenPixi !== 'undefined') PlayScreenPixi.setRenderWidth(renderWidth);
-    if (typeof GameOverPixi !== 'undefined') GameOverPixi.setRenderWidth(renderWidth, isLandscape);
     if (typeof HudPixi !== 'undefined') HudPixi.setLandscapeMode(isLandscape, renderWidth);
+
+    // Home and Game Over stay at their old, tighter width even though the
+    // canvas itself is wider now (renderWidth, used above for gameplay/HUD)
+    // — Rob: gameplay's wider zoom looks right, but the same widening also
+    // spread Home/Game Over's content further apart than intended, since
+    // they position things like "renderWidth - EDGE_MARGIN" too. Capping
+    // just their own reference width keeps their layout identical to how it
+    // looked before, while gwOffsetX re-centers that (now effectively
+    // narrower) content in the middle of the true, wider canvas instead of
+    // leaving it hugging the left edge with empty space only on the right.
+    const gwWidth = isLandscape ? Math.min(renderWidth, HOME_GAMEOVER_MAX_WIDTH) : renderWidth;
+    const gwOffsetX = isLandscape ? (renderWidth - gwWidth) / 2 : 0;
+    if (typeof GameOverPixi !== 'undefined') GameOverPixi.setRenderWidth(gwWidth, isLandscape, gwOffsetX);
     if (typeof HomeScreenPixi !== 'undefined') {
       // Bottom edge of the visible landscape crop, in canvas/world
       // coordinates — the crop is always vertically centered on y=640 (see
       // the left/top math below), so its bottom is just 640 plus half the
       // viewport height converted back into world units via the same scale.
       const visibleBottomY = isLandscape ? 640 + (window.innerHeight / 2) / scale : CONFIG.HEIGHT;
-      HomeScreenPixi.setLandscapeMode(isLandscape, renderWidth, visibleBottomY);
+      HomeScreenPixi.setLandscapeMode(isLandscape, gwWidth, visibleBottomY, gwOffsetX);
     }
   }
 
