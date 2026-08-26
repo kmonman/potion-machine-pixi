@@ -20,7 +20,6 @@ const HOME_GAMEOVER_REFERENCE_WIDTH = 1100;
 
 const HomeScreenPixi = {
   container: null,
-  _muteSprite: null,
   _nameWarningText: null,
   _motionOverlay: null,
   _motionText: null,
@@ -104,27 +103,6 @@ const HomeScreenPixi = {
     this._nameWarningText.visible = false;
     c.addChild(this._nameWarningText);
     this._nameWarningY = 1132;
-
-    // Mute button — hit area (muteHit, 64x64) is a bit bigger than the visible
-    // sprite (muteBtn, 57x68) for an easier tap target, same as the old version.
-    // Moved to bottom-LEFT (Rob) — mirrored across from its original
-    // bottom-right spot, keeping the same margin from the edge (25/26px)
-    // just measured from the left side of the 720-wide design instead.
-    this._muteGroup = new PIXI.Container();
-    c.addChild(this._muteGroup);
-    const muteHitX = 25, muteHitY = 1184, muteHitW = 64, muteHitH = 64;
-    const muteBtnX = 26, muteBtnY = 1186, muteBtnW = 57, muteBtnH = 68;
-    this._muteSprite = new PIXI.Sprite(state.muted ? textures.muteMuted : textures.muteUnmuted);
-    this._muteSprite.position.set(muteBtnX, muteBtnY);
-    this._muteSprite.width = muteBtnW; this._muteSprite.height = muteBtnH;
-    this._muteGroup.addChild(this._muteSprite);
-
-    const muteHit = new PIXI.Graphics().rect(muteHitX, muteHitY, muteHitW, muteHitH).fill({ color: 0xffffff, alpha: 0.001 });
-    muteHit.eventMode = 'static';
-    muteHit.cursor = 'pointer';
-    muteHit.on('pointertap', () => toggleMute());
-    this._muteGroup.addChild(muteHit);
-    this._muteCenter = { x: muteHitX + muteHitW / 2, y: muteHitY + muteHitH / 2 };
 
     this._motionOverlay = new PIXI.Container();
     this._motionOverlay.visible = false;
@@ -220,9 +198,6 @@ const HomeScreenPixi = {
         EDGE_MARGIN + (285 * btnScale) / 2, btnY);
       this._setGroupTransform(this._levelsGroup, this._levelsCenter, btnScale,
         renderWidth - EDGE_MARGIN - (285 * btnScale) / 2, btnY);
-      const muteScale = 0.8 * sizeScale;
-      this._setGroupTransform(this._muteGroup, this._muteCenter, muteScale,
-        40 * sizeScale, visibleBottomY - 30);
 
       // Name field is a real DOM element, not Pixi — but it's an absolutely
       // positioned child of #gameWrap, so it lives in the same 0-720/0-1280
@@ -245,7 +220,6 @@ const HomeScreenPixi = {
       this._resetGroupTransform(this._illustrationGroup);
       this._resetGroupTransform(this._freePlayGroup);
       this._resetGroupTransform(this._levelsGroup);
-      this._resetGroupTransform(this._muteGroup);
       nameInput.style.left = '88px';
       nameInput.style.top = '1066px';
       nameInput.style.width = '540px';
@@ -258,7 +232,6 @@ const HomeScreenPixi = {
   // Called every frame (cheap — just visibility/texture swaps, no rebuilding)
   // to reflect state changes, replacing the old draw()'s state-dependent bits.
   refresh(textures, state) {
-    this._muteSprite.texture = state.muted ? textures.muteMuted : textures.muteUnmuted;
     this._nameWarningText.visible = state.showNameWarning;
     this._motionOverlay.visible = state.requestingMotion;
     this._motionDeniedText.visible = state.motionDenied;

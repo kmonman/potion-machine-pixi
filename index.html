@@ -15,12 +15,20 @@
   </div>
 </div>
 
-<!-- Fullscreen toggle — fixed to the real browser viewport, not gameWrap, so
-     it stays put and stays a consistent tappable size regardless of the
-     game's own portrait/landscape scaling underneath it. Placeholder glyph
-     for now (Rob's making a real icon to swap in — just point #fullscreenBtn
-     at an <img> instead of text once it's ready). -->
+<!-- Fullscreen (right) and mute (left) toggles — fixed to the real browser
+     viewport, not gameWrap, so they stay a consistent size/position on every
+     screen (Home, gameplay, Game Over) regardless of the game's own
+     portrait/landscape scaling underneath, instead of each screen having its
+     own separately-positioned Pixi mute button (Rob: those had drifted
+     inconsistent — left on Home, right during gameplay, and invisible under
+     Game Over's dark overlay, since it was really just gameplay's copy
+     showing through, dimmed along with everything else). fullscreenBtn is
+     still a placeholder glyph (Rob's making a real icon to swap in later);
+     muteBtn already uses the game's own original unmuted/muted art
+     (assets/Mute P.png / Mute P1.png — same two images every other mute
+     button in the project always used), swapped by game.js's updateMuteBtn(). -->
 <button id="fullscreenBtn" aria-label="Toggle fullscreen" type="button">⛶</button>
+<button id="muteBtn" aria-label="Toggle mute" type="button"><img id="muteBtnImg" src="assets/Mute P.png" alt=""></button>
 
 <!-- PixiJS — the GPU/WebGL rendering foundation for the "pinball expansion" rebuild
      (see PINBALL_EXPANSION_PLAN.md). Loaded as a plain local file (downloaded from

@@ -1,10 +1,13 @@
-// In-game HUD, rebuilt on Pixi — the score/potion-counter pills, mute button, and
-// Free Play's blast buttons. Reuses `PlayScreen` (old ui.js) directly for all the
-// geometry/state (scorePillBtn, potionCounterBtn, muteBtn, blastLeftBtn/RightBtn,
-// blastCharges, blastButtonsT, _scoreText(), _potionsMade()) rather than
-// recomputing any of it — that object's dense oval-matching math and state machine
-// are unaffected by how things get drawn, only PlayScreen's old draw()/​_drawHud()
-// methods are being replaced here.
+// In-game HUD, rebuilt on Pixi — the score/potion-counter pills and Free
+// Play's blast buttons (mute lives outside this entirely now — see
+// index.html/game.js's #muteBtn, one persistent DOM button shared by every
+// screen instead of a separate Pixi one per screen). Reuses `PlayScreen`
+// (old ui.js) directly for all the geometry/state (scorePillBtn,
+// potionCounterBtn, blastLeftBtn/RightBtn, blastCharges, blastButtonsT,
+// _scoreText(), _potionsMade()) rather than recomputing any of it — that
+// object's dense oval-matching math and state machine are unaffected by how
+// things get drawn, only PlayScreen's old draw()/​_drawHud() methods are
+// being replaced here.
 const HudPixi = {
   container: null,
 
@@ -35,14 +38,6 @@ const HudPixi = {
     c.addChild(this._potionGlowSprite, this._potionSprite);
     this._potionNumber = buildTabularNumber(c, { size: 34 * PlayScreen.PILL_SCALE, font: 'PotionTitle', color: 0x9b9b9b, baseline: 'middle' });
 
-    const mb = PlayScreen.muteBtn;
-    this._muteSprite = new PIXI.Sprite(state.muted ? textures.muteMuted : textures.muteUnmuted);
-    this._muteSprite.position.set(mb.x, mb.y);
-    this._muteSprite.width = mb.w; this._muteSprite.height = mb.h;
-    this._muteSprite.eventMode = 'static';
-    this._muteSprite.cursor = 'pointer';
-    this._muteSprite.on('pointertap', () => toggleMute());
-    c.addChild(this._muteSprite);
 
     // Blast buttons — ring (Blast.png) + bottle + a badge number, all scaled
     // together by the pop-in/out animation (PlayScreen.blastButtonsT), same
@@ -130,8 +125,6 @@ const HudPixi = {
       const potionCount = PlayScreen.mode === 'freeplay' ? PlayScreen.blastCharges : PlayScreen._potionsMade();
       this._potionNumber.setText(String(potionCount), cb.x + cb.w * (97 / 191), cb.y + cb.h * (124 / 259));
     }
-
-    this._muteSprite.texture = state.muted ? textures.muteMuted : textures.muteUnmuted;
 
     const active = PlayScreen.blastCharges > 0;
     const t = PlayScreen.blastButtonsT;

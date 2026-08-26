@@ -89,6 +89,23 @@ function updateFullscreenBtn() {
 document.addEventListener('fullscreenchange', updateFullscreenBtn);
 document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 
+// Mute — a single persistent button (see index.html's comment for why this
+// replaced three separate per-screen Pixi mute buttons). toggleMute and
+// state are defined further down/right here respectively, but function
+// declarations and this const are hoisted, so referencing them in a
+// listener that only actually runs later (on click / on the muted-state
+// check below) is safe regardless of textual order.
+const muteBtn = document.getElementById('muteBtn');
+const muteBtnImg = document.getElementById('muteBtnImg');
+muteBtn.addEventListener('click', () => { toggleMute(); updateMuteBtn(); });
+// Rob: keep the game's own original mute-on/mute-off art (the same two
+// images every screen's mute button always used) instead of a generic
+// glyph — this button just swaps between them now, on this one shared
+// element, instead of three separate Pixi sprites each doing their own swap.
+function updateMuteBtn() {
+  muteBtnImg.src = state.muted ? 'assets/Mute P1.png' : 'assets/Mute P.png';
+}
+
 // A handful of PlayScreen's (old ui.js) own methods do real text-layout math
 // with a Canvas 2D context — not drawing, just using ctx.font/measureText to
 // figure out where things go (e.g. _goScoreLayout() sizing the Game Over
@@ -469,6 +486,7 @@ function tick(ticker) {
 async function main() {
   fitGameWrap();
   nameInput.value = state.playerName;
+  updateMuteBtn(); // reflect the muted state already loaded from Storage
 
   // Pixi v8's init is async — resizeTo keeps its internal render resolution
   // matched to the canvas's own backing size, and reuses the existing

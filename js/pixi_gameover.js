@@ -18,8 +18,18 @@ const GameOverPixi = {
 
     this._blackFade = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x000000);
     c.addChild(this._blackFade);
-    this._renderWidth = 720;
-    this._isLandscape = false;
+    // null, not the actual portrait defaults (720/false) — setRenderWidth's
+    // guard skips its body when called with values matching what's already
+    // cached, and pre-seeding it with the *correct-looking* portrait values
+    // meant the real first call (720, false) on a session that stays
+    // portrait the whole time silently no-op'd forever, since it looked
+    // identical to "nothing changed". Harmless as long as every real effect
+    // inside setRenderWidth already matched its own build-time default too
+    // (true here, until _bottomBar's portrait lift was added — that one
+    // isn't 0 by default, so the skipped call became a real, visible bug:
+    // the bar just never actually got lifted on a portrait-only session).
+    this._renderWidth = null;
+    this._isLandscape = null;
 
     // Everything below except the sky/black-fade background sits inside this
     // wrapper — in landscape it's scaled down and re-centered as one unit
@@ -233,7 +243,16 @@ const GameOverPixi = {
       this._foreground.position.set(width / 2, 640);
     } else {
       this._board.position.y = this._boardY;
-      this._bottomBar.position.y = 0;
+      // Lifted up from its original bottom-edge position (Rob) — the
+      // persistent mute/fullscreen buttons now fixed at the real screen's
+      // bottom corners (see index.html/game.js) were overlapping this bar's
+      // bottom edge by ~64 real screen px on a real portrait viewport,
+      // which converts to this 120 in design-space at that viewport's
+      // canvas scale. Only the bar's own sub-container moves — landscape's
+      // BOTTOM_BAR_LIFT above is computed from this._barRect.y directly
+      // (the bar's original, unlifted position), so this portrait-only
+      // offset doesn't disturb landscape's separately-tuned layout at all.
+      this._bottomBar.position.y = -120;
       this._foreground.pivot.set(0, 0);
       this._foreground.scale.set(1);
       this._foreground.position.set(0, 0);

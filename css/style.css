@@ -94,18 +94,18 @@ body {
   color: rgba(144, 19, 254, 0.55);
 }
 
-/* Fixed to the real browser viewport (not #gameWrap) so it's always a
-   consistent size/position on screen, independent of the game's own
-   portrait/landscape scaling. Matches the game's purple-neon button look. */
-#fullscreenBtn {
+/* Fixed to the real browser viewport (not #gameWrap) so both are always a
+   consistent size/position on every screen (Home, gameplay, Game Over),
+   independent of the game's own portrait/landscape scaling and never hidden
+   behind any screen's own overlays — mute bottom-left, fullscreen
+   bottom-right (Rob). No circle/border chrome (Rob) — just the bare icon. */
+#fullscreenBtn, #muteBtn {
   position: fixed;
-  bottom: 86px; /* lined up with the mute button on portrait (Rob) */
-  right: 12px;
+  bottom: 86px; /* portrait value; landscape override below */
   width: 44px;
   height: 44px;
-  border-radius: 50%;
-  border: 2px solid rgba(144, 19, 254, 0.85);
-  background: rgba(10, 4, 16, 0.55);
+  border: none;
+  background: transparent;
   color: rgba(144, 19, 254, 0.85);
   font-size: 22px;
   line-height: 1;
@@ -115,16 +115,26 @@ body {
   cursor: pointer;
   z-index: 10;
   padding: 0;
-  box-shadow: 0 0 8px rgba(144, 19, 254, 0.5);
 }
-#fullscreenBtn:active {
-  background: rgba(144, 19, 254, 0.25);
+#fullscreenBtn { right: 12px; }
+#muteBtn { left: 12px; }
+#fullscreenBtn:active, #muteBtn:active {
+  opacity: 0.6;
 }
-/* Landscape's own letterboxing puts the mute button much closer to the
-   real bottom edge than portrait's does — 86px (tuned for portrait) would
-   leave fullscreen stranded mid-screen there instead of lined up with it. */
+/* muteBtn's own art (Mute P.png/Mute P1.png) already has its speaker icon
+   drawn with real padding baked in, so it can fill the circle rather than
+   needing extra shrinking like a bare glyph would. */
+#muteBtn img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  pointer-events: none;
+}
+/* Landscape's own letterboxing puts content much closer to the real bottom
+   edge than portrait's does — 86px (tuned for portrait) would leave both
+   buttons stranded mid-screen there instead of down at the corners. */
 @media (orientation: landscape) {
-  #fullscreenBtn {
+  #fullscreenBtn, #muteBtn {
     bottom: 2px;
   }
 }
