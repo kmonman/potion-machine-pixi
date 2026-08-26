@@ -182,24 +182,27 @@ const GameOverPixi = {
   // recentered in landscape) — width alone can't distinguish "portrait at
   // 720" from some hypothetical landscape render that also happened to come
   // out to 720.
-  // offsetX (default 0) re-centers this whole screen within a wider canvas
-  // when width is deliberately kept narrower than the canvas itself — see
-  // game.js's fitGameWrap: gameplay uses the full wide zoom, but Game Over
-  // keeps its old, tighter width, so it needs shifting right by however much
-  // narrower it is than the real canvas to land back in the middle instead
-  // of hugging the left edge.
-  setRenderWidth(width, isLandscape, offsetX = 0) {
+  setRenderWidth(width, isLandscape) {
     if (!this._skyBg) return;
-    if (this._renderWidth === width && this._isLandscape === isLandscape && this._offsetX === offsetX) return;
-    if (this._renderWidth !== width || this._offsetX !== offsetX) {
-      this._skyBg.position.x = -16 + offsetX;
+    if (this._renderWidth === width && this._isLandscape === isLandscape) return;
+    if (this._renderWidth !== width) {
+      this._skyBg.position.x = -16;
       this._skyBg.width = width + 32;
-      this._blackFade.clear().rect(offsetX, 0, width, CONFIG.HEIGHT).fill(0x000000);
+      this._blackFade.clear().rect(0, 0, width, CONFIG.HEIGHT).fill(0x000000);
     }
     this._renderWidth = width;
     this._isLandscape = isLandscape;
-    this._offsetX = offsetX;
     if (isLandscape) {
+      // Content scales up proportionally with how much wider than the
+      // reference width the canvas actually is, instead of a flat 0.625 —
+      // otherwise a wider canvas (gameplay's zoom-out) just left this
+      // same-size content looking small, floating in the middle with empty
+      // margins on both sides (Rob: "things are not fitting well" — an
+      // earlier attempt at this kept a fixed narrower width and re-centered
+      // it, which produced exactly that). HOME_GAMEOVER_REFERENCE_WIDTH is
+      // the width this whole landscape layout (drop/lift amounts, board
+      // scale, etc.) was actually tuned against.
+      const sizeScale = width / HOME_GAMEOVER_REFERENCE_WIDTH;
       // Portrait has a lot of empty vertical space between the board
       // (bottom ~470) and the button bar (top 943, always authored for a
       // tall screen) — in the short landscape crop that gap is what was
@@ -222,12 +225,12 @@ const GameOverPixi = {
       const barBottom = barTop + this._barRect.h;
       const contentCenterY = (boardTop + barBottom) / 2;
       this._foreground.pivot.set(360, contentCenterY);
-      this._foreground.scale.set(0.625); // 50% * 1.25 (Rob: 25% bigger)
+      this._foreground.scale.set(0.625 * sizeScale); // 50% * 1.25 (Rob: 25% bigger), then scaled to fill the actual canvas width
       // Target position is 640 (the canvas's own vertical center), not
       // contentCenterY — pivot picks *which point in the content* aligns,
       // position picks *where on screen* it lands, and the visible landscape
       // crop is centered on the canvas's middle (640), not the content's.
-      this._foreground.position.set(width / 2 + offsetX, 640);
+      this._foreground.position.set(width / 2, 640);
     } else {
       this._board.position.y = this._boardY;
       this._bottomBar.position.y = 0;

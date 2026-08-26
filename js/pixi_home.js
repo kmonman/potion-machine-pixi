@@ -7,6 +7,17 @@
 //
 // Levels/PlayScreen are NOT migrated yet — this is intentionally the first proven
 // slice, not the whole game. See game.js for how screens are switched.
+
+// Shared by Home and Game Over's landscape layouts (both scale their content
+// against this) — the render width their landscape numbers (drop/lift
+// amounts, scales, margins) were actually tuned against. Gameplay's own
+// zoom-out can push the real canvas wider than this now, so both screens
+// scale their content up proportionally to renderWidth/this instead of
+// spreading the same-size content further apart, or shrinking it into a
+// fixed-size island in the middle of a wider canvas (both tried and
+// rejected — see game.js's fitGameWrap and each screen's setRenderWidth).
+const HOME_GAMEOVER_REFERENCE_WIDTH = 1100;
+
 const HomeScreenPixi = {
   container: null,
   _muteSprite: null,
@@ -166,20 +177,14 @@ const HomeScreenPixi = {
   // the bottom-right corner — a real landscape layout rather than the
   // portrait one just cropped. Portrait passes isLandscape=false and every
   // group resets to its authored (0,0)/scale-1 identity, unchanged.
-  // offsetX (default 0) re-centers Home within a wider canvas when
-  // renderWidth is deliberately kept narrower than the true canvas — see
-  // game.js's fitGameWrap: gameplay uses the full wide zoom, but Home keeps
-  // its old, tighter width, so it needs shifting right by however much
-  // narrower it is than the real canvas to land back in the middle instead
-  // of hugging the left edge.
-  setLandscapeMode(isLandscape, renderWidth, visibleBottomY, offsetX = 0) {
+  setLandscapeMode(isLandscape, renderWidth, visibleBottomY) {
     if (!this._logoGroup) return;
     if (isLandscape) {
-      this._bg.clear().rect(offsetX, 0, renderWidth, 1280).fill(0x0a0410);
+      this._bg.clear().rect(0, 0, renderWidth, 1280).fill(0x0a0410);
       // sky is a single non-repeating nebula image, not a tileable texture —
       // stretching it to cover a much wider canvas distorts it, but that
       // reads far better than a hard-edged gap with nothing drawn at all.
-      this._sky.position.x = -19 + offsetX;
+      this._sky.position.x = -19;
       this._sky.width = renderWidth + 32;
 
       // The crop is always vertically centered on canvas-y=640 (see
@@ -187,28 +192,37 @@ const HomeScreenPixi = {
       // is below it.
       const visibleTopY = 1280 - visibleBottomY;
       const cropHeight = visibleBottomY - visibleTopY;
-      const centerX = renderWidth / 2 + offsetX;
+      const centerX = renderWidth / 2;
+      // Every size/width-axis-margin below scales with how much wider than
+      // HOME_GAMEOVER_REFERENCE_WIDTH the canvas actually is — gameplay's
+      // zoom-out can make that a lot wider now, and without this the
+      // content either spread apart (too much gap) or, tried once already,
+      // stayed a fixed small size centered in the middle with empty margins
+      // on both sides (Rob: "things are not fitting well"). Vertical
+      // spacing doesn't need this — it's already driven by the device's own
+      // actual height via visibleTopY/cropHeight, not by renderWidth.
+      const sizeScale = renderWidth / HOME_GAMEOVER_REFERENCE_WIDTH;
 
       // 10% bigger again + nudged up (Rob) — the +10 downward padding from
       // before became a small negative offset instead.
-      const logoScale = 0.45 * 1.1 * 1.1 * 1.1; // another 10% bigger (Rob)
+      const logoScale = 0.45 * 1.1 * 1.1 * 1.1 * sizeScale; // another 10% bigger (Rob)
       this._setGroupTransform(this._logoGroup, this._logoCenter, logoScale,
         centerX, visibleTopY + (369 * logoScale) / 2 - 10);
 
-      const illusScale = 0.5 * 1.1; // 50% was too big - 10% instead (Rob)
+      const illusScale = 0.5 * 1.1 * sizeScale; // 50% was too big - 10% instead (Rob)
       this._setGroupTransform(this._illustrationGroup, this._illustrationCenter, illusScale,
         centerX, visibleTopY + cropHeight * 0.55);
 
-      const btnScale = 0.45 * 1.4 * 1.5; // buttons left as-is (Rob: "leave the buttons as is")
+      const btnScale = 0.45 * 1.4 * 1.5 * sizeScale; // buttons left as-is (Rob: "leave the buttons as is")
       const btnY = visibleTopY + cropHeight * 0.5;
-      const EDGE_MARGIN = 60;
+      const EDGE_MARGIN = 60 * sizeScale;
       this._setGroupTransform(this._freePlayGroup, this._freePlayCenter, btnScale,
-        offsetX + EDGE_MARGIN + (285 * btnScale) / 2, btnY);
+        EDGE_MARGIN + (285 * btnScale) / 2, btnY);
       this._setGroupTransform(this._levelsGroup, this._levelsCenter, btnScale,
-        offsetX + renderWidth - EDGE_MARGIN - (285 * btnScale) / 2, btnY);
-      const muteScale = 0.8;
+        renderWidth - EDGE_MARGIN - (285 * btnScale) / 2, btnY);
+      const muteScale = 0.8 * sizeScale;
       this._setGroupTransform(this._muteGroup, this._muteCenter, muteScale,
-        offsetX + 40, visibleBottomY - 30);
+        40 * sizeScale, visibleBottomY - 30);
 
       // Name field is a real DOM element, not Pixi — but it's an absolutely
       // positioned child of #gameWrap, so it lives in the same 0-720/0-1280
@@ -216,12 +230,12 @@ const HomeScreenPixi = {
       // transform exactly like the canvas. Centered, tucked under the
       // illustration near the bottom of the crop. 20% smaller (Rob) — box
       // and font size both scaled down together so the text still fits it.
-      const nameW = 400 * 0.8, nameH = 60 * 0.8;
+      const nameW = 400 * 0.8 * sizeScale, nameH = 60 * 0.8 * sizeScale;
       nameInput.style.left = `${centerX - nameW / 2}px`;
       nameInput.style.top = `${visibleBottomY - nameH - 20}px`;
       nameInput.style.width = `${nameW}px`;
       nameInput.style.height = `${nameH}px`;
-      nameInput.style.fontSize = `${42 * 0.8}px`;
+      nameInput.style.fontSize = `${42 * 0.8 * sizeScale}px`;
       this._nameWarningText.position.set(centerX, visibleBottomY - nameH - 45);
     } else {
       this._bg.clear().rect(0, 0, 720, 1280).fill(0x0a0410);
