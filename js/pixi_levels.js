@@ -4,7 +4,14 @@
 // ui.js's PlayScreen._levelThresholdY) — bump this as each new one lands.
 // Everything beyond it still unlocks in Storage (finishing Level N always
 // unlocks N+1) but shows "soon" here until its own build catches up.
-const BUILT_LEVELS = 2;
+const BUILT_LEVELS = 10;
+// Temporary (Rob: "keep them all unlocked for now" while all 10 get built
+// out and evaluated in one pass) — every built level is tappable regardless
+// of real progress. The actual unlock tracking (Storage.setHighestLevelUnlocked,
+// state.highestLevelUnlocked) keeps running underneath exactly as before,
+// this just stops the Levels screen from checking it — flip back to false
+// once real per-level progression is wanted again.
+const UNLOCK_ALL_FOR_TESTING = true;
 const LevelsScreenPixi = {
   buttonSize: 132,
   positions: [
@@ -59,7 +66,7 @@ const LevelsScreenPixi = {
         // can go from locked to unlocked mid-session (finishing the one
         // before it) without this screen ever being rebuilt.
         cell.on('pointertap', () => {
-          if (pos.n <= state.highestLevelUnlocked) enterPlayScreen('level' + pos.n);
+          if (UNLOCK_ALL_FOR_TESTING || pos.n <= state.highestLevelUnlocked) enterPlayScreen('level' + pos.n);
         });
       }
 
@@ -84,7 +91,7 @@ const LevelsScreenPixi = {
   refresh(state) {
     const s = this.buttonSize;
     for (const cell of this._cells) {
-      const unlocked = cell.n <= state.highestLevelUnlocked;
+      const unlocked = UNLOCK_ALL_FOR_TESTING ? cell.n <= BUILT_LEVELS : cell.n <= state.highestLevelUnlocked;
       const built = cell.n <= BUILT_LEVELS;
       const lineColor = unlocked ? 0x9013fe : 0x9b9b9b;
       const fillColor = unlocked ? 0x9013fe : 0x9b9b9b;

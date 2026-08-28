@@ -305,9 +305,9 @@ const PlayScreen = {
   // itself is untouched (multiplier 1) since its own pacing was already
   // deliberately tuned (see TUBE_STAGE_SCHEDULE's own header comment).
   // Linear ramp, +0.15/level: Level 1 = 1.15x (a modest bump off of 1x,
-  // addressing Rob's "too rare" note), Level 10 = 2.6x. Not exposed per
-  // level individually — just this one small formula — since Levels 3-10
-  // don't have their own tower/threshold yet either (see _levelThresholdY).
+  // addressing Rob's "too rare" note), Level 10 = 2.5x. Not exposed per
+  // level individually — just this one small formula covers all 10 (see
+  // _levelThresholdY for each one's actual tower height).
   _tubeSpeedMultiplier() {
     const n = this._levelNumber();
     return n === null ? 1 : 1.15 + (n - 1) * 0.15;
@@ -341,10 +341,38 @@ const PlayScreen = {
     // not just above the base.
     const topPivotY = platforms[2].pivot.y;
     platforms.push(createPlatform(baseX + this.SIDE_PLATFORM_X_OFFSET, topPivotY - 200, { lengthScale: 0.7, tubeSpeed: 1.1 }));
+    // 5th platform (Level 3's target) — continues the zigzag back to the
+    // left/center, another TOWER_SPACING above the side platform. Built into
+    // the shared tower like the rest (not a level-specific structure) since
+    // rebuilding PlayScreen.platforms after boot would orphan the Pixi visual
+    // tree already attached to the existing 4 (see enter()'s own comment on
+    // this) — Free Play/Level 1/2 players just never have a reason to climb
+    // this high, same as they already don't visit the side platform.
+    platforms.push(createPlatform(baseX - this.TOWER_X_OFFSET, platforms[3].pivot.y - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.9 }));
     platforms[0].jetSystem = createJetSystem();
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0] });
     platforms[2].jetSystem = createJetSystem({ allowedIndices: [1] });
     platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] }); // inner jets, for variety from the outer-only mid/top
+    platforms[4].jetSystem = createJetSystem({ allowedIndices: [0] });
+
+    // Platforms 5-11 (Levels 4-10's targets) — continue the same zigzag
+    // straight on up from platform 4, same TOWER_X_OFFSET/TOWER_SPACING as
+    // the hand-placed ones, no more one-off detours like the side platform.
+    // Generated in a loop rather than hand-placed one at a time (Rob: "do
+    // all 10, we can evaluate from there" — a first pass to react to, not
+    // final tuning). tubeSpeed cycles through a handful of distinct paces so
+    // no two neighboring platforms drift in lockstep; jets cycle through the
+    // 4 mount points one at a time for a little visual variety between them.
+    const extraTubeSpeeds = [0.85, 1.2, 0.95, 1.25, 0.8, 1.15, 1.35];
+    for (let i = 0; i < 7; i++) {
+      const idx = 5 + i; // platforms[5..11], for Levels 4-10
+      const x = idx % 2 === 1 ? baseX + this.TOWER_X_OFFSET : baseX - this.TOWER_X_OFFSET;
+      const y = platforms[idx - 1].pivot.y - this.TOWER_SPACING;
+      const extra = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: extraTubeSpeeds[i] });
+      extra.jetSystem = createJetSystem({ allowedIndices: [i % 4] });
+      platforms.push(extra);
+    }
+
     for (const p of platforms) {
       p.hingeBubbles = createHingeBubbles();
     }
@@ -408,13 +436,29 @@ const PlayScreen = {
   // proving the complete -> unlock -> Levels-page loop end to end. Level 2
   // raises the bar to just above the 4th (side) platform — the tower's
   // actual highest point, offset far enough sideways that reaching it takes
-  // a deliberate sideways blast, not just a final upward one. Levels 3-10
-  // don't have their own tower/threshold yet (Rob: build them out next) —
-  // falls back to Level 2's for now rather than erroring.
+  // a deliberate sideways blast, not just a final upward one. Level 3 raises
+  // it again to just above the new 5th platform — high enough that a single
+  // full-force blast can't clear it alone (verified directly against
+  // Physics' real numbers), so it genuinely requires saving up 2 charges
+  // (2000+ score) and firing them back-to-back while still airborne —
+  // easier to teach than a precise landing, since a second blast compounds
+  // onto whatever velocity the ball already has rather than needing to land
+  // anywhere in between. Levels 4-10 (platforms 5-11) go back to the
+  // simpler one-blast-from-the-platform-itself margin Level 2 used — their
+  // difficulty comes from the length of the climb up the ladder and from
+  // each level's own faster tube-heat pace (_tubeSpeedMultiplier) rather
+  // than another timing puzzle at every single step; a first pass to react
+  // to and retune individually once there's been real play on each one
+  // (Rob: "do all 10, we can evaluate from there"), not a final balance
+  // pass. Clamped at 10 (platform 11) since that's as tall as the tower
+  // currently goes.
   _levelThresholdY(levelNum) {
     const p = this.platforms;
     if (levelNum <= 1) return p[2].pivot.y - 150;
-    return p[3].pivot.y - 60;
+    if (levelNum === 2) return p[3].pivot.y - 60;
+    if (levelNum === 3) return p[4].pivot.y - 80;
+    const n = Math.min(levelNum, 10);
+    return p[n + 1].pivot.y - 60;
   },
 
   update(dt, tiltX) {
