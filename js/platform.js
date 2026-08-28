@@ -30,6 +30,13 @@ function createPlatform(pivotX, pivotY, opts = {}) {
   // platform (set in ui.js's _buildTower) so the tower's 3 tubes change color
   // at different intervals instead of all moving in lockstep (Rob).
   const tubeSpeed = opts.tubeSpeed ?? 1;
+  // This platform's own designed pacing, kept separate from the live
+  // `tubeSpeed` field below — PlayScreen.enter() rescales `tubeSpeed` off of
+  // this every run (higher Levels want more frequent color changes, per
+  // Rob: "rare in level 1, should become more common as the game
+  // progresses, but very gradual"), and needs an untouched original to scale
+  // from rather than compounding onto whatever last run left it at.
+  const baseTubeSpeed = tubeSpeed;
   return {
     pivot: { x: pivotX, y: pivotY },
     visualScale: scale,
@@ -57,6 +64,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     // be one value shared by the whole run; now each platform's liquid heats
     // up independently, on its own schedule at its own tubeSpeed.
     tubeSpeed,
+    baseTubeSpeed,
     tubeStage: 'Cool',
     tubePhaseIndex: 0,
     tubePhaseTimer: 0,

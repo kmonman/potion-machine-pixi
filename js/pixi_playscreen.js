@@ -80,17 +80,20 @@ const PlayScreenPixi = {
       this._buildPlatformVisual(p, textures);
     }
 
-    // Level 1's goal line (Rob: "a line/threshold at the top where the
-    // level is completed" — first of a planned 10, this is deliberately
-    // just enough to prove the whole complete -> unlock -> Levels-page loop
-    // end to end before tuning height/difficulty for 2-10). In worldContainer
-    // so it pans with the camera like everything else the ball climbs past;
-    // only actually shown for level1 mode, and only until it's been reached
-    // (see refresh() below) — no reason to keep drawing it once it's done
-    // its job. Two-layer glow (blurred copy behind a crisp one) is the same
+    // Each Level's goal line (Rob: "a line/threshold at the top where the
+    // level is completed"). In worldContainer so it pans with the camera
+    // like everything else the ball climbs past; only actually shown while
+    // in a Level (not Free Play), and only until it's been reached (see
+    // refresh() below) — no reason to keep drawing it once it's done its
+    // job. Two-layer glow (blurred copy behind a crisp one) is the same
     // technique the pole glow already uses, for a consistent look.
+    //
+    // Built once at y=0 in group-local coordinates, then positioned every
+    // level via this._goalLineGroup.position.y instead of baking a specific
+    // level's goalY into the Graphics' own stroke coordinates — different
+    // Levels sit at different heights (see PlayScreen._levelThresholdY), and
+    // level1/freeplay/level2 all share this one screen/container.
     const goalW = 640;
-    const goalY = PlayScreen.LEVEL1_THRESHOLD_Y;
     this._goalLineGroup = new PIXI.Container();
     const goalGrad = new PIXI.FillGradient({
       type: 'linear', x0: 0, y0: 0, x1: goalW, y1: 0,
@@ -102,17 +105,18 @@ const PlayScreenPixi = {
       textureSpace: 'local',
     });
     const goalLineBlurred = new PIXI.Graphics()
-      .moveTo(360 - goalW / 2, goalY).lineTo(360 + goalW / 2, goalY).stroke({ width: 10, fill: goalGrad });
+      .moveTo(360 - goalW / 2, 0).lineTo(360 + goalW / 2, 0).stroke({ width: 10, fill: goalGrad });
     goalLineBlurred.filters = [new PIXI.BlurFilter({ strength: 10 })];
     const goalLineSolid = new PIXI.Graphics()
-      .moveTo(360 - goalW / 2, goalY).lineTo(360 + goalW / 2, goalY).stroke({ width: 3, fill: goalGrad });
-    const goalLabel = new PIXI.Text({
-      text: 'LEVEL 1 GOAL', style: { fontFamily: 'PotionTitle', fontSize: 32, fill: 0xff00c3, align: 'center' },
+      .moveTo(360 - goalW / 2, 0).lineTo(360 + goalW / 2, 0).stroke({ width: 3, fill: goalGrad });
+    this._goalLabel = new PIXI.Text({
+      text: '', style: { fontFamily: 'PotionTitle', fontSize: 32, fill: 0xff00c3, align: 'center' },
     });
-    goalLabel.anchor.set(0.5, 1);
-    goalLabel.position.set(360, goalY - 14);
-    this._goalLineGroup.addChild(goalLineBlurred, goalLineSolid, goalLabel);
+    this._goalLabel.anchor.set(0.5, 1);
+    this._goalLabel.position.set(360, -14);
+    this._goalLineGroup.addChild(goalLineBlurred, goalLineSolid, this._goalLabel);
     this.worldContainer.addChild(this._goalLineGroup);
+    this._goalLineLevelNum = null; // cache so refresh() only repositions/relabels on an actual level change
 
     // Ball — a sprite rotating around its own center, position/rotation copied
     // from Physics.x/y/rotation every frame. Z-order relative to each
@@ -286,7 +290,13 @@ const PlayScreenPixi = {
       this._refreshPlatform(p);
     }
 
-    this._goalLineGroup.visible = PlayScreen.mode === 'level1' && !PlayScreen.levelComplete;
+    const levelNum = PlayScreen._levelNumber();
+    this._goalLineGroup.visible = levelNum !== null && !PlayScreen.levelComplete;
+    if (levelNum !== null && levelNum !== this._goalLineLevelNum) {
+      this._goalLineLevelNum = levelNum;
+      this._goalLineGroup.position.y = PlayScreen._levelThresholdY(levelNum);
+      this._goalLabel.text = `LEVEL ${levelNum} GOAL`;
+    }
 
     this._ballSprite.position.set(Physics.x, Physics.y);
     this._ballSprite.rotation = Physics.rotation;

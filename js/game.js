@@ -123,8 +123,17 @@ const ctx = document.createElement('canvas').getContext('2d');
 // see main() below.
 const app = new PIXI.Application();
 
+// True for any Level's play screen ('level1', 'level2', ...) or Free Play —
+// the two non-menu screens that both run PlayScreenPixi. Centralized here
+// (used by the Space-bar shortcut and the main tick loop below) instead of
+// hand-listing every level string at each call site, so a new level added
+// in pixi_levels.js/ui.js doesn't need this file touched too.
+function isPlayScreenName(screen) {
+  return screen === 'freeplay' || /^level\d+$/.test(screen);
+}
+
 const state = {
-  screen: 'home', // 'home' | 'levels' | 'level1' | 'freeplay'
+  screen: 'home', // 'home' | 'levels' | 'level<N>' | 'freeplay'
   playerName: Storage.getPlayerName(),
   gameMode: '',
   highestLevelUnlocked: Storage.getHighestLevelUnlocked(),
@@ -162,7 +171,7 @@ window.addEventListener('keydown', () => Music.tryStart());
 // avoids stealing the space bar from the name field on Home, where typing a
 // literal space in your name should still just work normally.
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space' && (state.screen === 'level1' || state.screen === 'freeplay')) {
+  if (e.code === 'Space' && isPlayScreenName(state.screen)) {
     e.preventDefault(); // stop the page itself from scrolling on spacebar
     PlayScreen.fireBlast();
   }
@@ -474,7 +483,7 @@ function tick(ticker) {
     HomeScreenPixi.refresh(textures, state);
   } else if (state.screen === 'levels') {
     LevelsScreenPixi.refresh(state);
-  } else if (state.screen === 'level1' || state.screen === 'freeplay') {
+  } else if (isPlayScreenName(state.screen)) {
     PlayScreenPixi.update(dt, Input.tiltX);
     PlayScreenPixi.refresh();
     HudPixi.refresh();
@@ -513,7 +522,11 @@ async function main() {
   // along as its children — GameOverPixi added after HudPixi so it draws on
   // top (matches PlayScreen.draw()'s own order: HUD, then Game Over overlay).
   PlayScreenPixi.container.addChild(HudPixi.container, GameOverPixi.container);
-  screenContainers.level1 = PlayScreenPixi.container;
+  // Pre-registered for every level 1-10 up front (not just the ones actually
+  // built yet — see pixi_levels.js's BUILT_LEVELS) so wiring up a new level
+  // there never needs a matching edit here too; they all share this one
+  // PlayScreenPixi container just like freeplay does.
+  for (let n = 1; n <= 10; n++) screenContainers['level' + n] = PlayScreenPixi.container;
   screenContainers.freeplay = PlayScreenPixi.container;
   for (const key in screenContainers) app.stage.addChild(screenContainers[key]);
   showScreen(state.screen);

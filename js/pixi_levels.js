@@ -1,5 +1,10 @@
 // Levels screen, rebuilt on PixiJS — same retained-mode pattern as pixi_home.js
 // (build once, refresh() touches only what actually changes).
+// How many levels actually have a built tower/threshold to play (see
+// ui.js's PlayScreen._levelThresholdY) — bump this as each new one lands.
+// Everything beyond it still unlocks in Storage (finishing Level N always
+// unlocks N+1) but shows "soon" here until its own build catches up.
+const BUILT_LEVELS = 2;
 const LevelsScreenPixi = {
   buttonSize: 132,
   positions: [
@@ -47,10 +52,15 @@ const LevelsScreenPixi = {
       soonText.position.set(s / 2, s - 26);
       cell.addChild(soonText);
 
-      if (pos.n === 1) {
+      if (pos.n <= BUILT_LEVELS) {
         cell.eventMode = 'static';
         cell.cursor = 'pointer';
-        cell.on('pointertap', () => enterPlayScreen('level1'));
+        // Checked at tap time, not just once here at build time — a level
+        // can go from locked to unlocked mid-session (finishing the one
+        // before it) without this screen ever being rebuilt.
+        cell.on('pointertap', () => {
+          if (pos.n <= state.highestLevelUnlocked) enterPlayScreen('level' + pos.n);
+        });
       }
 
       c.addChild(cell);
@@ -75,7 +85,7 @@ const LevelsScreenPixi = {
     const s = this.buttonSize;
     for (const cell of this._cells) {
       const unlocked = cell.n <= state.highestLevelUnlocked;
-      const built = cell.n === 1;
+      const built = cell.n <= BUILT_LEVELS;
       const lineColor = unlocked ? 0x9013fe : 0x9b9b9b;
       const fillColor = unlocked ? 0x9013fe : 0x9b9b9b;
       cell.box.clear();

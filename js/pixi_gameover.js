@@ -180,7 +180,7 @@ const GameOverPixi = {
         if (PlayScreen.gameOverT < 1) return; // matches hitTest()'s own "not clickable until popped in" guard
         if (target === 'home') goHome();
         else if (target === 'retry') PlayScreen.enter(state.screen);
-        else if (PlayScreen.mode === 'level1') state.screen = 'levels';
+        else if (PlayScreen.mode !== 'freeplay') state.screen = 'levels';
         else PlayScreen.showLeaderboardComingSoon();
       });
       this._bottomBar.addChild(zone);
@@ -338,7 +338,7 @@ const GameOverPixi = {
     const flickerMul = Math.max(0, 0.9 * flicker);
     for (const strip of this._gameOverGlowStrips) strip.alpha = strip._baseAlpha * flickerMul;
 
-    // Level 1's win screen swaps the title for plain text (no matching art
+    // A Level's win screen swaps the title for plain text (no matching art
     // yet — "GAME OVER" specifically means a loss) but keeps sharing this
     // same container's pop-in/flicker animation either way.
     const isWin = PlayScreen.levelComplete;
@@ -346,7 +346,7 @@ const GameOverPixi = {
     this._gameOverGlowContainer.visible = !isWin;
     this._levelCompleteText.visible = isWin;
 
-    const bottomIsLevels = PlayScreen.mode === 'level1';
+    const bottomIsLevels = PlayScreen.mode !== 'freeplay';
     this._barFreeplay.visible = !bottomIsLevels;
     this._barLevels.visible = bottomIsLevels;
 

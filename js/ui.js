@@ -196,11 +196,11 @@ const GO_BUBBLE_MASK_W = 90;
 const GO_BUBBLE_MASK_Y = 200;
 const GO_BUBBLE_MASK_H = 95;
 
-// ---------- Play screen (Level 1 / Free Play) ----------
-// Core ball-on-a-see-saw mechanic. Both modes still share the same difficulty
-// script (Level 1's own fixed schedule isn't built yet — see CLAUDE.md), but they
-// do differ here: Level 1 has a 30s countdown and times out, Free Play just counts
-// up and only ends when the ball falls.
+// ---------- Play screen (Levels / Free Play) ----------
+// Core ball-on-a-see-saw mechanic, shared by every mode — Free Play just
+// counts score up and only ends when the ball falls; each Level additionally
+// tracks a height threshold (_levelThresholdY) that ends the run in a win
+// instead once the ball climbs high enough to touch it.
 const PlayScreen = {
   homeBtn: { x: 20, y: 138, w: 100, h: 44 },
   // Bottom-right corner, matching the Home screen's own mute button placement
@@ -296,12 +296,40 @@ const PlayScreen = {
   // A 4th platform sits off to the right of the base, well past the screen's
   // own width, reachable with a sideways blast — the first real test of the
   // horizontal camera pan.
+  // Levels get a gradually higher tube-heat pace than Free Play's tuned
+  // baseline (Rob: "liquid color changes are rare in level 1, they should
+  // become more common as the game progresses, but very gradual") — each
+  // platform's tubeSpeed (set below in _buildTower, one per platform so the
+  // tower's 3 tubes drift out of sync) gets scaled by this multiplier in
+  // enter(), off of the platform's own untouched baseTubeSpeed. Free Play
+  // itself is untouched (multiplier 1) since its own pacing was already
+  // deliberately tuned (see TUBE_STAGE_SCHEDULE's own header comment).
+  // Linear ramp, +0.15/level: Level 1 = 1.15x (a modest bump off of 1x,
+  // addressing Rob's "too rare" note), Level 10 = 2.6x. Not exposed per
+  // level individually — just this one small formula — since Levels 3-10
+  // don't have their own tower/threshold yet either (see _levelThresholdY).
+  _tubeSpeedMultiplier() {
+    const n = this._levelNumber();
+    return n === null ? 1 : 1.15 + (n - 1) * 0.15;
+  },
+
+  // Which level number `this.mode` refers to ('level1' -> 1), or null for
+  // Free Play. Central place for this parsing rather than repeating the
+  // regex/prefix check at every call site.
+  _levelNumber() {
+    const m = /^level(\d+)$/.exec(this.mode);
+    return m ? parseInt(m[1], 10) : null;
+  },
+  _isLevelMode() { return this._levelNumber() !== null; },
+
   _buildTower() {
     const baseX = 360, baseY = 652;
     // Different tubeSpeed per platform (Rob: the three tubes should change at
     // different intervals) — 1 is TUBE_STAGE_SCHEDULE's own pacing, so these
     // drift the middle/top platforms out of sync with the base rather than
-    // all three heating up in lockstep.
+    // all three heating up in lockstep. This is each platform's *base* pace
+    // (Free Play's own, unscaled) — see _tubeSpeedMultiplier above for how
+    // Levels rescale it per run.
     const platforms = [
       createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1 }),
       createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.75 }),
@@ -333,8 +361,14 @@ const PlayScreen = {
     // that whole Pixi visual tree. Just reset their state in place instead,
     // same as the old singleton Platform.reset() always did.
     if (!this.platforms) this.platforms = this._buildTower();
+    const speedMul = this._tubeSpeedMultiplier();
     for (const p of this.platforms) {
       p.reset();
+      // p.reset() doesn't touch tubeSpeed (only angle/hinge/tube-stage), so
+      // this scaling sticks for the whole run without being clobbered, and
+      // recomputes fresh from baseTubeSpeed every enter() rather than
+      // compounding onto whatever the previous run left it at.
+      p.tubeSpeed = p.baseTubeSpeed * speedMul;
       p.jetSystem.reset();
       p.hingeBubbles.reset();
     }
@@ -366,14 +400,22 @@ const PlayScreen = {
   // rather than ripped out, in case a real per-level time attack is wanted
   // later.
   get timeLimit() { return Infinity; },
-  // World-space y the ball needs to reach (Physics.y counts *down* as the
-  // ball climbs) to win Level 1 - a bit above the tower's own top (zigzag)
-  // platform, so reaching it takes a real final jump rather than just
-  // landing on the highest platform already built. First of 10 planned
-  // levels (Rob) - height/difficulty for 2-10 still TBD, this is deliberately
-  // just enough to prove the whole complete -> unlock -> Levels-page loop
-  // end to end.
-  LEVEL1_THRESHOLD_Y: 52 - 150,
+  // World-space y a level's ball needs to reach (Physics.y counts *down* as
+  // the ball climbs) to complete it — computed off the tower's own actual
+  // platform pivots (not hand-copied magic numbers) so it can't drift out of
+  // sync if the tower layout ever changes. Level 1 sits a bit above the
+  // tower's top (zigzag) platform — reachable with one blast from there,
+  // proving the complete -> unlock -> Levels-page loop end to end. Level 2
+  // raises the bar to just above the 4th (side) platform — the tower's
+  // actual highest point, offset far enough sideways that reaching it takes
+  // a deliberate sideways blast, not just a final upward one. Levels 3-10
+  // don't have their own tower/threshold yet (Rob: build them out next) —
+  // falls back to Level 2's for now rather than erroring.
+  _levelThresholdY(levelNum) {
+    const p = this.platforms;
+    if (levelNum <= 1) return p[2].pivot.y - 150;
+    return p[3].pivot.y - 60;
+  },
 
   update(dt, tiltX) {
     Fog.update(dt);
@@ -405,23 +447,32 @@ const PlayScreen = {
       this.elapsed += dt;
       if (this.elapsed >= this.timeLimit) this.timedOut = true;
 
-      if (this.mode === 'freeplay' && this.score >= this.blastThreshold + 1000) {
+      // Potion Blasts are the tower's only way to climb from one platform to
+      // the next (gravity alone never lets the ball gain height — see
+      // physics.js) — this used to only accrue/spend in Free Play, which
+      // silently left Level 1 with no legitimate way to ever climb high
+      // enough to reach its own goal line (Rob: "refine level 1 to make it
+      // playable"). Now shared by every mode.
+      if (this.score >= this.blastThreshold + 1000) {
         this.blastCharges++;
         this.blastThreshold += 1000;
       }
 
-      // Level 1 win condition — Physics.y counts down as the ball climbs, so
+      // Level win condition — Physics.y counts down as the ball climbs, so
       // "reached" means at or above (numerically <=) the threshold. Unlocks
-      // level 2 in Storage right away, not on some later "confirm" tap - the
-      // player has already earned it the moment they touch the line.
-      if (this.mode === 'level1' && Physics.y <= this.LEVEL1_THRESHOLD_Y) {
-        this.levelComplete = true;
-        Storage.setHighestLevelUnlocked(2);
-        // Keep the live in-memory copy (game.js's `state`) in sync too, not
-        // just what's persisted — LevelsScreenPixi reads state.highestLevelUnlocked
-        // directly, and without this the unlock wouldn't show up on the
-        // Levels page until the next full page load re-read it from Storage.
-        state.highestLevelUnlocked = Math.max(state.highestLevelUnlocked, 2);
+      // the next level in Storage right away, not on some later "confirm"
+      // tap - the player has already earned it the moment they touch the line.
+      if (this._isLevelMode()) {
+        const n = this._levelNumber();
+        if (Physics.y <= this._levelThresholdY(n)) {
+          this.levelComplete = true;
+          Storage.setHighestLevelUnlocked(n + 1);
+          // Keep the live in-memory copy (game.js's `state`) in sync too, not
+          // just what's persisted — LevelsScreenPixi reads state.highestLevelUnlocked
+          // directly, and without this the unlock wouldn't show up on the
+          // Levels page until the next full page load re-read it from Storage.
+          state.highestLevelUnlocked = Math.max(state.highestLevelUnlocked, n + 1);
+        }
       }
     } else {
       for (const p of this.platforms) p.hingeBubbles.update(dt, false, p.pivot.x, p.pivot.y);
@@ -434,7 +485,9 @@ const PlayScreen = {
     // (stays true for the rest of the run even after spending down to 0 —
     // that's what the separate 0.35-alpha dimming in pixi_hud.js's refresh()
     // is for), and ease in/out (~0.3s) rather than popping instantly (Rob).
-    const blastTarget = (this.mode === 'freeplay' && !this.isOver && this._potionsMade() > 0) ? 1 : 0;
+    // Every mode now (see the blastCharges accrual above for why Levels
+    // needed this too).
+    const blastTarget = (!this.isOver && this._potionsMade() > 0) ? 1 : 0;
     this.blastButtonsT += (blastTarget - this.blastButtonsT) * Math.min(1, dt / 0.3);
   },
 
@@ -497,7 +550,7 @@ const PlayScreen = {
   },
 
   fireBlast() {
-    if (this.mode !== 'freeplay' || this.blastCharges <= 0 || this.isOver) return;
+    if (this.blastCharges <= 0 || this.isOver) return;
     this.blastCharges--;
     // Bumped from 600 — this is now also the tower's climb mechanic (Rob: use
     // the existing potion blasters to get to the next platform up), so it needs
