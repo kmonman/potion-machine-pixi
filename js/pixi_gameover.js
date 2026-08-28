@@ -129,6 +129,19 @@ const GameOverPixi = {
     this._gameOverSprite.anchor.set(0.5);
     this._gameOverSprite.width = goW; this._gameOverSprite.height = goH;
     this._gameOverContainer.addChild(this._gameOverGlowContainer, this._gameOverSprite);
+
+    // Level-complete title — no matching art for this yet (Rob's "GAME
+    // OVER" art is specifically a loss), so a plain text title in the same
+    // spot for now, same demi font as "Ready"/"Go!" and the other UI text,
+    // in a celebratory gold instead of grey to read as a win. Toggled
+    // against _gameOverSprite/its glow in refresh() based on
+    // PlayScreen.levelComplete, sharing this same container's pop/flicker
+    // animation either way.
+    this._levelCompleteText = new PIXI.Text({
+      text: 'LEVEL COMPLETE!', style: { fontFamily: 'PotionTitle', fontSize: 64, fill: 0xffd54a, align: 'center' },
+    });
+    this._levelCompleteText.anchor.set(0.5);
+    this._gameOverContainer.addChild(this._levelCompleteText);
     this._gameOverH = goH;
 
     // Bottom 3-button pill — one image, 3 equal interactive hit-zones (home /
@@ -324,6 +337,14 @@ const GameOverPixi = {
     this._gameOverContainer.alpha = fadeIn;
     const flickerMul = Math.max(0, 0.9 * flicker);
     for (const strip of this._gameOverGlowStrips) strip.alpha = strip._baseAlpha * flickerMul;
+
+    // Level 1's win screen swaps the title for plain text (no matching art
+    // yet — "GAME OVER" specifically means a loss) but keeps sharing this
+    // same container's pop-in/flicker animation either way.
+    const isWin = PlayScreen.levelComplete;
+    this._gameOverSprite.visible = !isWin;
+    this._gameOverGlowContainer.visible = !isWin;
+    this._levelCompleteText.visible = isWin;
 
     const bottomIsLevels = PlayScreen.mode === 'level1';
     this._barFreeplay.visible = !bottomIsLevels;

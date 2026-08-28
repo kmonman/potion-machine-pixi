@@ -240,7 +240,8 @@ const PlayScreen = {
   elapsed: 0,
   mode: 'freeplay',
   timedOut: false,
-  gameOverT: 0, // 0-1 pop-in progress once the run has ended
+  levelComplete: false, // true once the ball reaches LEVEL1_THRESHOLD_Y in level1 mode
+  gameOverT: 0, // 0-1 pop-in progress once the run has ended (reused for the level-complete pop-in too)
   leaderboardMsgT: 0, // >0 while the "coming soon" message is showing
   goBubbles: [], // continuously-bubbling particles next to the Game Over score
   goBubbleTimer: 0,
@@ -342,6 +343,7 @@ const PlayScreen = {
     this.score = 0;
     this.elapsed = 0;
     this.timedOut = false;
+    this.levelComplete = false;
     this.gameOverT = 0;
     this.leaderboardMsgT = 0;
     this.goBubbles = [];
@@ -357,8 +359,21 @@ const PlayScreen = {
     this.introT = 2;
   },
 
-  get isOver() { return Physics.fellOff || this.timedOut; },
-  get timeLimit() { return this.mode === 'level1' ? 30 : Infinity; },
+  get isOver() { return Physics.fellOff || this.timedOut || this.levelComplete; },
+  // Level 1's old 30s time limit predates the new "climb to a threshold
+  // line" goal (Rob) and isn't part of that design - Infinity for every
+  // mode now, timedOut/timeLimit left in place (just never triggered)
+  // rather than ripped out, in case a real per-level time attack is wanted
+  // later.
+  get timeLimit() { return Infinity; },
+  // World-space y the ball needs to reach (Physics.y counts *down* as the
+  // ball climbs) to win Level 1 - a bit above the tower's own top (zigzag)
+  // platform, so reaching it takes a real final jump rather than just
+  // landing on the highest platform already built. First of 10 planned
+  // levels (Rob) - height/difficulty for 2-10 still TBD, this is deliberately
+  // just enough to prove the whole complete -> unlock -> Levels-page loop
+  // end to end.
+  LEVEL1_THRESHOLD_Y: 52 - 150,
 
   update(dt, tiltX) {
     Fog.update(dt);
@@ -393,6 +408,20 @@ const PlayScreen = {
       if (this.mode === 'freeplay' && this.score >= this.blastThreshold + 1000) {
         this.blastCharges++;
         this.blastThreshold += 1000;
+      }
+
+      // Level 1 win condition — Physics.y counts down as the ball climbs, so
+      // "reached" means at or above (numerically <=) the threshold. Unlocks
+      // level 2 in Storage right away, not on some later "confirm" tap - the
+      // player has already earned it the moment they touch the line.
+      if (this.mode === 'level1' && Physics.y <= this.LEVEL1_THRESHOLD_Y) {
+        this.levelComplete = true;
+        Storage.setHighestLevelUnlocked(2);
+        // Keep the live in-memory copy (game.js's `state`) in sync too, not
+        // just what's persisted — LevelsScreenPixi reads state.highestLevelUnlocked
+        // directly, and without this the unlock wouldn't show up on the
+        // Levels page until the next full page load re-read it from Storage.
+        state.highestLevelUnlocked = Math.max(state.highestLevelUnlocked, 2);
       }
     } else {
       for (const p of this.platforms) p.hingeBubbles.update(dt, false, p.pivot.x, p.pivot.y);
