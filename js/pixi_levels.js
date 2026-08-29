@@ -30,27 +30,51 @@ const LevelsScreenPixi = {
     const bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
     c.addChild(bg);
 
-    // Glow — a blurred duplicate behind the crisp title (Rob: "add the same
-    // glow to levels that you added to game over"). Game Over's own glow
-    // slices its title into strips for a bottom-fade gradient because that
-    // title is a raster image; this one's plain Pixi Text with no texture
-    // to slice, so a single blurred copy stands in for it instead — same
-    // flicker animation either way (see refresh()).
-    const titleGlow = new PIXI.Text({
-      text: 'Levels', style: { fontFamily: 'PotionTitle', fontSize: 64, fill: 0xffffff, align: 'center' },
-    });
-    titleGlow.anchor.set(0.5, 0);
-    titleGlow.position.set(360, 130);
-    titleGlow.filters = [new PIXI.BlurFilter({ strength: 6 })];
-    c.addChild(titleGlow);
-    this._titleGlow = titleGlow;
+    // Same dark-to-light nebula backdrop Home/Game Over both use (Rob) —
+    // same position/size/overscan as those (see pixi_home.js/pixi_gameover.js)
+    // so it lines up seamlessly with the same image on the screens either
+    // side of this one.
+    const sky = new PIXI.Sprite(textures.sky);
+    sky.position.set(-19, -17);
+    sky.width = 752; sky.height = 1309;
+    c.addChild(sky);
 
-    const title = new PIXI.Text({
-      text: 'Levels', style: { fontFamily: 'PotionTitle', fontSize: 64, fill: 0xffffff, align: 'center' },
-    });
-    title.anchor.set(0.5, 0);
-    title.position.set(360, 130);
-    c.addChild(title);
+    // LEVELS title — Rob's own art (LevelsText.png) instead of plain Pixi
+    // Text, with the exact same glow treatment as Game Over's own title
+    // (Rob: "add the same glow to it that we had added for game over"):
+    // sliced into thin horizontal strips, each its own Sprite with its own
+    // alpha, for a bottom-fade gradient (brightest at the bottom, fading to
+    // nothing by the vertical center) that a Pixi mask can't do (see
+    // pixi_gameover.js's build() for the full reasoning) — flickering with
+    // the same three-sine formula, all strips blurred together as one unit.
+    const titleW = 480, titleH = titleW * (textures.levelsText.height / textures.levelsText.width);
+    this._titleContainer = new PIXI.Container();
+    this._titleContainer.position.set(360, 165);
+    c.addChild(this._titleContainer);
+
+    const TITLE_GLOW_STRIPS = 20;
+    this._titleGlowContainer = new PIXI.Container();
+    this._titleGlowContainer.filters = [new PIXI.BlurFilter({ strength: 6 })];
+    const titleSrcW = textures.levelsText.width, titleSrcH = textures.levelsText.height;
+    const titleStripH = titleH / TITLE_GLOW_STRIPS;
+    this._titleGlowStrips = [];
+    for (let i = 0; i < TITLE_GLOW_STRIPS; i++) {
+      const frame = new PIXI.Rectangle(0, (titleSrcH / TITLE_GLOW_STRIPS) * i, titleSrcW, titleSrcH / TITLE_GLOW_STRIPS);
+      const strip = new PIXI.Sprite(new PIXI.Texture({ source: textures.levelsText.source, frame }));
+      strip.tint = 0xffffff;
+      strip.width = titleW;
+      strip.height = titleStripH;
+      strip.position.set(-titleW / 2, -titleH / 2 + i * titleStripH);
+      const centerY = (i + 0.5) * titleStripH - titleH / 2;
+      strip._baseAlpha = centerY <= 0 ? 0 : Math.min(1, centerY / (titleH / 2));
+      this._titleGlowContainer.addChild(strip);
+      this._titleGlowStrips.push(strip);
+    }
+
+    const titleSprite = new PIXI.Sprite(textures.levelsText);
+    titleSprite.anchor.set(0.5);
+    titleSprite.width = titleW; titleSprite.height = titleH;
+    this._titleContainer.addChild(this._titleGlowContainer, titleSprite);
 
     const s = this.buttonSize;
     this._cells = this.positions.map((pos) => {
@@ -97,12 +121,17 @@ const LevelsScreenPixi = {
     // icon buttons) instead of the old plain rect+text placeholder, moved
     // down to the bottom of the screen — well clear of the grid above and
     // the persistent mute/fullscreen DOM buttons further down in the real
-    // corners (index.html/game.js).
-    const homeBtnSize = 130;
+    // corners (index.html/game.js). Sized to match the Free Play/Levels
+    // icons on Home itself (285x285 — see pixi_home.js's freePlayBtn/
+    // levelModeBtn), not the smaller placeholder size this used before.
+    const homeBtnSize = 285;
     const homeBtn = new PIXI.Sprite(textures.levelsHomeButton);
     homeBtn.anchor.set(0.5);
     homeBtn.width = homeBtnSize; homeBtn.height = homeBtnSize;
-    homeBtn.position.set(360, 1080);
+    // y pulled up from the true center-bottom (1080 fit the old 130px icon)
+    // now that this is over twice as big — keeps it clear of the DOM mute/
+    // fullscreen buttons pinned to the real bottom corners.
+    homeBtn.position.set(360, 960);
     homeBtn.eventMode = 'static';
     homeBtn.cursor = 'pointer';
     homeBtn.on('pointertap', () => goHome());
@@ -119,7 +148,8 @@ const LevelsScreenPixi = {
       0.35 * Math.sin(now / 300 + 1.3) +
       0.2 * Math.sin(now / 700 + 2.7)
     );
-    this._titleGlow.alpha = Math.max(0, 0.9 * flicker);
+    const flickerMul = Math.max(0, 0.9 * flicker);
+    for (const strip of this._titleGlowStrips) strip.alpha = strip._baseAlpha * flickerMul;
 
     for (const cell of this._cells) {
       const unlocked = UNLOCK_ALL_FOR_TESTING ? cell.n <= BUILT_LEVELS : cell.n <= state.highestLevelUnlocked;

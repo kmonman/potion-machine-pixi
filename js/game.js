@@ -61,6 +61,7 @@ const ASSET_PATHS = {
   // matching the game's other round icon buttons, instead of the old
   // plain rect+text placeholder.
   levelsHomeButton: 'assets/HomeCircleButton.png',
+  levelsText: 'assets/LevelsText.png',
 };
 
 const canvas = document.getElementById('gameCanvas');
