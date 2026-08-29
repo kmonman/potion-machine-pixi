@@ -40,11 +40,16 @@ const FREE_PLAY_PHASES = [
 // linearDamping values (see CLAUDE.md — approximated by feel, not a unit-for-unit
 // translation of GDevelop's Box2D numbers). tiltForce matches the original's own
 // per-stage value directly since that one's just a multiplier, not physics-engine-specific.
+// Down to 3 stages (Rob: three blues — Warm/Hot/Fire — read as too similar/
+// confusing; dropped the middle one so there's just one light blue and one
+// dark blue left). 'Hot' removed entirely rather than left dead — nothing
+// else reads TUBE_STAGE_PARAMS.Hot (unlike MOON_STAGE_PARAMS.Hot below,
+// which is the separate global moon-phase system and unaffected by this —
+// Rob's ask was about the tube specifically).
 const TUBE_STAGE_PARAMS = {
   Cool: { grip: 0.90, tiltForce: 1, color: [255, 0, 195] }, // #ff00c3
-  Warm: { grip: 0.78, tiltForce: 0.85, color: [126, 190, 252] }, // #7ebefc
-  Hot: { grip: 0.60, tiltForce: 0.7, color: [42, 148, 244] }, // #2a94f4
-  Fire: { grip: 0.40, tiltForce: 0.6, color: [0, 104, 255] }, // #0068ff
+  Warm: { grip: 0.78, tiltForce: 0.85, color: [126, 190, 252] }, // #7ebefc — light blue
+  Fire: { grip: 0.40, tiltForce: 0.6, color: [0, 104, 255] }, // #0068ff — dark blue
 };
 
 // Each platform's tube runs its own copy of this schedule (see platform.js's
@@ -55,18 +60,19 @@ const TUBE_STAGE_PARAMS = {
 // progression was (Rob: start with cool and warm, some hot later, fire much
 // later). Cool is the base/home color the schedule keeps returning to and
 // spends most of its time at (Rob) rather than an equal rotation through all
-// four — of a 244s cycle, Cool alone accounts for 180s (~74%), Warm 30s, Hot
-// 24s, Fire just 10s.
+// stages — of a 244s cycle, Cool alone accounts for 180s (~74%), Warm 30s,
+// Fire 34s. The two former 'Hot' entries (12s each) now just run Fire a
+// little earlier/longer instead of a separate mid-blue stage — same overall
+// pacing/cycle length as before, one fewer color in it.
 const TUBE_STAGE_SCHEDULE = [
   { duration: 45, stage: 'Cool' },
   { duration: 15, stage: 'Warm' },
   { duration: 40, stage: 'Cool' },
   { duration: 15, stage: 'Warm' },
   { duration: 35, stage: 'Cool' },
-  { duration: 12, stage: 'Hot' },
+  { duration: 12, stage: 'Fire' },
   { duration: 30, stage: 'Cool' },
-  { duration: 12, stage: 'Hot' },
-  { duration: 10, stage: 'Fire' },
+  { duration: 22, stage: 'Fire' },
   { duration: 30, stage: 'Cool' },
 ];
 
