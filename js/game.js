@@ -440,51 +440,24 @@ function fitGameWrap() {
     }
   }
 
-  const wrapLeft = (window.innerWidth - renderWidth * scale) / 2;
-  const wrapTop = (window.innerHeight - CONFIG.HEIGHT * scale) / 2;
   gameWrap.style.transform = `scale(${scale})`;
-  gameWrap.style.left = `${wrapLeft}px`;
-  gameWrap.style.top = `${wrapTop}px`;
+  gameWrap.style.left = `${(window.innerWidth - renderWidth * scale) / 2}px`;
+  gameWrap.style.top = `${(window.innerHeight - CONFIG.HEIGHT * scale) / 2}px`;
   gameWrap.style.position = 'absolute';
 
-  updateBodyBackground(isLandscape);
-}
-
-// Fills whatever the game canvas itself doesn't cover — landscape's side
-// margins (untouched, still the tiled fog fix from before) and portrait's
-// top/bottom margins, which show up whenever the real screen is taller than
-// the 720x1280 (9:16) design ratio (Rob: most noticeable in fullscreen,
-// where the browser's own chrome no longer eats into that extra height —
-// Math.min-based fit-to-width leaves it empty above/below the canvas). Was
-// a flat, visibly disconnected cutoff there before.
-//
-// First attempt aligned the exact sky image (Background 1.png) the canvas's
-// Home/Game Over screens draw, at the same scale/position — looked great
-// there, but broke on two counts Rob caught: (1) that image only overscans
-// ~17px past the canvas's own edges, so any margin taller than that fell
-// through to a flat fallback color that didn't match the image it was
-// supposed to be extending, a visible seam of its own; (2) the actual
-// gameplay screen doesn't draw that sky image at all (flat fill + Fog
-// layers instead — see pixi_playscreen.js), so aligning it there was just
-// the wrong background regardless of margin size. A plain vertical
-// gradient between the game's own near-universal dark tones sidesteps both:
-// nothing screen-specific to be wrong about, and (unlike a fixed-size
-// image) no natural edge to run out at — it always covers however tall the
-// margin actually is.
-function updateBodyBackground(isLandscape) {
-  if (isLandscape) {
-    document.body.style.backgroundImage = "url('assets/FogBack3.png')";
-    document.body.style.backgroundRepeat = 'repeat';
-    document.body.style.backgroundSize = '';
-    document.body.style.backgroundPosition = '';
-    document.body.style.backgroundColor = '';
-  } else {
-    document.body.style.backgroundImage = 'linear-gradient(to bottom, #171731, #0a0410)';
-    document.body.style.backgroundRepeat = 'no-repeat';
-    document.body.style.backgroundSize = '100% 100%';
-    document.body.style.backgroundPosition = '0 0';
-    document.body.style.backgroundColor = '#0a0410';
-  }
+  // The margin fill (landscape's tiled fog vs. portrait's gradient) moved
+  // to a pure CSS `@media (orientation: landscape)` rule in style.css —
+  // used to be toggled here in JS off this function's own `isLandscape`,
+  // but Rob caught it reverting to the wrong (landscape) fill specifically
+  // once actual gameplay started, even though Home/Levels/Game Over kept
+  // showing the right one. Likeliest cause: something briefly resizing the
+  // visual viewport during that transition (the on-screen keyboard closing
+  // after the name field loses focus is the prime suspect) made this
+  // function's own innerWidth>innerHeight check misfire just once, and
+  // nothing forced a correct re-run after — a JS value, once wrong, just
+  // stays wrong until the next resize event. A CSS media query has no such
+  // failure mode: the browser re-evaluates it fresh on every repaint
+  // against its own live viewport, so it can't get stuck on a stale read.
 }
 
 // Debounced — collapses a burst of native resize events (common on mobile,

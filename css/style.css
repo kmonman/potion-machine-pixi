@@ -25,19 +25,40 @@ html, body {
 /* Fills whatever the canvas itself doesn't cover — landscape's side margins
    and (Rob caught this one too) portrait's top/bottom margins, which show
    up whenever the real screen is taller than the 720x1280 design ratio,
-   most noticeably in fullscreen. game.js's updateBodyBackground() (called
-   from fitGameWrap() on every resize/orientation change) overwrites all of
-   these properties dynamically per-orientation — landscape keeps this tiled
-   fog image (chosen over Background 1.png specifically: that one has a
-   distinct bottle/tube illustration that showed as a cropped, duplicate-
-   game-looking fragment in a thin side margin — Rob caught that too),
-   portrait aligns Background 1.png itself instead (safe there since it's
-   the same x-position just extending vertically, not an unrelated crop).
-   This CSS-level default is only what's visible for the instant before
-   that JS runs. */
+   most noticeably in fullscreen. Portrait's default below is a plain dark
+   gradient rather than an aligned image — an earlier attempt aligned
+   Background 1.png (what Home/Game Over actually draw) pixel-for-pixel,
+   which looked right there but broke on two counts: that image only
+   overscans ~17px past the canvas's own edges (past that, a flat fallback
+   color — a visible seam of its own), and the actual gameplay screen
+   doesn't draw that image at all (flat fill + Fog layers instead), so
+   aligning it there was wrong regardless of margin size. A gradient has
+   no fixed size to run out of and nothing screen-specific to be wrong
+   about.
+   This used to be toggled in JS (updateBodyBackground(), off
+   fitGameWrap()'s own isLandscape check) but Rob caught it reverting to
+   this landscape fill specifically once actual gameplay started, even
+   though every other screen kept the right one — likeliest cause,
+   something (the on-screen keyboard closing after the name field loses
+   focus is the prime suspect) briefly resized the visual viewport during
+   that transition, made the JS check misfire once, and nothing forced a
+   correct re-run after: a JS value, once wrong, just stays wrong until the
+   next resize event. A CSS media query can't get stuck like that — the
+   browser re-evaluates it fresh on every repaint against its own live
+   viewport, not a value some past JS call happened to compute. */
 body {
-  background-image: url('../assets/FogBack3.png');
-  background-repeat: repeat;
+  background-image: linear-gradient(to bottom, #171731, #0a0410);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-position: 0 0;
+}
+@media (orientation: landscape) {
+  body {
+    background-image: url('../assets/FogBack3.png');
+    background-repeat: repeat;
+    background-size: auto;
+    background-position: 0 0;
+  }
 }
 
 #viewport {
