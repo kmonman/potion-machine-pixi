@@ -207,12 +207,28 @@ const Physics = {
   // reflection — a full-speed bounce (Rob's phone test) felt like the wall was
   // actively rewarding/launching the ball rather than just a neutral edge
   // correction, and could ping-pong back and forth several times before settling.
+  //
+  // Bounds are the tower's own actual reach now, not a fixed 0-CONFIG.WIDTH
+  // (Rob: on Level 10, the ball would grind to a near-standstill out on the
+  // 3rd/side platform — that platform sits at x=860 with a 434px bar, so
+  // ~257px of its own surface fell past the old fixed wall at 820, and any
+  // rightward drift while resting there got slammed backward every single
+  // step, fighting itself down to zero net motion). Recomputed from the
+  // platforms every call rather than cached once — cheap (a handful of
+  // platforms, same cost the camera clamp already pays each frame) and
+  // automatically covers however wide the tower ends up as more levels are
+  // built, instead of needing another hand-tuned number here per level.
   _checkBoundaries() {
     const wallRestitution = 0.35;
     const margin = 100;
-    if (this.x < -margin) {
+    let minX = 0, maxX = CONFIG.WIDTH;
+    for (const p of this.platforms) {
+      minX = Math.min(minX, p.pivot.x - p.length / 2);
+      maxX = Math.max(maxX, p.pivot.x + p.length / 2);
+    }
+    if (this.x < minX - margin) {
       this.vx = Math.abs(this.vx) * wallRestitution;
-    } else if (this.x > CONFIG.WIDTH + margin) {
+    } else if (this.x > maxX + margin) {
       this.vx = -Math.abs(this.vx) * wallRestitution;
     }
   },
