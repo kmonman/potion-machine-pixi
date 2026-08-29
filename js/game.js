@@ -447,7 +447,7 @@ function fitGameWrap() {
   gameWrap.style.top = `${wrapTop}px`;
   gameWrap.style.position = 'absolute';
 
-  updateBodyBackground(isLandscape, scale, wrapLeft, wrapTop);
+  updateBodyBackground(isLandscape);
 }
 
 // Fills whatever the game canvas itself doesn't cover — landscape's side
@@ -456,17 +456,22 @@ function fitGameWrap() {
 // the 720x1280 (9:16) design ratio (Rob: most noticeable in fullscreen,
 // where the browser's own chrome no longer eats into that extra height —
 // Math.min-based fit-to-width leaves it empty above/below the canvas). Was
-// a flat, visibly disconnected cutoff there before; now aligns the exact
-// same sky image (Background 1.png) the canvas's own PlayScreen/Home/Game
-// Over screens already draw, at the same scale/position, so the margin
-// reads as a seamless continuation of the game's own gradient rather than
-// a separate texture. Safe to align directly like this (unlike landscape's
-// side margins, which rejected this same image for showing a cropped
-// fragment of the bottle/tube illustration) — it's the same x-position,
-// just extending vertically past where the image itself runs out, at which
-// point the background-color fallback (sampled from the image's own top
-// edge, rgb(23,23,49)) takes over rather than a hard color jump.
-function updateBodyBackground(isLandscape, scale, wrapLeft, wrapTop) {
+// a flat, visibly disconnected cutoff there before.
+//
+// First attempt aligned the exact sky image (Background 1.png) the canvas's
+// Home/Game Over screens draw, at the same scale/position — looked great
+// there, but broke on two counts Rob caught: (1) that image only overscans
+// ~17px past the canvas's own edges, so any margin taller than that fell
+// through to a flat fallback color that didn't match the image it was
+// supposed to be extending, a visible seam of its own; (2) the actual
+// gameplay screen doesn't draw that sky image at all (flat fill + Fog
+// layers instead — see pixi_playscreen.js), so aligning it there was just
+// the wrong background regardless of margin size. A plain vertical
+// gradient between the game's own near-universal dark tones sidesteps both:
+// nothing screen-specific to be wrong about, and (unlike a fixed-size
+// image) no natural edge to run out at — it always covers however tall the
+// margin actually is.
+function updateBodyBackground(isLandscape) {
   if (isLandscape) {
     document.body.style.backgroundImage = "url('assets/FogBack3.png')";
     document.body.style.backgroundRepeat = 'repeat';
@@ -474,11 +479,11 @@ function updateBodyBackground(isLandscape, scale, wrapLeft, wrapTop) {
     document.body.style.backgroundPosition = '';
     document.body.style.backgroundColor = '';
   } else {
-    document.body.style.backgroundImage = "url('assets/Background 1.png')";
+    document.body.style.backgroundImage = 'linear-gradient(to bottom, #171731, #0a0410)';
     document.body.style.backgroundRepeat = 'no-repeat';
-    document.body.style.backgroundSize = `${752 * scale}px ${1309 * scale}px`;
-    document.body.style.backgroundPosition = `${wrapLeft + -19 * scale}px ${wrapTop + -17 * scale}px`;
-    document.body.style.backgroundColor = '#171731';
+    document.body.style.backgroundSize = '100% 100%';
+    document.body.style.backgroundPosition = '0 0';
+    document.body.style.backgroundColor = '#0a0410';
   }
 }
 
