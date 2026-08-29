@@ -52,6 +52,15 @@ const ASSET_PATHS = {
   // shortcut, Level 1's is a levels-grid shortcut.
   bottomButtonsFreeplay: 'assets/Bottom Buttons.png',
   bottomButtonsLevels: 'assets/Bottom Buttons Levels.png',
+  // Levels screen's per-level tile art (Rob) — bright/glowing purple border
+  // for an unlocked, playable level, a dulled grey-bordered version for a
+  // locked one. Same square art either way, just swapped by state.
+  levelButton: 'assets/Level Button.png',
+  levelButtonDull: 'assets/Level Button Dull.png',
+  // Levels screen's own Home button (Rob) — a glowing circular icon,
+  // matching the game's other round icon buttons, instead of the old
+  // plain rect+text placeholder.
+  levelsHomeButton: 'assets/HomeCircleButton.png',
 };
 
 const canvas = document.getElementById('gameCanvas');

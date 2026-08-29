@@ -30,6 +30,21 @@ const LevelsScreenPixi = {
     const bg = new PIXI.Graphics().rect(0, 0, 720, 1280).fill(0x0a0410);
     c.addChild(bg);
 
+    // Glow — a blurred duplicate behind the crisp title (Rob: "add the same
+    // glow to levels that you added to game over"). Game Over's own glow
+    // slices its title into strips for a bottom-fade gradient because that
+    // title is a raster image; this one's plain Pixi Text with no texture
+    // to slice, so a single blurred copy stands in for it instead — same
+    // flicker animation either way (see refresh()).
+    const titleGlow = new PIXI.Text({
+      text: 'Levels', style: { fontFamily: 'PotionTitle', fontSize: 64, fill: 0xffffff, align: 'center' },
+    });
+    titleGlow.anchor.set(0.5, 0);
+    titleGlow.position.set(360, 130);
+    titleGlow.filters = [new PIXI.BlurFilter({ strength: 6 })];
+    c.addChild(titleGlow);
+    this._titleGlow = titleGlow;
+
     const title = new PIXI.Text({
       text: 'Levels', style: { fontFamily: 'PotionTitle', fontSize: 64, fill: 0xffffff, align: 'center' },
     });
@@ -42,7 +57,11 @@ const LevelsScreenPixi = {
       const cell = new PIXI.Container();
       cell.position.set(pos.x, pos.y);
 
-      const box = new PIXI.Graphics();
+      // Rob's own button art — bright/glowing purple border when unlocked,
+      // a dulled grey-bordered version when locked (swapped in refresh()
+      // below), instead of the old programmatic rect+stroke placeholder.
+      const box = new PIXI.Sprite(textures.levelButton);
+      box.width = s; box.height = s;
       cell.addChild(box);
 
       const numberText = new PIXI.Text({
@@ -74,12 +93,16 @@ const LevelsScreenPixi = {
       return { n: pos.n, box, numberText, soonText };
     });
 
-    const homeBtn = new PIXI.Graphics().rect(0, 0, 100, 50).stroke({ width: 2, color: 0x9013fe });
-    const homeBtnText = new PIXI.Text({ text: 'Home', style: { fontFamily: 'PotionBody', fontSize: 22, fill: 0x9013fe } });
-    homeBtnText.anchor.set(0.5);
-    homeBtnText.position.set(50, 25);
-    homeBtn.addChild(homeBtnText);
-    homeBtn.position.set(20, 40);
+    // Rob's own glowing circular Home icon (matches the game's other round
+    // icon buttons) instead of the old plain rect+text placeholder, moved
+    // down to the bottom of the screen — well clear of the grid above and
+    // the persistent mute/fullscreen DOM buttons further down in the real
+    // corners (index.html/game.js).
+    const homeBtnSize = 130;
+    const homeBtn = new PIXI.Sprite(textures.levelsHomeButton);
+    homeBtn.anchor.set(0.5);
+    homeBtn.width = homeBtnSize; homeBtn.height = homeBtnSize;
+    homeBtn.position.set(360, 1080);
     homeBtn.eventMode = 'static';
     homeBtn.cursor = 'pointer';
     homeBtn.on('pointertap', () => goHome());
@@ -89,14 +112,22 @@ const LevelsScreenPixi = {
   },
 
   refresh(state) {
-    const s = this.buttonSize;
+    // Same three-sine flicker formula as Game Over's own title glow (Rob).
+    const now = Date.now();
+    const flicker = 0.75 + 0.25 * (
+      0.45 * Math.sin(now / 480) +
+      0.35 * Math.sin(now / 300 + 1.3) +
+      0.2 * Math.sin(now / 700 + 2.7)
+    );
+    this._titleGlow.alpha = Math.max(0, 0.9 * flicker);
+
     for (const cell of this._cells) {
       const unlocked = UNLOCK_ALL_FOR_TESTING ? cell.n <= BUILT_LEVELS : cell.n <= state.highestLevelUnlocked;
       const built = cell.n <= BUILT_LEVELS;
+      // Purple (144,19,254 = 0x9013fe) for an unlocked number, grey for a
+      // locked one — matches the box art's own bright/dull states.
       const lineColor = unlocked ? 0x9013fe : 0x9b9b9b;
-      const fillColor = unlocked ? 0x9013fe : 0x9b9b9b;
-      cell.box.clear();
-      cell.box.rect(0, 0, s, s).fill({ color: fillColor, alpha: unlocked ? 0.25 : 0.15 }).stroke({ width: 3, color: lineColor });
+      cell.box.texture = unlocked ? textures.levelButton : textures.levelButtonDull;
       cell.numberText.style.fill = lineColor;
       cell.soonText.visible = unlocked && !built;
     }
