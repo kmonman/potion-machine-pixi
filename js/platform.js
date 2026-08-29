@@ -14,6 +14,21 @@ function easeInOutSine(t) {
   return -(Math.cos(Math.PI * t) - 1) / 2;
 }
 
+// How close the ball needs to be to a platform for that platform's purely
+// decorative effects (ambient hinge smoke/sparks, jets) to keep running —
+// Rob: "turn those off" once the tower grew to 12 platforms, since these
+// previously ran unconditionally on EVERY platform every frame regardless
+// of where the ball actually was (12 platforms' worth of ambient particles,
+// all the time, for the whole game, is real constant background work that
+// only existed for a handful of platforms originally). 800px comfortably
+// covers everything the camera can actually show around the ball (it pans
+// to keep the ball ~760px from the top of the 1280-tall canvas — see
+// PlayScreenPixi._updateCamera), so nothing visibly freezes mid-screen;
+// only platforms genuinely off-camera pause. Core state that stays visible
+// or affects gameplay from a distance (angle tween, tube color/liquid
+// slosh, the hinge glow's own touch-reactive brightness) is untouched.
+const PARTICLE_ACTIVE_DIST_SQ = 800 * 800;
+
 function createPlatform(pivotX, pivotY, opts = {}) {
   // Two independent size knobs: `scale` shrinks everything about a platform
   // uniformly (thickness, hinge sprite/glow, the works) — Rob tried this at
@@ -163,6 +178,14 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       }
     },
 
+    // Straight-line distance check against the ball's actual live position
+    // (Physics is a global, same as every other file reaching into it) —
+    // gates the purely decorative effects below, see PARTICLE_ACTIVE_DIST_SQ.
+    isNearBall() {
+      const dx = Physics.x - this.pivot.x, dy = Physics.y - this.pivot.y;
+      return (dx * dx + dy * dy) <= PARTICLE_ACTIVE_DIST_SQ;
+    },
+
     update(dt) {
       this.timer += dt;
       this.tweenElapsed = Math.min(this.tweenElapsed + dt, this.tweenDuration);
@@ -179,14 +202,21 @@ function createPlatform(pivotX, pivotY, opts = {}) {
 
       this._updateTube(dt);
       this._updateLiquid(dt);
-      this._updateHinge(dt);
+      this._updateHinge(dt, this.isNearBall());
     },
 
-    _updateHinge(dt) {
+    // `particlesActive` false pauses the ambient smoke/sparks below in
+    // place (existing particles just stop advancing, not cleared) — they
+    // pick back up exactly where they left off once the ball's back in
+    // range. The glow brightness itself always runs regardless: it's cheap,
+    // and needs to react the instant the ball actually touches.
+    _updateHinge(dt, particlesActive) {
       // Dims quickly-ish while touched (~0.7s), brightens back a bit faster (~0.3s).
       const target = this.touching ? 1 : 0;
       const speed = target > this.hingeGlow ? 1 / 0.7 : 1 / 0.3;
       this.hingeGlow += (target - this.hingeGlow) * Math.min(1, dt * speed * 3);
+
+      if (!particlesActive) return;
 
       // HingeMagic — ambient smoke, constant regardless of touch state (Rob).
       // `while`, not `if` — a slower/less consistent frame rate otherwise silently

@@ -482,10 +482,16 @@ const PlayScreen = {
     if (!this.isOver) {
       for (const p of this.platforms) {
         p.update(dt);
-        // Jet mount points are distances along the bar, so they scale with
-        // lengthScale specifically (how far the bar itself reaches), not the
-        // general visualScale (which is 1 for every platform right now).
-        p.jetSystem.update(dt, p.pivot, p.dir, p.lengthScale);
+        // Jets pause on platforms far from the ball (Rob) — their catch
+        // radius is tiny (JET_CATCH_RADIUS/Y in difficulty.js), so a far
+        // platform's jets could never have actually reached the ball
+        // anyway; this only cuts the constant particle/toggle-timer upkeep
+        // that was running on all 12 platforms at once regardless of where
+        // the ball actually was. Jet mount points are distances along the
+        // bar, so they scale with lengthScale specifically (how far the bar
+        // itself reaches), not the general visualScale (1 for every
+        // platform right now).
+        if (p.isNearBall()) p.jetSystem.update(dt, p.pivot, p.dir, p.lengthScale);
       }
       Difficulty.update(dt);
       Physics.update(dt, tiltX);
