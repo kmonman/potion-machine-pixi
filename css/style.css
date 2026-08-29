@@ -22,19 +22,19 @@ html, body {
   user-select: none;
 }
 
-/* Landscape "quick look" (Rob) — the game itself is still rotated 90deg to
-   fill a landscape screen (see fitGameWrap() in game.js), nothing about the
-   actual gameplay/HUD/canvas changed. On devices wider than the rotated
-   game's own aspect ratio, that leaves empty margins on the sides — this
-   fills them with atmosphere instead of a flat color. First attempt used
-   Background 1.png with background-size:cover, but that image has a
-   distinct bottle/tube illustration in it — cropped into a thin side
-   margin, a fragment of it looked like a second, duplicate game (Rob
-   caught this, thought something was broken). FogBack3.png is one of the
-   game's own ambient fog layers instead: no distinct shapes, designed to
-   tile seamlessly, so repeated fragments in the margins just read as haze.
-   Doesn't affect portrait layout at all: in portrait the game already
-   fills the screen edge to edge, so this background is never visible there. */
+/* Fills whatever the canvas itself doesn't cover — landscape's side margins
+   and (Rob caught this one too) portrait's top/bottom margins, which show
+   up whenever the real screen is taller than the 720x1280 design ratio,
+   most noticeably in fullscreen. game.js's updateBodyBackground() (called
+   from fitGameWrap() on every resize/orientation change) overwrites all of
+   these properties dynamically per-orientation — landscape keeps this tiled
+   fog image (chosen over Background 1.png specifically: that one has a
+   distinct bottle/tube illustration that showed as a cropped, duplicate-
+   game-looking fragment in a thin side margin — Rob caught that too),
+   portrait aligns Background 1.png itself instead (safe there since it's
+   the same x-position just extending vertically, not an unrelated crop).
+   This CSS-level default is only what's visible for the instant before
+   that JS runs. */
 body {
   background-image: url('../assets/FogBack3.png');
   background-repeat: repeat;

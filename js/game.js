@@ -440,10 +440,46 @@ function fitGameWrap() {
     }
   }
 
+  const wrapLeft = (window.innerWidth - renderWidth * scale) / 2;
+  const wrapTop = (window.innerHeight - CONFIG.HEIGHT * scale) / 2;
   gameWrap.style.transform = `scale(${scale})`;
-  gameWrap.style.left = `${(window.innerWidth - renderWidth * scale) / 2}px`;
-  gameWrap.style.top = `${(window.innerHeight - CONFIG.HEIGHT * scale) / 2}px`;
+  gameWrap.style.left = `${wrapLeft}px`;
+  gameWrap.style.top = `${wrapTop}px`;
   gameWrap.style.position = 'absolute';
+
+  updateBodyBackground(isLandscape, scale, wrapLeft, wrapTop);
+}
+
+// Fills whatever the game canvas itself doesn't cover — landscape's side
+// margins (untouched, still the tiled fog fix from before) and portrait's
+// top/bottom margins, which show up whenever the real screen is taller than
+// the 720x1280 (9:16) design ratio (Rob: most noticeable in fullscreen,
+// where the browser's own chrome no longer eats into that extra height —
+// Math.min-based fit-to-width leaves it empty above/below the canvas). Was
+// a flat, visibly disconnected cutoff there before; now aligns the exact
+// same sky image (Background 1.png) the canvas's own PlayScreen/Home/Game
+// Over screens already draw, at the same scale/position, so the margin
+// reads as a seamless continuation of the game's own gradient rather than
+// a separate texture. Safe to align directly like this (unlike landscape's
+// side margins, which rejected this same image for showing a cropped
+// fragment of the bottle/tube illustration) — it's the same x-position,
+// just extending vertically past where the image itself runs out, at which
+// point the background-color fallback (sampled from the image's own top
+// edge, rgb(23,23,49)) takes over rather than a hard color jump.
+function updateBodyBackground(isLandscape, scale, wrapLeft, wrapTop) {
+  if (isLandscape) {
+    document.body.style.backgroundImage = "url('assets/FogBack3.png')";
+    document.body.style.backgroundRepeat = 'repeat';
+    document.body.style.backgroundSize = '';
+    document.body.style.backgroundPosition = '';
+    document.body.style.backgroundColor = '';
+  } else {
+    document.body.style.backgroundImage = "url('assets/Background 1.png')";
+    document.body.style.backgroundRepeat = 'no-repeat';
+    document.body.style.backgroundSize = `${752 * scale}px ${1309 * scale}px`;
+    document.body.style.backgroundPosition = `${wrapLeft + -19 * scale}px ${wrapTop + -17 * scale}px`;
+    document.body.style.backgroundColor = '#171731';
+  }
 }
 
 // Debounced — collapses a burst of native resize events (common on mobile,
