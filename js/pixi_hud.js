@@ -1,13 +1,13 @@
-// In-game HUD, rebuilt on Pixi — the score/potion-counter pills and Free
-// Play's blast buttons (mute lives outside this entirely now — see
-// index.html/game.js's #muteBtn, one persistent DOM button shared by every
-// screen instead of a separate Pixi one per screen). Reuses `PlayScreen`
-// (old ui.js) directly for all the geometry/state (scorePillBtn,
-// potionCounterBtn, blastLeftBtn/RightBtn, blastCharges, blastButtonsT,
-// _scoreText(), _potionsMade()) rather than recomputing any of it — that
-// object's dense oval-matching math and state machine are unaffected by how
-// things get drawn, only PlayScreen's old draw()/​_drawHud() methods are
-// being replaced here.
+// In-game HUD, rebuilt on Pixi — the score pill, the 3-bottle blast-charge
+// indicator, and Free Play's blast buttons (mute lives outside this
+// entirely now — see index.html/game.js's #muteBtn, one persistent DOM
+// button shared by every screen instead of a separate Pixi one per
+// screen). Reuses `PlayScreen` (old ui.js) directly for all the
+// geometry/state (scorePillBtn, blastLeftBtn/RightBtn, blastCharges,
+// MAX_BLAST_CHARGES, blastButtonsT, _scoreText()) rather than recomputing
+// any of it — that object's dense oval-matching math and state machine are
+// unaffected by how things get drawn, only PlayScreen's old draw()/​
+// _drawHud() methods are being replaced here.
 const HudPixi = {
   container: null,
 
@@ -22,21 +22,26 @@ const HudPixi = {
     c.addChild(this._scoreSprite);
     this._scoreNumber = buildTabularNumber(c, { size: 34 * PlayScreen.PILL_SCALE, font: 'PotionTitle', color: 0x9b9b9b, baseline: 'top' });
 
-    const cb = PlayScreen.potionCounterBtn;
-    // Blurred oversized copy underneath, same trick as the old ctx version
-    // (Rob: the potion pill's baked-in glow reads fainter than the score
-    // pill's since it's scaled down more aggressively) — a Pixi Sprite with
-    // a blur filter instead of ctx.filter='blur()'.
-    this._potionGlowSprite = new PIXI.Sprite(textures.potionCounter);
-    this._potionGlowSprite.position.set(cb.x - 3, cb.y - 3);
-    this._potionGlowSprite.width = cb.w + 6; this._potionGlowSprite.height = cb.h + 6;
-    this._potionGlowSprite.alpha = 0.7;
-    this._potionGlowSprite.filters = [new PIXI.BlurFilter({ strength: 5 })];
-    this._potionSprite = new PIXI.Sprite(textures.potionCounter);
-    this._potionSprite.position.set(cb.x, cb.y);
-    this._potionSprite.width = cb.w; this._potionSprite.height = cb.h;
-    c.addChild(this._potionGlowSprite, this._potionSprite);
-    this._potionNumber = buildTabularNumber(c, { size: 34 * PlayScreen.PILL_SCALE, font: 'PotionTitle', color: 0x9b9b9b, baseline: 'middle' });
+    // Blast-charge indicator — 3 bottle icons (same filled/empty art Game
+    // Over's own "potions made" summary row already uses), one per
+    // MAX_BLAST_CHARGES, instead of the old uncapped numeric pill (Rob:
+    // show the charge cap the same way Game Over shows potions — bottles
+    // you fill up, not a raw number). Top-right, vertically centered on the
+    // score pill.
+    const sbRef = PlayScreen.scorePillBtn;
+    const chargeIconH = 70, chargeIconW = chargeIconH * (72 / 88), chargeGap = 8;
+    const chargeRowW = 3 * chargeIconW + 2 * chargeGap;
+    const chargeRowRight = 700, chargeRowX = chargeRowRight - chargeRowW;
+    const chargeRowCenterY = sbRef.y + sbRef.h / 2;
+    this._chargeIcons = [];
+    for (let i = 0; i < 3; i++) {
+      const s = new PIXI.Sprite(textures.potionEmpty);
+      s.anchor.set(0.5);
+      s.width = chargeIconW; s.height = chargeIconH;
+      s.position.set(chargeRowX + i * (chargeIconW + chargeGap) + chargeIconW / 2, chargeRowCenterY);
+      c.addChild(s);
+      this._chargeIcons.push(s);
+    }
 
 
     // Blast buttons — ring (Blast.png) + bottle + a badge number, all scaled
@@ -102,27 +107,21 @@ const HudPixi = {
     if (PlayScreen.isOver) {
       this._scoreSprite.visible = false;
       this._scoreNumber.setVisible(false);
-      this._potionGlowSprite.visible = false;
-      this._potionSprite.visible = false;
-      this._potionNumber.setVisible(false);
+      for (const s of this._chargeIcons) s.visible = false;
     } else {
       this._scoreSprite.visible = true;
-      this._potionGlowSprite.visible = true;
-      this._potionSprite.visible = true;
       this._scoreNumber.setVisible(true);
-      this._potionNumber.setVisible(true);
+      for (const s of this._chargeIcons) s.visible = true;
 
       const sb = PlayScreen.scorePillBtn;
       this._scoreNumber.setText(PlayScreen._scoreText(), sb.x + 125 * PlayScreen.PILL_SCALE, sb.y + 35 * PlayScreen.PILL_SCALE);
 
-      const cb = PlayScreen.potionCounterBtn;
-      // A potion IS a blast charge in every mode now (Levels used to have no
-      // blast mechanic at all and showed lifetime progress here instead —
-      // see ui.js's blastCharges accrual for why that changed), so this
-      // should show how many you actually have left to spend (blastCharges,
-      // which fireBlast() decrements), not _potionsMade() (score/1000 — a
-      // lifetime-earned total that never goes back down after spending one).
-      this._potionNumber.setText(String(PlayScreen.blastCharges), cb.x + cb.w * (97 / 191), cb.y + cb.h * (124 / 259));
+      // Filled left-to-right up to however many charges are currently
+      // banked (capped at MAX_BLAST_CHARGES — see ui.js's blastCharges
+      // accrual).
+      this._chargeIcons.forEach((s, i) => {
+        s.texture = i < PlayScreen.blastCharges ? textures.potionFilled : textures.potionEmpty;
+      });
     }
 
     const active = PlayScreen.blastCharges > 0;

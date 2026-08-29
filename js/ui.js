@@ -246,7 +246,15 @@ const PlayScreen = {
   goBubbles: [], // continuously-bubbling particles next to the Game Over score
   goBubbleTimer: 0,
 
-  // Free Play only: a charge every 1000 points, tap a blast button to spend one.
+  // A charge every 1000 points, tap a blast button to spend one — shared by
+  // every mode now (see the accrual comment in update() for why). Capped at
+  // MAX_BLAST_CHARGES (Rob: without a cap, someone could just camp at the
+  // base collecting charges indefinitely, then chain them all in one blast
+  // to trivialize the whole climb — scoring past the cap simply doesn't
+  // bank anything further until a charge gets spent). Shown as 3 bottle
+  // icons in the HUD now (see pixi_hud.js) instead of a raw number, same
+  // filled/empty art Game Over's own summary row already used.
+  MAX_BLAST_CHARGES: 3,
   blastCharges: 0,
   blastThreshold: 0,
   // Bigger again (Rob: the ring+bottle together were both shrinking as this
@@ -498,7 +506,7 @@ const PlayScreen = {
       // enough to reach its own goal line (Rob: "refine level 1 to make it
       // playable"). Now shared by every mode.
       if (this.score >= this.blastThreshold + 1000) {
-        this.blastCharges++;
+        this.blastCharges = Math.min(this.MAX_BLAST_CHARGES, this.blastCharges + 1);
         this.blastThreshold += 1000;
       }
 
@@ -599,6 +607,12 @@ const PlayScreen = {
     // Bumped from 600 — this is now also the tower's climb mechanic (Rob: use
     // the existing potion blasters to get to the next platform up), so it needs
     // enough force to actually clear TOWER_SPACING, not just hop in place.
+    // Kept at its original 950 (Rob: the boost shouldn't inherit tilt's
+    // reduction — a Potion Blast is a deliberate, player-triggered launch,
+    // not a steering force, so it doesn't need to feel gentler the way
+    // constant tilt input does). Also sidesteps the platform-spacing margin
+    // getting any tighter than it already was — see TOWER_SPACING in this
+    // file and the reachability numbers checked when Levels 1-10 were built.
     Physics.applyBlast(950);
   },
 

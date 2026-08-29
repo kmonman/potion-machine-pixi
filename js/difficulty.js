@@ -96,7 +96,7 @@ const JET_PARKED_DISTANCE = 5000;
 // just sits near the jet (every 0.3s, over and over, as long as it lingers).
 // Fixed for real by gating on entering the zone (see `wasInRange` below) instead
 // of purely on a timer — one puff per pass through, not one puff per cooldown tick.
-const JET_IMPULSE_VY = -360; // px/s kick applied to the ball
+const JET_IMPULSE_VY = -306; // px/s kick applied to the ball — 15% down from -360 (Rob: tilt force reduction should carry over to every force on the ball)
 const JET_COOLDOWN = 0.2; // seconds — now just a safety debounce, not the main gate
 const JET_CATCH_RADIUS = 25; // px, how close the ball's x needs to be to the jet's x
 // With multiple platforms now sharing one world coordinate space, an x-only catch
