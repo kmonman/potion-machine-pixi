@@ -114,6 +114,14 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     tweenElapsed: 0,
     timer: 0,
     direction: 1,
+    // Steepest this platform's tilt is ever randomized to (min stays fixed
+    // at 5° — see the targetAngle formula in reset()/update()). 20 matches
+    // the original always-on range; PlayScreen.enter() lowers this for
+    // early Levels (Rob: "start at 10 for the low levels and work your way
+    // up to 20 by level 5") so a new player gets a flatter, easier-to-
+    // balance-on surface while learning, not the full range Free Play and
+    // higher levels get.
+    maxTiltAngle: 20,
 
     // Hinge glow + emitters + sparkle burst while the ball is touching THIS
     // platform's hinge. `touching` is set externally by Physics each frame (it
@@ -154,7 +162,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       // direction), same as before this was ever a multi-platform question.
       this.direction = 1;
       this.startAngle = 0;
-      this.targetAngle = (5 + Math.random() * 15) * this.direction;
+      this.targetAngle = (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
       this.tweenElapsed = 0;
       this.timer = 0;
       this.hingeGlow = 0;
@@ -214,7 +222,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       if (this.timer >= this.tweenDuration) {
         this.direction *= -1;
         this.startAngle = this.targetAngle;
-        this.targetAngle = (5 + Math.random() * 15) * this.direction;
+        this.targetAngle = (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
         this.tweenElapsed = 0;
         this.timer = 0;
       }

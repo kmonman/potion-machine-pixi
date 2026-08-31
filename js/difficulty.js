@@ -127,6 +127,19 @@ function createJetSystem(opts = {}) {
   return {
     jets: JET_DEFS.map(() => ({ x: 0, y: 0, active: false, wasInRange: false, particles: [], spawnTimer: 0, toggleTimer: 0 })),
     jetCooldown: 0,
+    // Exposed so code outside this closure (ui.js's tower-building, when
+    // precomputing each platform's preferredIndex) can see which mounts
+    // this platform is even allowed to use.
+    allowedIndices,
+    // Level-scoped jet rules (Rob: cap how many of a platform's jets can be
+    // on at once, and on early levels bias the single allowed one toward
+    // whichever mount is closest to the next platform up) — set externally
+    // by PlayScreen.enter() each run (see ui.js's _jetTierForLevel), null
+    // in Free Play. null keeps the original fully-independent per-jet
+    // toggling below untouched, rather than risk changing Free Play's feel
+    // to build this. Shape: { maxConcurrent, preferredIndex, directionalBias }.
+    levelConfig: null,
+    groupToggleTimer: 0,
 
     reset() {
       this.jets = JET_DEFS.map(() => ({
@@ -134,6 +147,7 @@ function createJetSystem(opts = {}) {
         toggleTimer: 1 + Math.random() * 3,
       }));
       this.jetCooldown = 0;
+      this.groupToggleTimer = 1 + Math.random() * 3;
     },
 
     // `scale` is the owning platform's visualScale — jet mount distances are
@@ -141,17 +155,11 @@ function createJetSystem(opts = {}) {
     // needs its jets pulled in proportionally or they'd hang off past the end
     // of its (now shorter) bar.
     update(dt, pivot, dir, scale = 1) {
+      if (this.levelConfig) this._updateCoordinated(dt);
+      else this._updateIndependent(dt);
+
       for (let i = 0; i < this.jets.length; i++) {
         const jet = this.jets[i];
-        if (allowedIndices.includes(i)) {
-          jet.toggleTimer -= dt;
-          if (jet.toggleTimer <= 0) {
-            jet.toggleTimer = 1.5 + Math.random() * 3.5;
-            jet.active = Math.random() < 0.45; // independently on/off, roughly ~2 of 4 active at a time
-          }
-        } else {
-          jet.active = false; // this platform never uses this mount point
-        }
         const distance = jet.active ? JET_DEFS[i].activeDistance * scale : JET_PARKED_DISTANCE;
         // -22, not -25 — moved down a couple pixels (Rob).
         jet.x = pivot.x + dir.x * distance;
@@ -210,6 +218,51 @@ function createJetSystem(opts = {}) {
           p.life += dt;
         }
         jet.particles = jet.particles.filter((p) => p.life < p.maxLife);
+      }
+    },
+
+    // Original behavior, untouched (Free Play only — see levelConfig
+    // above): each allowed mount independently rolls its own on/off on its
+    // own timer, no coordination or cap between them.
+    _updateIndependent(dt) {
+      for (let i = 0; i < this.jets.length; i++) {
+        const jet = this.jets[i];
+        if (allowedIndices.includes(i)) {
+          jet.toggleTimer -= dt;
+          if (jet.toggleTimer <= 0) {
+            jet.toggleTimer = 1.5 + Math.random() * 3.5;
+            jet.active = Math.random() < 0.45; // independently on/off, roughly ~2 of 4 active at a time
+          }
+        } else {
+          jet.active = false; // this platform never uses this mount point
+        }
+      }
+    },
+
+    // Levels: at most levelConfig.maxConcurrent of this platform's
+    // allowedIndices are ever on at once, re-rolled as a group on a shared
+    // timer instead of each mount independently flipping its own coin (Rob:
+    // caps of 2 on the base/"big" platform and 1 on every other/"small" one
+    // for Levels 1-7, 3 on the big platform from Level 8 on). When
+    // directionalBias is on (Levels 1-3), the active set is always just
+    // levelConfig.preferredIndex — the mount closest to the next platform
+    // up (see ui.js's _buildTower) — instead of a random pick among
+    // whatever's allowed.
+    _updateCoordinated(dt) {
+      this.groupToggleTimer -= dt;
+      if (this.groupToggleTimer <= 0) {
+        this.groupToggleTimer = 1.5 + Math.random() * 3.5;
+        const { maxConcurrent, preferredIndex, directionalBias } = this.levelConfig;
+        let activeSet;
+        if (directionalBias && preferredIndex != null) {
+          activeSet = [preferredIndex];
+        } else {
+          const shuffled = allowedIndices.slice().sort(() => Math.random() - 0.5);
+          activeSet = shuffled.slice(0, Math.min(maxConcurrent, allowedIndices.length));
+        }
+        for (let i = 0; i < this.jets.length; i++) {
+          this.jets[i].active = activeSet.includes(i);
+        }
       }
     },
   };

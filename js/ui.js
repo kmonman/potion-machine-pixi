@@ -321,6 +321,34 @@ const PlayScreen = {
     return n === null ? 1 : 1.15 + (n - 1) * 0.15;
   },
 
+  // Steepest a platform's tilt is ever randomized to, in degrees (min stays
+  // fixed at 5° — see platform.js's targetAngle formula). Rob: "start at 10
+  // for the low levels and work your way up to 20 by level 5" — a flatter,
+  // easier-to-balance-on surface for a new player, ramping back up to the
+  // original full range by Level 5 and staying there through Level 10. Free
+  // Play is untouched (always the full 20° range, same as it always was).
+  _maxTiltAngleForLevel() {
+    const n = this._levelNumber();
+    if (n === null) return 20;
+    return Math.min(20, 10 + (n - 1) * 2.5);
+  },
+
+  // How many of a platform's jets can be on at once, and whether the choice
+  // of which one(s) is biased toward the mount closest to the next platform
+  // up (see _buildTower's preferredIndex precomputation) — Rob: "no more
+  // than 2 jets at once... on the big platforms, no more than 1 on the
+  // small platforms" for Levels 1-7, biased toward the next platform for
+  // Levels 1-3 specifically then "more random" from 4 on, "3 jets in the
+  // higher levels on the large platforms" from Level 8 on. Free Play
+  // returns null, which keeps every jet system's original fully-
+  // independent per-mount toggling untouched (see difficulty.js's
+  // createJetSystem) rather than risk changing its feel to build this.
+  _jetTierForLevel() {
+    const n = this._levelNumber();
+    if (n === null) return null;
+    return { bigMax: n <= 7 ? 2 : 3, smallMax: 1, directionalBias: n <= 3 };
+  },
+
   // Which level number `this.mode` refers to ('level1' -> 1), or null for
   // Free Play. Central place for this parsing rather than repeating the
   // regex/prefix check at every call site.
@@ -339,23 +367,17 @@ const PlayScreen = {
     // (Free Play's own, unscaled) — see _tubeSpeedMultiplier above for how
     // Levels rescale it per run.
     const platforms = [
-      // lengthPulse is a prototype (Rob: "tubes that shift in size from
-      // large to small and back") — only the base platform has it for now,
-      // to try the feel before deciding whether to build it out further.
-      // min/max are fractions of this platform's own full length; period is
-      // one full shrink-and-back cycle in seconds.
-      createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1, lengthPulse: { min: 0.55, max: 1, period: 5 } }),
-      // Widened way past the 0.7 every other platform used (Rob: people were
-      // struggling to pass even Level 1 — these two are the whole climb it
-      // needs). Long enough to run off both sides of the 720px screen, so a
-      // blast that's a bit off on aim still lands somewhere on the bar
-      // instead of missing it entirely — forgiving on purpose, since this is
-      // the first thing anyone plays. lengthScale 1.8/2.0 -> 1116px/1240px,
-      // ~198px/260px hanging off each edge. Later levels stay at the
-      // original narrower width — this is deliberately an easy start, not a
-      // change to the overall difficulty curve.
-      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 1.8, tubeSpeed: 0.75 }),
-      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 2.0, tubeSpeed: 1.3 }),
+      // Reverted (Rob: the 1.8x/2.0x widening below made platform 1/2 way
+      // longer than the base platform and it read as broken, not forgiving
+      // — "none of the new platforms should be longer than the length of
+      // the first one"). lengthPulse prototype also pulled off the base
+      // platform for the same "take it back to how it was originally" ask
+      // — the pulsing infrastructure (platform.js/pixi_playscreen.js)
+      // stays in place, just unused by any platform right now, in case
+      // it's worth trying again later with different numbers.
+      createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1 }),
+      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.75 }),
+      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7, tubeSpeed: 1.3 }),
     ];
     // New platforms go higher than whatever's already there, not at some
     // in-between height that overlaps the existing ones (Rob) — this one
@@ -398,6 +420,29 @@ const PlayScreen = {
     for (const p of platforms) {
       p.hingeBubbles = createHingeBubbles();
     }
+
+    // Precompute each non-base platform's "closest jet to the next platform
+    // up" mount index (Rob: on Levels 1-3, the one active jet should point
+    // toward continuing the climb, not be random) — static geometry, so
+    // this only needs figuring out once here rather than every run. Purely
+    // a preference used when PlayScreen.enter() turns directional bias on;
+    // has no effect on its own (see difficulty.js's _updateCoordinated).
+    for (let i = 1; i < platforms.length - 1; i++) {
+      const p = platforms[i], next = platforms[i + 1];
+      const towardLeft = next.pivot.x < p.pivot.x;
+      let best = null;
+      for (const idx of p.jetSystem.allowedIndices) {
+        const d = JET_DEFS[idx].activeDistance;
+        if (towardLeft ? d < 0 : d > 0) {
+          if (best === null || Math.abs(d) > Math.abs(JET_DEFS[best].activeDistance)) best = idx;
+        }
+      }
+      // Falls back to whatever's actually allowed if none of this
+      // platform's mounts happen to be on the preferred side (e.g.
+      // platform 4 only ever had a left-side jet to begin with).
+      p.jetSystem.preferredIndex = best !== null ? best : p.jetSystem.allowedIndices[0];
+    }
+
     return platforms;
   },
 
@@ -412,7 +457,14 @@ const PlayScreen = {
     // same as the old singleton Platform.reset() always did.
     if (!this.platforms) this.platforms = this._buildTower();
     const speedMul = this._tubeSpeedMultiplier();
+    const maxTiltAngle = this._maxTiltAngleForLevel();
+    const jetTier = this._jetTierForLevel();
     for (const p of this.platforms) {
+      // Set before reset() (not after) — reset() immediately rolls a fresh
+      // targetAngle using this platform's current maxTiltAngle, so setting
+      // it late would still leave this run's very first tween using
+      // whatever level's cap happened to be set last.
+      p.maxTiltAngle = maxTiltAngle;
       p.reset();
       // p.reset() doesn't touch tubeSpeed (only angle/hinge/tube-stage), so
       // this scaling sticks for the whole run without being clobbered, and
@@ -420,6 +472,15 @@ const PlayScreen = {
       // compounding onto whatever the previous run left it at.
       p.tubeSpeed = p.baseTubeSpeed * speedMul;
       p.jetSystem.reset();
+      // hasPole is only ever true for the base platform — the "big" one
+      // Rob's jet-count rules distinguish from every "small" platform above
+      // it. null in Free Play (jetTier itself is null there), which keeps
+      // this jet system's original fully-independent per-mount toggling.
+      p.jetSystem.levelConfig = jetTier ? {
+        maxConcurrent: p.hasPole ? jetTier.bigMax : jetTier.smallMax,
+        preferredIndex: p.jetSystem.preferredIndex ?? null,
+        directionalBias: jetTier.directionalBias,
+      } : null;
       p.hingeBubbles.reset();
     }
     Physics.reset(this.platforms);
