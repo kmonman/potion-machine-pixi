@@ -52,16 +52,35 @@ function createPlatform(pivotX, pivotY, opts = {}) {
   // progresses, but very gradual"), and needs an untouched original to scale
   // from rather than compounding onto whatever last run left it at.
   const baseTubeSpeed = tubeSpeed;
+  // Shortened from the original's 674 (Rob's phone test: the tube reached close
+  // enough to the screen edges that the ball couldn't actually fall down the gap
+  // between the tube's end and the side wall). Widened back up 520→620 (Rob: felt
+  // too small) — the 100px fall-through margin (Physics._checkBoundaries) still
+  // gives room to drop.
+  const baseLength = 620 * scale * lengthScale;
+  // Optional length "breathing" (Rob: tubes that pulse large to small and
+  // back) — { min, max, period } as fractions of this platform's own
+  // baseLength, period in seconds for one full min->max->min cycle. Off by
+  // default (opts.lengthPulse unset) so every other platform's length stays
+  // exactly what it always was; deliberately length-only, not thickness —
+  // thickness feeds the liquid sim's own vertical clamping every step (see
+  // _stepLiquid), and pulsing it would mean reworking that alongside this,
+  // for not much extra gameplay payoff. `length` itself becomes a live,
+  // per-frame value (see update() below) instead of fixed at creation —
+  // Physics's collision math (physics.js) already reads it fresh every
+  // call, so a moving one is a live hazard/window with no code changes
+  // needed there. A ball resting past where the tube has shrunk to just
+  // stops being "on" it and falls — the intended fair-if-you're-not-
+  // watching behavior, not a bug.
+  const lengthPulse = opts.lengthPulse || null;
   return {
     pivot: { x: pivotX, y: pivotY },
     visualScale: scale,
     lengthScale,
-    // Shortened from the original's 674 (Rob's phone test: the tube reached close
-    // enough to the screen edges that the ball couldn't actually fall down the gap
-    // between the tube's end and the side wall). Widened back up 520→620 (Rob: felt
-    // too small) — the 100px fall-through margin (Physics._checkBoundaries) still
-    // gives room to drop.
-    length: 620 * scale * lengthScale,
+    baseLength,
+    length: baseLength,
+    lengthPulse,
+    _pulsePhase: 0,
     thickness: 52 * scale,
     // The sprite's own outer ring (Hinge.png), measured directly from the asset
     // pixels: it sits at radius 42-49 of the 100x100 source, scaled to the 112px
@@ -198,6 +217,16 @@ function createPlatform(pivotX, pivotY, opts = {}) {
         this.targetAngle = (5 + Math.random() * 15) * this.direction;
         this.tweenElapsed = 0;
         this.timer = 0;
+      }
+
+      if (this.lengthPulse) {
+        this._pulsePhase = (this._pulsePhase + dt) % this.lengthPulse.period;
+        // Eased 0->1->0 (cosine, not linear) so it settles smoothly at each
+        // end instead of reversing direction with a sudden velocity flip.
+        const cyclePos = this._pulsePhase / this.lengthPulse.period;
+        const eased = 0.5 - 0.5 * Math.cos(cyclePos * Math.PI * 2);
+        const { min, max } = this.lengthPulse;
+        this.length = this.baseLength * (min + (max - min) * eased);
       }
 
       this._updateTube(dt);

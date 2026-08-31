@@ -197,10 +197,17 @@ const PlayScreenPixi = {
     v.liquidBody = new PIXI.Graphics();
     v.liquidShine = new PIXI.Graphics();
     v.liquidShine.blendMode = 'screen';
-    const liquidContainer = new PIXI.Container();
-    liquidContainer.addChild(v.liquidBody, v.liquidShine, v.liquidMask);
-    liquidContainer.mask = v.liquidMask;
-    v.platformContainer.addChild(liquidContainer);
+    v.liquidContainer = new PIXI.Container();
+    v.liquidContainer.addChild(v.liquidBody, v.liquidShine, v.liquidMask);
+    v.liquidContainer.mask = v.liquidMask;
+    v.platformContainer.addChild(v.liquidContainer);
+    // Reference length this container's own liquid was built/simulated at —
+    // a pulsing tube (see platform.js's lengthPulse) rescales this whole
+    // container horizontally in _refreshPlatform() to visually match,
+    // rather than re-deriving the liquid sim's own column layout every
+    // frame (which stays in this original coordinate space untouched).
+    v.liquidBaseLength = p.length;
+    v._lastLength = p.length;
 
     // Glass — shadow + highlight sprites drawn in front of the liquid.
     v.tubeShadow = new PIXI.Sprite(textures.tubeShadow);
@@ -483,6 +490,19 @@ const PlayScreenPixi = {
   _refreshPlatform(p) {
     const v = p._visual;
     v.platformContainer.rotation = p.angleRad;
+    // A pulsing tube's length (Rob: tubes that breathe large to small and
+    // back — see platform.js's lengthPulse) changes every frame; everything
+    // here was only ever sized once at build time otherwise, so this is a
+    // no-op (one cheap comparison) for every non-pulsing platform.
+    if (p.length !== v._lastLength) {
+      v._lastLength = p.length;
+      v.platformSprite.width = p.length;
+      v.tubeShadow.width = p.length;
+      v.tubeHighlight.width = p.length;
+      // Rescales the liquid's already-simulated shape to match rather than
+      // re-deriving its own column layout (see build()'s liquidBaseLength).
+      v.liquidContainer.scale.x = p.length / v.liquidBaseLength;
+    }
     this._refreshLiquid(p);
     v.tubeHighlight.x = -p.angle * 3;
     this._refreshHinge(p);

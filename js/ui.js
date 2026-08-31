@@ -339,9 +339,23 @@ const PlayScreen = {
     // (Free Play's own, unscaled) — see _tubeSpeedMultiplier above for how
     // Levels rescale it per run.
     const platforms = [
-      createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1 }),
-      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.75 }),
-      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7, tubeSpeed: 1.3 }),
+      // lengthPulse is a prototype (Rob: "tubes that shift in size from
+      // large to small and back") — only the base platform has it for now,
+      // to try the feel before deciding whether to build it out further.
+      // min/max are fractions of this platform's own full length; period is
+      // one full shrink-and-back cycle in seconds.
+      createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1, lengthPulse: { min: 0.55, max: 1, period: 5 } }),
+      // Widened way past the 0.7 every other platform used (Rob: people were
+      // struggling to pass even Level 1 — these two are the whole climb it
+      // needs). Long enough to run off both sides of the 720px screen, so a
+      // blast that's a bit off on aim still lands somewhere on the bar
+      // instead of missing it entirely — forgiving on purpose, since this is
+      // the first thing anyone plays. lengthScale 1.8/2.0 -> 1116px/1240px,
+      // ~198px/260px hanging off each edge. Later levels stay at the
+      // original narrower width — this is deliberately an easy start, not a
+      // change to the overall difficulty curve.
+      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 1.8, tubeSpeed: 0.75 }),
+      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 2.0, tubeSpeed: 1.3 }),
     ];
     // New platforms go higher than whatever's already there, not at some
     // in-between height that overlaps the existing ones (Rob) — this one
@@ -490,8 +504,10 @@ const PlayScreen = {
         // the ball actually was. Jet mount points are distances along the
         // bar, so they scale with lengthScale specifically (how far the bar
         // itself reaches), not the general visualScale (1 for every
-        // platform right now).
-        if (p.isNearBall()) p.jetSystem.update(dt, p.pivot, p.dir, p.lengthScale);
+        // platform right now). Derived from the live p.length (not the
+        // static p.lengthScale) so a pulsing tube's jets slide along with
+        // it instead of staying parked at the tube's un-pulsed size.
+        if (p.isNearBall()) p.jetSystem.update(dt, p.pivot, p.dir, p.length / (620 * p.visualScale));
       }
       Difficulty.update(dt);
       Physics.update(dt, tiltX);
