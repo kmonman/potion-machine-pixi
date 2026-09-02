@@ -140,6 +140,10 @@ function createJetSystem(opts = {}) {
     // to build this. Shape: { maxConcurrent, preferredIndex, directionalBias }.
     levelConfig: null,
     groupToggleTimer: 0,
+    // Anti-stuck tracking for the "random" (non-directional-bias) tier — see
+    // _updateCoordinated below.
+    _lastJetIndex: null,
+    _sameSideStreak: 0,
 
     reset() {
       this.jets = JET_DEFS.map(() => ({
@@ -148,6 +152,8 @@ function createJetSystem(opts = {}) {
       }));
       this.jetCooldown = 0;
       this.groupToggleTimer = 1 + Math.random() * 3;
+      this._lastJetIndex = null;
+      this._sameSideStreak = 0;
     },
 
     // `scale` is the owning platform's visualScale — jet mount distances are
@@ -248,6 +254,15 @@ function createJetSystem(opts = {}) {
     // levelConfig.preferredIndex — the mount closest to the next platform
     // up (see ui.js's _buildTower) — instead of a random pick among
     // whatever's allowed.
+    //
+    // Once bias is off (Level 4+), a single-jet platform picking purely
+    // independently at random could still land on the same (unhelpful) side
+    // many cycles in a row by pure chance — Rob caught this: "the jet only
+    // stays on the left side... it can be maybe two times on one side, then
+    // one side on the other, but it can't always be on one side." Tracked
+    // with _lastJetIndex/_sameSideStreak so a 3rd consecutive repeat is
+    // disallowed — forced to switch instead of re-rolled, so it's a real
+    // guarantee, not just an unlikely coincidence to avoid.
     _updateCoordinated(dt) {
       this.groupToggleTimer -= dt;
       if (this.groupToggleTimer <= 0) {
@@ -256,6 +271,16 @@ function createJetSystem(opts = {}) {
         let activeSet;
         if (directionalBias && preferredIndex != null) {
           activeSet = [preferredIndex];
+        } else if (maxConcurrent === 1 && allowedIndices.length > 1) {
+          let picked;
+          if (this._sameSideStreak >= 2) {
+            picked = allowedIndices.find((i) => i !== this._lastJetIndex) ?? allowedIndices[0];
+          } else {
+            picked = allowedIndices[Math.floor(Math.random() * allowedIndices.length)];
+          }
+          this._sameSideStreak = picked === this._lastJetIndex ? this._sameSideStreak + 1 : 1;
+          this._lastJetIndex = picked;
+          activeSet = [picked];
         } else {
           const shuffled = allowedIndices.slice().sort(() => Math.random() - 0.5);
           activeSet = shuffled.slice(0, Math.min(maxConcurrent, allowedIndices.length));

@@ -394,10 +394,21 @@ const PlayScreen = {
     // this high, same as they already don't visit the side platform.
     platforms.push(createPlatform(baseX - this.TOWER_X_OFFSET, platforms[3].pivot.y - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.9 }));
     platforms[0].jetSystem = createJetSystem();
-    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0] });
-    platforms[2].jetSystem = createJetSystem({ allowedIndices: [1] });
-    platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] }); // inner jets, for variety from the outer-only mid/top
-    platforms[4].jetSystem = createJetSystem({ allowedIndices: [0] });
+    // Every small platform gets BOTH a left and a right mount now, not just
+    // whichever single one was originally picked for visual variety (Rob:
+    // "the jet only stays on the left side of the platform, but the next
+    // platform is on the right side... I can't jump from the left side with
+    // the jet to the platform on the right" — platform 4 specifically was
+    // hardcoded to outer-left only, permanently mismatched with platform 5
+    // sitting to its right, no way for the per-level bias/randomization
+    // below to ever pick the correct side since there wasn't one to pick).
+    // smallMax in _jetTierForLevel still caps it to one active at a time —
+    // this just gives that one a real side to choose, in both directions,
+    // instead of a single fixed mount.
+    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] }); // inner jets, for variety from the outer-only mid/top — already had both sides
+    platforms[4].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
 
     // Platforms 5-11 (Levels 4-10's targets) — continue the same zigzag
     // straight on up from platform 4, same TOWER_X_OFFSET/TOWER_SPACING as
@@ -405,15 +416,17 @@ const PlayScreen = {
     // Generated in a loop rather than hand-placed one at a time (Rob: "do
     // all 10, we can evaluate from there" — a first pass to react to, not
     // final tuning). tubeSpeed cycles through a handful of distinct paces so
-    // no two neighboring platforms drift in lockstep; jets cycle through the
-    // 4 mount points one at a time for a little visual variety between them.
+    // no two neighboring platforms drift in lockstep; jets alternate between
+    // the outer pair and the inner pair per platform (both sides of one
+    // family, not a single fixed mount — see above) for a little visual
+    // variety between them.
     const extraTubeSpeeds = [0.85, 1.2, 0.95, 1.25, 0.8, 1.15, 1.35];
     for (let i = 0; i < 7; i++) {
       const idx = 5 + i; // platforms[5..11], for Levels 4-10
       const x = idx % 2 === 1 ? baseX + this.TOWER_X_OFFSET : baseX - this.TOWER_X_OFFSET;
       const y = platforms[idx - 1].pivot.y - this.TOWER_SPACING;
       const extra = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: extraTubeSpeeds[i] });
-      extra.jetSystem = createJetSystem({ allowedIndices: [i % 4] });
+      extra.jetSystem = createJetSystem({ allowedIndices: i % 2 === 0 ? [0, 1] : [2, 3] });
       platforms.push(extra);
     }
 
