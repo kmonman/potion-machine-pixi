@@ -15,6 +15,17 @@ const Input = (() => {
   let rawTilt = 0;
   let smoothedTilt = 0;
   let listening = false;
+  // Timestamp of the last usable deviceorientation reading (Rob: "the ball
+  // moves even when I'm not tilting my phone") — once `listening` is true,
+  // rawTilt used to only ever get set by handleOrientation, never decayed,
+  // so if real sensor events ever stopped arriving (or one delivered a
+  // null/undefined beta/gamma, which handleOrientation already bails out
+  // of without touching rawTilt) whatever value was last read just stuck
+  // there indefinitely — the ball would keep drifting in that direction
+  // with the phone sitting still. See the staleness check in update()
+  // below.
+  let lastReadingAt = 0;
+  const STALE_MS = 400; // a phone's sensor firing normally fires far faster than this
 
   // Desktop-only fallback so Stage 1 can be verified in a regular browser
   // preview before it's ever tested on a phone. Harmless on real phones —
@@ -77,7 +88,13 @@ const Input = (() => {
   }
 
   function handleOrientation(event) {
-    const angle = getScreenAngle();
+    // Rounded to the nearest 90 rather than trusting the raw value is
+    // always an exact 0/90/180/270 — defensive against any device
+    // reporting a slightly off angle, which would otherwise fall through
+    // every branch below to the portrait default and read the wrong axis
+    // entirely (Rob: "it seems like there may be an issue where it's not
+    // reading the portrait versus landscape correctly").
+    const angle = Math.round(getScreenAngle() / 90) * 90;
     let tiltDeg;
     // Landscape signs flipped from the initial guess (Rob tested on Android:
     // came out inverted — tilting right made the ball go left). Still
@@ -89,6 +106,7 @@ const Input = (() => {
     if (tiltDeg === null || tiltDeg === undefined) return;
     const clamped = Math.max(-TILT_CLAMP_DEGREES, Math.min(TILT_CLAMP_DEGREES, tiltDeg));
     rawTilt = clamped / TILT_CLAMP_DEGREES;
+    lastReadingAt = Date.now();
   }
 
   function needsPermissionPrompt() {
@@ -128,6 +146,16 @@ const Input = (() => {
     else if (mouseTilt !== null) rawTilt = mouseTilt;
     else if (!listening) {
       rawTilt *= 0.9; // let the keyboard fallback drift back to center
+    } else if (Date.now() - lastReadingAt > STALE_MS) {
+      // No real sensor reading in a while, but we're on a device that's
+      // supposed to be sending them (Rob: "the ball moves even when I'm
+      // not tilting") — decay back to center instead of leaving rawTilt
+      // frozen at whatever the last reading happened to be, same as the
+      // keyboard fallback above already does when nothing's pressed. Only
+      // kicks in once lastReadingAt has actually been set at least once
+      // (0 is more than STALE_MS in the past from the very first frame,
+      // which is fine — there's nothing to decay from yet anyway).
+      rawTilt *= 0.9;
     }
     smoothedTilt += (rawTilt - smoothedTilt) * (1 - SMOOTHING);
   }
