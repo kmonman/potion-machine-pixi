@@ -133,6 +133,13 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     hingeSparkParticles: [],
     hingeSparkTimer: 0,
     touching: false,
+    // Counts down from JET_GRACE_SECONDS (ui.js) while this platform ISN'T
+    // the one Physics.currentPlatform points at — its jets keep running
+    // until this hits 0, not the instant the ball leaves (Rob: "it
+    // shouldn't stop immediately when the ball leaves it, because it could
+    // be just bouncing"). Reset back to the full grace period every frame
+    // this platform actually IS current (see PlayScreen.update()).
+    jetGraceRemaining: 0,
 
     // ---------- Liquid: a "2D water" column simulation ----------
     // Springs between a row of surface columns, tension pulls each column toward a
@@ -171,6 +178,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       this.hingeSparkParticles = [];
       this.hingeSparkTimer = 0;
       this.touching = false;
+      this.jetGraceRemaining = 0;
       this.tubePhaseIndex = 0;
       this.tubePhaseTimer = 0;
       this._applyTubeStage(TUBE_STAGE_SCHEDULE[0].stage);
@@ -392,6 +400,46 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       for (const col of cols) {
         col.level = clamp(col.level, -maxLevel, maxLevel);
         col.velocity = clamp(col.velocity, -maxVelocity, maxVelocity);
+      }
+    },
+  };
+}
+
+// Charge Orb collectible (Rob) — a placeholder to test the actual mechanic
+// before deciding how far to take the visual (see pixi_chargeorb.js).
+// `distance` is a fixed offset along the bar from the pivot, in the SAME
+// 620-reference-unit convention as a jet's mount point (createJetSystem/
+// JET_DEFS's activeDistance) — NOT raw pixels — so it rescales correctly
+// for any platform length via the same `* scale` the jets already apply,
+// instead of pre-baking a platform's current length into the stored value
+// (that double-applies the length scaling once `scale` also folds in
+// p.length — a real bug an earlier pass here had).
+// `lift` pushes it off the bar's centerline along the platform's negative
+// normal — the same side the ball actually rests on (see physics.js's
+// _resolvePlatformCollision: it rests at a NEGATIVE `perp`, i.e. the
+// opposite of p.normal) — so it visually sits ON TOP of the tube rather
+// than centered inside it (Rob: "they would be not sitting in the tube
+// they would be on top of the tube").
+// Touching it (checked in ui.js's PlayScreen.update) starts a respawn
+// cooldown instead of vanishing for the rest of the run — same "come back
+// later" rhythm jets already have.
+function createChargeOrb(distance, lift) {
+  return {
+    distance,
+    lift,
+    x: 0, y: 0,
+    collected: false,
+    cooldown: 0,
+    reset() {
+      this.collected = false;
+      this.cooldown = 0;
+    },
+    update(dt, pivot, dir, normal, scale) {
+      this.x = pivot.x + dir.x * this.distance * scale - normal.x * this.lift;
+      this.y = pivot.y + dir.y * this.distance * scale - normal.y * this.lift;
+      if (this.cooldown > 0) {
+        this.cooldown -= dt;
+        if (this.cooldown <= 0) this.collected = false;
       }
     },
   };

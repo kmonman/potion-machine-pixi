@@ -256,6 +256,21 @@ const PlayScreen = {
   // filled/empty art Game Over's own summary row already used.
   MAX_BLAST_CHARGES: 3,
   blastCharges: 0,
+
+  // Charge Orb collectible (Rob, placeholder pass) — rare, occasional
+  // pickups (see the spawn chance in _buildTower) that don't touch the
+  // normal blastCharges economy at all. Touching one immediately "charges"
+  // the ball (visualized as a glow attached to it — see pixi_playscreen.js's
+  // ball glow sprite) for ORB_BOOST_SECONDS: fireBlast() can be fired during
+  // that window even with zero normal charges, consuming the bonus instead
+  // of decrementing blastCharges. Let it lapse unused and it's just gone —
+  // no partial credit, same "use it or lose it" Rob described. Each orb then
+  // sits on its own ORB_RESPAWN_SECONDS cooldown rather than vanishing for
+  // the run.
+  ORB_BOOST_SECONDS: 3,
+  ORB_RESPAWN_SECONDS: 10,
+  ORB_CATCH_RADIUS: 46,
+  chargedTimer: 0,
   blastThreshold: 0,
   // Bigger again (Rob: the ring+bottle together were both shrinking as this
   // whole box shrank, making the bottle too small — not that the box itself
@@ -268,6 +283,10 @@ const PlayScreen = {
   // (Rob). See _drawBlastButtons.
   blastButtonsT: 0,
   introT: 0, // seconds left in the pre-drop pause at the start of a run, set in enter()
+
+  // How long a platform's jets keep running after the ball leaves it before
+  // actually cutting off (Rob: not instantly — "it could be just bouncing").
+  JET_GRACE_SECONDS: 3,
 
   // Vertical gap (world px) between platform pivots in the tower. Bumped from
   // 260 to 300 (Rob: move the top/middle platforms up higher). A blast's peak
@@ -434,6 +453,29 @@ const PlayScreen = {
       p.hingeBubbles = createHingeBubbles();
     }
 
+    // Charge Orb collectible (Rob's electric-nebula idea, placeholder pass —
+    // see pixi_chargeorb.js) — rare (Rob: "these are rare and would only
+    // appear occasionally"), so only some non-base platforms get one, rolled
+    // once here at tower-build time rather than every platform having one.
+    // Sits out close to a tip (270 out of a ~310 half-length at the jets'
+    // own 620-reference scale — see JET_DEFS's own outer mount at 215 for
+    // comparison) rather than the safe hinge center, alternating sides for a
+    // little visual variety, and lifted off the bar's centerline so it
+    // floats visibly on top of the tube instead of sitting inside it (Rob:
+    // "they would be not sitting in the tube they would be on top of the
+    // tube" — see createChargeOrb's own comment for the exact math). Skips
+    // the base platform (index 0): it's already busy with the pole/full jet
+    // set, and every level's climb starts there anyway.
+    const ORB_SPAWN_CHANCE = 0.35;
+    const ORB_EDGE_DISTANCE = 270; // 620-reference units, same convention as JET_DEFS
+    const ORB_LIFT = 44;
+    for (let i = 1; i < platforms.length; i++) {
+      const p = platforms[i];
+      if (Math.random() >= ORB_SPAWN_CHANCE) continue;
+      const side = i % 2 === 0 ? 1 : -1;
+      p.chargeOrb = createChargeOrb(side * ORB_EDGE_DISTANCE, ORB_LIFT);
+    }
+
     // Precompute each non-base platform's "closest jet to the next platform
     // up" mount index (Rob: on Levels 1-3, the one active jet should point
     // toward continuing the climb, not be random) — static geometry, so
@@ -495,7 +537,9 @@ const PlayScreen = {
         directionalBias: jetTier.directionalBias,
       } : null;
       p.hingeBubbles.reset();
+      if (p.chargeOrb) p.chargeOrb.reset();
     }
+    this.chargedTimer = 0;
     Physics.reset(this.platforms);
     Fog.reset();
     this.score = 0;
@@ -570,19 +614,50 @@ const PlayScreen = {
     if (!this.isOver) {
       for (const p of this.platforms) {
         p.update(dt);
-        // Jets pause on platforms far from the ball (Rob) — their catch
-        // radius is tiny (JET_CATCH_RADIUS/Y in difficulty.js), so a far
-        // platform's jets could never have actually reached the ball
-        // anyway; this only cuts the constant particle/toggle-timer upkeep
-        // that was running on all 12 platforms at once regardless of where
-        // the ball actually was. Jet mount points are distances along the
-        // bar, so they scale with lengthScale specifically (how far the bar
-        // itself reaches), not the general visualScale (1 for every
-        // platform right now). Derived from the live p.length (not the
-        // static p.lengthScale) so a pulsing tube's jets slide along with
-        // it instead of staying parked at the tube's un-pulsed size.
-        if (p.isNearBall()) p.jetSystem.update(dt, p.pivot, p.dir, p.length / (620 * p.visualScale));
+        // Only the platform the ball is actually on (plus a grace window
+        // after it leaves) runs its jets now (Rob: "the jets on the
+        // platforms that the ball is not on are not going... this keeps
+        // the game clean" — then, once it cut off the instant the ball
+        // left: "it shouldn't stop immediately... it could be just
+        // bouncing... maybe 3 seconds after it leaves"). Grace timer lives
+        // on the platform itself (see platform.js's jetGraceRemaining),
+        // reset to the full window every frame it IS current so a bounce
+        // that comes right back never even gets close to running out.
+        // currentPlatform stays set to wherever the ball last rested even
+        // while airborne mid-blast (see physics.js), same convention
+        // already used for a blast's own launch direction. Jet mount
+        // points are distances along the bar, so they scale with
+        // lengthScale specifically (how far the bar itself reaches), not
+        // the general visualScale (1 for every platform right now).
+        // Derived from the live p.length (not the static p.lengthScale) so
+        // a pulsing tube's jets slide along with it instead of staying
+        // parked at the tube's un-pulsed size.
+        const isCurrentPlatform = p === Physics.currentPlatform;
+        if (isCurrentPlatform) p.jetGraceRemaining = this.JET_GRACE_SECONDS;
+        else if (p.jetGraceRemaining > 0) p.jetGraceRemaining -= dt;
+        if (isCurrentPlatform || p.jetGraceRemaining > 0) {
+          p.jetSystem.update(dt, p.pivot, p.dir, p.length / (620 * p.visualScale));
+        }
+
+        // Charge Orb collectible (Rob, placeholder pass) — plain distance
+        // check against the ball's live position, same shape as a jet's own
+        // catch check just with a bigger radius (this is a deliberate
+        // target, not a narrow jet nozzle). Touching one starts the
+        // ORB_BOOST_SECONDS "charged" window (see the field's own comment)
+        // rather than banking anything into blastCharges.
+        if (p.chargeOrb) {
+          p.chargeOrb.update(dt, p.pivot, p.dir, p.normal, p.length / (620 * p.visualScale));
+          if (!p.chargeOrb.collected) {
+            const dx = Physics.x - p.chargeOrb.x, dy = Physics.y - p.chargeOrb.y;
+            if (dx * dx + dy * dy < this.ORB_CATCH_RADIUS * this.ORB_CATCH_RADIUS) {
+              p.chargeOrb.collected = true;
+              p.chargeOrb.cooldown = this.ORB_RESPAWN_SECONDS;
+              this.chargedTimer = this.ORB_BOOST_SECONDS;
+            }
+          }
+        }
       }
+      if (this.chargedTimer > 0) this.chargedTimer -= dt;
       Difficulty.update(dt);
       Physics.update(dt, tiltX);
       for (const p of this.platforms) {
@@ -634,8 +709,10 @@ const PlayScreen = {
     // that's what the separate 0.35-alpha dimming in pixi_hud.js's refresh()
     // is for), and ease in/out (~0.3s) rather than popping instantly (Rob).
     // Every mode now (see the blastCharges accrual above for why Levels
-    // needed this too).
-    const blastTarget = (!this.isOver && this._potionsMade() > 0) ? 1 : 0;
+    // needed this too). Also forced on during a Charge Orb's bonus window —
+    // a lucky early orb (before the player's first potion) would otherwise
+    // grant a fireable blast with no button yet on screen to fire it with.
+    const blastTarget = (!this.isOver && (this._potionsMade() > 0 || this.chargedTimer > 0)) ? 1 : 0;
     this.blastButtonsT += (blastTarget - this.blastButtonsT) * Math.min(1, dt / 0.3);
   },
 
@@ -698,8 +775,18 @@ const PlayScreen = {
   },
 
   fireBlast() {
-    if (this.blastCharges <= 0 || this.isOver) return;
-    this.blastCharges--;
+    if (this.isOver) return;
+    // A Charge Orb's bonus window takes priority over a normal charge when
+    // both are available — it's the one about to expire, a normal charge
+    // just sits there until spent (Rob's "use it or lose it" bonus should
+    // never quietly cost the player a banked charge instead of itself).
+    if (this.chargedTimer > 0) {
+      this.chargedTimer = 0;
+    } else if (this.blastCharges > 0) {
+      this.blastCharges--;
+    } else {
+      return;
+    }
     // Bumped from 600 — this is now also the tower's climb mechanic (Rob: use
     // the existing potion blasters to get to the next platform up), so it needs
     // enough force to actually clear TOWER_SPACING, not just hop in place.

@@ -124,7 +124,12 @@ const HudPixi = {
       });
     }
 
-    const active = PlayScreen.blastCharges > 0;
+    // Charge Orb bonus (ui.js's chargedTimer) also makes a blast fireable
+    // even at 0 banked charges — the button should light up for that window
+    // too, not just sit dim while it's actually usable (the badge/icon fill
+    // above stays truthful to the real banked count; this only affects the
+    // active/dim look).
+    const active = PlayScreen.blastCharges > 0 || PlayScreen.chargedTimer > 0;
     const t = PlayScreen.blastButtonsT;
     const scale = 0.85 + 0.15 * t;
     for (const b of this._blastButtons) {
