@@ -536,14 +536,21 @@ async function main() {
   // PlayScreenPixi.build() needs PlayScreen.platforms to exist (it builds one
   // Pixi visual bundle per platform) — but PlayScreen.enter() only runs once
   // the player actually navigates into a run, same ordering issue Phase 1 hit
-  // with JET_DEFS vs Difficulty.jets. Seed the tower structure now so build()
-  // has something to construct visuals for; enter() rebuilds/resets it for real
-  // every time a run actually starts.
-  // Built before the tower's own Pixi visuals — _buildPlatformVisual makes
+  // with JET_DEFS vs Difficulty.jets. Seed every tower now (Levels 1-4 each
+  // have their own short one now — see ui.js's _buildTowers) so build() has
+  // every platform, across every tower, to construct a visual for; enter()
+  // resets whichever one's actually being played for real every time a run
+  // starts, and points PlayScreen.platforms at just that one.
+  // Built before the towers' own Pixi visuals — _buildPlatformVisual makes
   // an orb Sprite off of ChargeOrbFX.texture for every platform that has
   // one, so the shared texture needs to already exist by then.
   ChargeOrbFX.build();
-  PlayScreen.platforms = PlayScreen._buildTower();
+  PlayScreen.towers = PlayScreen._buildTowers();
+  PlayScreen.allPlatforms = [...new Set(Object.values(PlayScreen.towers).flat())];
+  // PlayScreenPixi.build() below only looks at PlayScreen.platforms — pass
+  // it the full cross-tower list so every platform gets a visual; enter()
+  // overwrites this with just the active tower before real gameplay starts.
+  PlayScreen.platforms = PlayScreen.allPlatforms;
   PlayScreenPixi.build(textures);
   HudPixi.build(textures);
   GameOverPixi.build(textures);

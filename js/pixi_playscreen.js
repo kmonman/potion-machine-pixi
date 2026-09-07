@@ -338,15 +338,30 @@ const PlayScreenPixi = {
       f.spriteFlip.y = l.y2;
     }
 
-    // Platforms above the current level's own goal line stay hidden (Rob:
-    // "the platforms above the completion line were not showing... this
-    // keeps the game clean") — they're not relevant to THIS level (the
-    // tower is shared across every level, so plenty above the line only
-    // matter to a later one), and hiding them focuses the view on what's
-    // actually still ahead. Free Play has no goal line (levelNum null), so
-    // nothing's ever hidden there. Only the Pixi visuals are touched —
-    // physics/collision stays exactly as it always was for every platform,
-    // hidden or not, so nothing about landing/falling changes underneath.
+    // Every platform across every tower (Levels 1-4's own short ones, plus
+    // the shared one Level 5-10/Free Play still use — see ui.js's
+    // _buildTowers) got a Pixi visual up front at boot, but only the
+    // CURRENTLY active tower (PlayScreen.platforms) should ever be on
+    // screen — hide anything belonging to one of the others first.
+    const activeSet = PlayScreen._activePlatformSet || (PlayScreen._activePlatformSet = new Set());
+    if (activeSet.size !== PlayScreen.platforms.length || !PlayScreen.platforms.every((p) => activeSet.has(p))) {
+      activeSet.clear();
+      for (const p of PlayScreen.platforms) activeSet.add(p);
+    }
+    for (const p of PlayScreen.allPlatforms) {
+      if (!activeSet.has(p)) this._setPlatformVisualVisible(p, false);
+    }
+
+    // Platforms above the current level's own goal line stay hidden within
+    // the active tower too (Rob: "the platforms above the completion line
+    // were not showing... this keeps the game clean") — mainly matters for
+    // Level 5-10, which still climb the one shared tower (so plenty above
+    // any given level's own line belong to a later one); Levels 1-4's own
+    // short towers rarely have anything left above their line at all. Free
+    // Play has no goal line (levelNum null), so nothing's ever hidden here.
+    // Only the Pixi visuals are touched — physics/collision stays exactly
+    // as it always was for every platform, hidden or not, so nothing about
+    // landing/falling changes underneath.
     const levelNum = PlayScreen._levelNumber();
     const thresholdY = levelNum !== null ? PlayScreen._levelThresholdY(levelNum) : null;
     for (const p of PlayScreen.platforms) {

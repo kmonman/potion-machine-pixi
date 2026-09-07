@@ -377,80 +377,15 @@ const PlayScreen = {
   },
   _isLevelMode() { return this._levelNumber() !== null; },
 
-  _buildTower() {
-    const baseX = 360, baseY = 652;
-    // Different tubeSpeed per platform (Rob: the three tubes should change at
-    // different intervals) — 1 is TUBE_STAGE_SCHEDULE's own pacing, so these
-    // drift the middle/top platforms out of sync with the base rather than
-    // all three heating up in lockstep. This is each platform's *base* pace
-    // (Free Play's own, unscaled) — see _tubeSpeedMultiplier above for how
-    // Levels rescale it per run.
-    const platforms = [
-      // Reverted (Rob: the 1.8x/2.0x widening below made platform 1/2 way
-      // longer than the base platform and it read as broken, not forgiving
-      // — "none of the new platforms should be longer than the length of
-      // the first one"). lengthPulse prototype also pulled off the base
-      // platform for the same "take it back to how it was originally" ask
-      // — the pulsing infrastructure (platform.js/pixi_playscreen.js)
-      // stays in place, just unused by any platform right now, in case
-      // it's worth trying again later with different numbers.
-      createPlatform(baseX, baseY, { hasPole: true, tubeSpeed: 1 }),
-      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.75 }),
-      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7, tubeSpeed: 1.3 }),
-    ];
-    // New platforms go higher than whatever's already there, not at some
-    // in-between height that overlaps the existing ones (Rob) — this one
-    // sits above the current topmost platform (the zigzag's top, index 2),
-    // not just above the base.
-    const topPivotY = platforms[2].pivot.y;
-    platforms.push(createPlatform(baseX + this.SIDE_PLATFORM_X_OFFSET, topPivotY - 200, { lengthScale: 0.7, tubeSpeed: 1.1 }));
-    // 5th platform (Level 3's target) — continues the zigzag back to the
-    // left/center, another TOWER_SPACING above the side platform. Built into
-    // the shared tower like the rest (not a level-specific structure) since
-    // rebuilding PlayScreen.platforms after boot would orphan the Pixi visual
-    // tree already attached to the existing 4 (see enter()'s own comment on
-    // this) — Free Play/Level 1/2 players just never have a reason to climb
-    // this high, same as they already don't visit the side platform.
-    platforms.push(createPlatform(baseX - this.TOWER_X_OFFSET, platforms[3].pivot.y - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.9 }));
-    platforms[0].jetSystem = createJetSystem();
-    // Every small platform gets BOTH a left and a right mount now, not just
-    // whichever single one was originally picked for visual variety (Rob:
-    // "the jet only stays on the left side of the platform, but the next
-    // platform is on the right side... I can't jump from the left side with
-    // the jet to the platform on the right" — platform 4 specifically was
-    // hardcoded to outer-left only, permanently mismatched with platform 5
-    // sitting to its right, no way for the per-level bias/randomization
-    // below to ever pick the correct side since there wasn't one to pick).
-    // smallMax in _jetTierForLevel still caps it to one active at a time —
-    // this just gives that one a real side to choose, in both directions,
-    // instead of a single fixed mount.
-    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] }); // inner jets, for variety from the outer-only mid/top — already had both sides
-    platforms[4].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-
-    // Platforms 5-11 (Levels 4-10's targets) — continue the same zigzag
-    // straight on up from platform 4, same TOWER_X_OFFSET/TOWER_SPACING as
-    // the hand-placed ones, no more one-off detours like the side platform.
-    // Generated in a loop rather than hand-placed one at a time (Rob: "do
-    // all 10, we can evaluate from there" — a first pass to react to, not
-    // final tuning). tubeSpeed cycles through a handful of distinct paces so
-    // no two neighboring platforms drift in lockstep; jets alternate between
-    // the outer pair and the inner pair per platform (both sides of one
-    // family, not a single fixed mount — see above) for a little visual
-    // variety between them.
-    const extraTubeSpeeds = [0.85, 1.2, 0.95, 1.25, 0.8, 1.15, 1.35];
-    for (let i = 0; i < 7; i++) {
-      const idx = 5 + i; // platforms[5..11], for Levels 4-10
-      const x = idx % 2 === 1 ? baseX + this.TOWER_X_OFFSET : baseX - this.TOWER_X_OFFSET;
-      const y = platforms[idx - 1].pivot.y - this.TOWER_SPACING;
-      const extra = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: extraTubeSpeeds[i] });
-      extra.jetSystem = createJetSystem({ allowedIndices: i % 2 === 0 ? [0, 1] : [2, 3] });
-      platforms.push(extra);
-    }
-
+  // Shared finishing pass applied to every tower (the generic Level 5-10/
+  // Free Play one below, and each of the short hand-placed Level 1-4 ones) —
+  // hinge bubbles, the rare Charge Orb roll, and the "which jet mount faces
+  // the next platform up" precompute all used to be inlined once here when
+  // there was only one tower; factored out so every tower gets the exact
+  // same treatment without repeating this three separate ways.
+  _finishTower(platforms) {
     for (const p of platforms) {
-      p.hingeBubbles = createHingeBubbles();
+      if (!p.hingeBubbles) p.hingeBubbles = createHingeBubbles();
     }
 
     // Charge Orb collectible (Rob's electric-nebula idea, placeholder pass —
@@ -464,8 +399,10 @@ const PlayScreen = {
     // floats visibly on top of the tube instead of sitting inside it (Rob:
     // "they would be not sitting in the tube they would be on top of the
     // tube" — see createChargeOrb's own comment for the exact math). Skips
-    // the base platform (index 0): it's already busy with the pole/full jet
-    // set, and every level's climb starts there anyway.
+    // index 0 (every tower's shared base platform — see _buildTowers): it's
+    // already busy with the pole/full jet set, every level's climb starts
+    // there anyway, and it would otherwise get re-rolled once per tower that
+    // reuses the same base instance.
     const ORB_SPAWN_CHANCE = 0.35;
     const ORB_EDGE_DISTANCE = 270; // 620-reference units, same convention as JET_DEFS
     const ORB_LIFT = 44;
@@ -501,16 +438,194 @@ const PlayScreen = {
     return platforms;
   },
 
+  // One base platform, reused as element 0 of every tower below (Level 1-4's
+  // own short towers AND the generic Level 5-10/Free Play one) — it always
+  // looks and behaves the same regardless of which level you're playing, so
+  // there's no reason to build 5 separate poles/base jet systems for it.
+  // Safe to share the actual object: only one tower is ever "active"
+  // (PlayScreen.platforms) at a time, and _buildTowers() below de-dupes it
+  // back out of the flattened all-platforms list before Pixi visuals get
+  // built, so it only ever gets ONE `_visual` attached.
+  _buildBasePlatform() {
+    const base = createPlatform(360, 652, { hasPole: true, tubeSpeed: 1 });
+    base.jetSystem = createJetSystem();
+    return base;
+  },
+
+  // Levels 1-4 (Rob: "we need a new design for each level" instead of every
+  // level just being a shorter/taller slice of one shared tower — "keep the
+  // first 5 levels pretty short so beginners can power through them and get
+  // the hang of the game... more of a variation of how they're placed rather
+  // than an increase"). Each is its own short, independent, hand-placed
+  // climb rather than an index range into a bigger structure — varying only
+  // the left/right pattern between levels for now, same TOWER_SPACING-scale
+  // vertical gaps as always, and every tube held at the same 0.7 lengthScale
+  // every other platform already uses (Rob: don't shrink tubes smaller than
+  // what we've already had — that's for later, higher levels to introduce).
+  // Real bigger gaps are also reserved for Level 5 and up. First pass, built
+  // to react to, same as the original single tower was.
+
+  // Level 1 — untouched in shape from the original shared tower's first two
+  // platforms (already played and tuned this whole session; no reason to
+  // reset that work just to fit the new per-level structure).
+  _buildLevel1(base) {
+    const platforms = [
+      base,
+      createPlatform(490, 352, { lengthScale: 0.7, tubeSpeed: 0.75 }),
+      createPlatform(230, 52, { lengthScale: 0.7, tubeSpeed: 1.3 }),
+    ];
+    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    return this._finishTower(platforms);
+  },
+
+  // Level 2 — same length (2 jumps) as Level 1, but drifts left twice in a
+  // row instead of alternating sides. Tube length held at the same 0.7
+  // every other platform already uses (Rob: don't go smaller than what
+  // we've already had — that's for later, higher levels to introduce, not
+  // these early ones) — the variety here is purely the left/left placement,
+  // not the tube size.
+  _buildLevel2(base) {
+    const platforms = [
+      base,
+      createPlatform(230, 352, { lengthScale: 0.7, tubeSpeed: 0.9 }),
+      createPlatform(170, 52, { lengthScale: 0.7, tubeSpeed: 1.1 }),
+    ];
+    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    platforms[2].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
+    return this._finishTower(platforms);
+  },
+
+  // Level 3 — one jump longer (3), a quicker right-left-right zigzag. Same
+  // 0.7 tube length as everything else so far (see Level 2's comment).
+  _buildLevel3(base) {
+    const platforms = [
+      base,
+      createPlatform(490, 352, { lengthScale: 0.7, tubeSpeed: 0.8 }),
+      createPlatform(230, 52, { lengthScale: 0.7, tubeSpeed: 1.2 }),
+      createPlatform(470, -248, { lengthScale: 0.7, tubeSpeed: 1.0 }),
+    ];
+    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    platforms[2].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
+    platforms[3].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    return this._finishTower(platforms);
+  },
+
+  // Level 4 — also 3 jumps, left-left-right this time (a different pattern
+  // from both Level 2's left-left and Level 3's right-left-right). Same 0.7
+  // tube length again.
+  _buildLevel4(base) {
+    const platforms = [
+      base,
+      createPlatform(230, 352, { lengthScale: 0.7, tubeSpeed: 0.85 }),
+      createPlatform(160, 52, { lengthScale: 0.7, tubeSpeed: 1.15 }),
+      createPlatform(410, -248, { lengthScale: 0.7, tubeSpeed: 1.0 }),
+    ];
+    platforms[1].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
+    platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
+    return this._finishTower(platforms);
+  },
+
+  // The original single hand-placed tower, now serving only Level 5-10 and
+  // Free Play (Rob: these haven't been redesigned yet — leave them exactly
+  // as they were rather than guess at 6 more layouts blind). `base` is the
+  // same shared instance every other tower uses, not a fresh one.
+  _buildSharedTower(base) {
+    const baseX = 360, baseY = 652;
+    const platforms = [
+      base,
+      createPlatform(baseX + this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.75 }),
+      createPlatform(baseX - this.TOWER_X_OFFSET, baseY - this.TOWER_SPACING * 2, { lengthScale: 0.7, tubeSpeed: 1.3 }),
+    ];
+    // New platforms go higher than whatever's already there, not at some
+    // in-between height that overlaps the existing ones (Rob) — this one
+    // sits above the current topmost platform (the zigzag's top, index 2),
+    // not just above the base.
+    const topPivotY = platforms[2].pivot.y;
+    platforms.push(createPlatform(baseX + this.SIDE_PLATFORM_X_OFFSET, topPivotY - 200, { lengthScale: 0.7, tubeSpeed: 1.1 }));
+    // 5th platform (Level 3's target, back when Level 3 still lived on this
+    // shared tower) — continues the zigzag back to the left/center, another
+    // TOWER_SPACING above the side platform.
+    platforms.push(createPlatform(baseX - this.TOWER_X_OFFSET, platforms[3].pivot.y - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.9 }));
+    // Every small platform gets BOTH a left and a right mount now, not just
+    // whichever single one was originally picked for visual variety (Rob:
+    // "the jet only stays on the left side of the platform, but the next
+    // platform is on the right side... I can't jump from the left side with
+    // the jet to the platform on the right" — platform 4 specifically was
+    // hardcoded to outer-left only, permanently mismatched with platform 5
+    // sitting to its right, no way for the per-level bias/randomization
+    // below to ever pick the correct side since there wasn't one to pick).
+    // smallMax in _jetTierForLevel still caps it to one active at a time —
+    // this just gives that one a real side to choose, in both directions,
+    // instead of a single fixed mount.
+    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] }); // inner jets, for variety from the outer-only mid/top — already had both sides
+    platforms[4].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+
+    // Platforms 5-11 (Levels 4-10's targets, back when Level 4 still lived
+    // here too) — continue the same zigzag straight on up from platform 4,
+    // same TOWER_X_OFFSET/TOWER_SPACING as the hand-placed ones, no more
+    // one-off detours like the side platform. Generated in a loop rather
+    // than hand-placed one at a time (Rob: "do all 10, we can evaluate from
+    // there" — a first pass to react to, not final tuning). tubeSpeed
+    // cycles through a handful of distinct paces so no two neighboring
+    // platforms drift in lockstep; jets alternate between the outer pair
+    // and the inner pair per platform (both sides of one family, not a
+    // single fixed mount — see above) for a little visual variety.
+    const extraTubeSpeeds = [0.85, 1.2, 0.95, 1.25, 0.8, 1.15, 1.35];
+    for (let i = 0; i < 7; i++) {
+      const idx = 5 + i; // platforms[5..11], for Levels 4-10
+      const x = idx % 2 === 1 ? baseX + this.TOWER_X_OFFSET : baseX - this.TOWER_X_OFFSET;
+      const y = platforms[idx - 1].pivot.y - this.TOWER_SPACING;
+      const extra = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: extraTubeSpeeds[i] });
+      extra.jetSystem = createJetSystem({ allowedIndices: i % 2 === 0 ? [0, 1] : [2, 3] });
+      platforms.push(extra);
+    }
+
+    return this._finishTower(platforms);
+  },
+
+  // Builds every tower up front (Rob: hand-designed layouts, not procedural)
+  // — one per Level 1-4, plus the original generic one for Level 5-10/Free
+  // Play — keyed by PlayScreen.mode string so enter() can just look its own
+  // up. All share the same base platform instance (see _buildBasePlatform).
+  _buildTowers() {
+    const base = this._buildBasePlatform();
+    return {
+      level1: this._buildLevel1(base),
+      level2: this._buildLevel2(base),
+      level3: this._buildLevel3(base),
+      level4: this._buildLevel4(base),
+      shared: this._buildSharedTower(base),
+    };
+  },
+
   enter(mode) {
     this.mode = mode || this.mode;
     Difficulty.reset();
     // Reuse the same platform instances every run rather than rebuilding new
-    // ones — game.js's main() seeds `this.platforms` once at boot (before
-    // PlayScreenPixi.build() runs, which attaches Pixi display objects to each
-    // platform via `p._visual`), and replacing those objects here would orphan
-    // that whole Pixi visual tree. Just reset their state in place instead,
-    // same as the old singleton Platform.reset() always did.
-    if (!this.platforms) this.platforms = this._buildTower();
+    // ones — game.js's main() seeds `this.towers` once at boot (before
+    // PlayScreenPixi.build() runs, which attaches Pixi display objects to
+    // every platform across every tower via `p._visual`), and replacing
+    // those objects here would orphan that whole Pixi visual tree. Just
+    // reset their state in place instead, same as the old singleton
+    // Platform.reset() always did.
+    if (!this.towers) this.towers = this._buildTowers();
+    // Levels 1-4 each get their own short, hand-placed tower now (see
+    // _buildTowers) instead of sharing one big one sliced at different
+    // heights; Level 5-10 and Free Play still use that original shared one
+    // until they get their own real designs too.
+    const levelNum = this._levelNumber();
+    const towerKey = levelNum !== null && levelNum <= 4 ? 'level' + levelNum : 'shared';
+    this.platforms = this.towers[towerKey];
+    // Every platform in every tower still needs its jets/hinge-bubbles/goal-
+    // line visibility kept current even while its tower isn't the active
+    // one (see pixi_playscreen.js's refresh(), which force-hides anything
+    // not in this set) — PlayScreenPixi.build() needs this same full list to
+    // attach a Pixi visual to every platform across every tower up front.
+    if (!this.allPlatforms) this.allPlatforms = [...new Set(Object.values(this.towers).flat())];
     const speedMul = this._tubeSpeedMultiplier();
     const maxTiltAngle = this._maxTiltAngleForLevel();
     const jetTier = this._jetTierForLevel();
@@ -571,32 +686,21 @@ const PlayScreen = {
   // World-space y a level's ball needs to reach (Physics.y counts *down* as
   // the ball climbs) to complete it — computed off the tower's own actual
   // platform pivots (not hand-copied magic numbers) so it can't drift out of
-  // sync if the tower layout ever changes. Level 1 sits a bit above the
-  // tower's top (zigzag) platform — reachable with one blast from there,
-  // proving the complete -> unlock -> Levels-page loop end to end. Level 2
-  // raises the bar to just above the 4th (side) platform — the tower's
-  // actual highest point, offset far enough sideways that reaching it takes
-  // a deliberate sideways blast, not just a final upward one. Level 3 raises
-  // it again to just above the new 5th platform — high enough that a single
-  // full-force blast can't clear it alone (verified directly against
-  // Physics' real numbers), so it genuinely requires saving up 2 charges
-  // (2000+ score) and firing them back-to-back while still airborne —
-  // easier to teach than a precise landing, since a second blast compounds
-  // onto whatever velocity the ball already has rather than needing to land
-  // anywhere in between. Levels 4-10 (platforms 5-11) go back to the
-  // simpler one-blast-from-the-platform-itself margin Level 2 used — their
-  // difficulty comes from the length of the climb up the ladder and from
-  // each level's own faster tube-heat pace (_tubeSpeedMultiplier) rather
-  // than another timing puzzle at every single step; a first pass to react
-  // to and retune individually once there's been real play on each one
+  // sync if a tower's layout ever changes. Levels 1-4 each have their own
+  // short, independent tower now (see _buildTowers) — the goal is simply
+  // just above that tower's own topmost platform, reachable with one blast
+  // from there, same margin for all four since none of them are trying to
+  // teach a specific trick yet (Rob: keep the first several levels short and
+  // about *variation*, not an escalating gap/multi-blast puzzle — that's
+  // deferred to Level 5+). Levels 5-10 still climb the original shared
+  // tower (platforms 5-11 of it), goal just above each one in turn — a
+  // first pass to react to and retune once there's been real play on each
   // (Rob: "do all 10, we can evaluate from there"), not a final balance
-  // pass. Clamped at 10 (platform 11) since that's as tall as the tower
-  // currently goes.
+  // pass. Clamped at 10 (platform 11) since that's as tall as that shared
+  // tower currently goes.
   _levelThresholdY(levelNum) {
     const p = this.platforms;
-    if (levelNum <= 1) return p[2].pivot.y - 150;
-    if (levelNum === 2) return p[3].pivot.y - 60;
-    if (levelNum === 3) return p[4].pivot.y - 80;
+    if (levelNum <= 4) return p[p.length - 1].pivot.y - 80;
     const n = Math.min(levelNum, 10);
     return p[n + 1].pivot.y - 60;
   },
