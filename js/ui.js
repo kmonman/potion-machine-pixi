@@ -257,20 +257,6 @@ const PlayScreen = {
   MAX_BLAST_CHARGES: 3,
   blastCharges: 0,
 
-  // Charge Orb collectible (Rob, placeholder pass) — rare, occasional
-  // pickups (see the spawn chance in _buildTower) that don't touch the
-  // normal blastCharges economy at all. Touching one immediately "charges"
-  // the ball (visualized as a glow attached to it — see pixi_playscreen.js's
-  // ball glow sprite) for ORB_BOOST_SECONDS: fireBlast() can be fired during
-  // that window even with zero normal charges, consuming the bonus instead
-  // of decrementing blastCharges. Let it lapse unused and it's just gone —
-  // no partial credit, same "use it or lose it" Rob described. Each orb then
-  // sits on its own ORB_RESPAWN_SECONDS cooldown rather than vanishing for
-  // the run.
-  ORB_BOOST_SECONDS: 3,
-  ORB_RESPAWN_SECONDS: 10,
-  ORB_CATCH_RADIUS: 46,
-  chargedTimer: 0,
   blastThreshold: 0,
   // Bigger again (Rob: the ring+bottle together were both shrinking as this
   // whole box shrank, making the bottle too small — not that the box itself
@@ -379,38 +365,13 @@ const PlayScreen = {
 
   // Shared finishing pass applied to every tower (the generic Level 5-10/
   // Free Play one below, and each of the short hand-placed Level 1-4 ones) —
-  // hinge bubbles, the rare Charge Orb roll, and the "which jet mount faces
-  // the next platform up" precompute all used to be inlined once here when
-  // there was only one tower; factored out so every tower gets the exact
-  // same treatment without repeating this three separate ways.
+  // hinge bubbles and the "which jet mount faces the next platform up"
+  // precompute both used to be inlined once here when there was only one
+  // tower; factored out so every tower gets the exact same treatment
+  // without repeating this three separate ways.
   _finishTower(platforms) {
     for (const p of platforms) {
       if (!p.hingeBubbles) p.hingeBubbles = createHingeBubbles();
-    }
-
-    // Charge Orb collectible (Rob's electric-nebula idea, placeholder pass —
-    // see pixi_chargeorb.js) — rare (Rob: "these are rare and would only
-    // appear occasionally"), so only some non-base platforms get one, rolled
-    // once here at tower-build time rather than every platform having one.
-    // Sits out close to a tip (270 out of a ~310 half-length at the jets'
-    // own 620-reference scale — see JET_DEFS's own outer mount at 215 for
-    // comparison) rather than the safe hinge center, alternating sides for a
-    // little visual variety, and lifted off the bar's centerline so it
-    // floats visibly on top of the tube instead of sitting inside it (Rob:
-    // "they would be not sitting in the tube they would be on top of the
-    // tube" — see createChargeOrb's own comment for the exact math). Skips
-    // index 0 (every tower's shared base platform — see _buildTowers): it's
-    // already busy with the pole/full jet set, every level's climb starts
-    // there anyway, and it would otherwise get re-rolled once per tower that
-    // reuses the same base instance.
-    const ORB_SPAWN_CHANCE = 0.35;
-    const ORB_EDGE_DISTANCE = 270; // 620-reference units, same convention as JET_DEFS
-    const ORB_LIFT = 44;
-    for (let i = 1; i < platforms.length; i++) {
-      const p = platforms[i];
-      if (Math.random() >= ORB_SPAWN_CHANCE) continue;
-      const side = i % 2 === 0 ? 1 : -1;
-      p.chargeOrb = createChargeOrb(side * ORB_EDGE_DISTANCE, ORB_LIFT);
     }
 
     // Precompute each non-base platform's "closest jet to the next platform
@@ -652,9 +613,7 @@ const PlayScreen = {
         directionalBias: jetTier.directionalBias,
       } : null;
       p.hingeBubbles.reset();
-      if (p.chargeOrb) p.chargeOrb.reset();
     }
-    this.chargedTimer = 0;
     Physics.reset(this.platforms);
     Fog.reset();
     this.score = 0;
@@ -742,26 +701,7 @@ const PlayScreen = {
         if (isCurrentPlatform || p.jetGraceRemaining > 0) {
           p.jetSystem.update(dt, p.pivot, p.dir, p.length / (620 * p.visualScale));
         }
-
-        // Charge Orb collectible (Rob, placeholder pass) — plain distance
-        // check against the ball's live position, same shape as a jet's own
-        // catch check just with a bigger radius (this is a deliberate
-        // target, not a narrow jet nozzle). Touching one starts the
-        // ORB_BOOST_SECONDS "charged" window (see the field's own comment)
-        // rather than banking anything into blastCharges.
-        if (p.chargeOrb) {
-          p.chargeOrb.update(dt, p.pivot, p.dir, p.normal, p.length / (620 * p.visualScale));
-          if (!p.chargeOrb.collected) {
-            const dx = Physics.x - p.chargeOrb.x, dy = Physics.y - p.chargeOrb.y;
-            if (dx * dx + dy * dy < this.ORB_CATCH_RADIUS * this.ORB_CATCH_RADIUS) {
-              p.chargeOrb.collected = true;
-              p.chargeOrb.cooldown = this.ORB_RESPAWN_SECONDS;
-              this.chargedTimer = this.ORB_BOOST_SECONDS;
-            }
-          }
-        }
       }
-      if (this.chargedTimer > 0) this.chargedTimer -= dt;
       Difficulty.update(dt);
       Physics.update(dt, tiltX);
       for (const p of this.platforms) {
@@ -813,10 +753,8 @@ const PlayScreen = {
     // that's what the separate 0.35-alpha dimming in pixi_hud.js's refresh()
     // is for), and ease in/out (~0.3s) rather than popping instantly (Rob).
     // Every mode now (see the blastCharges accrual above for why Levels
-    // needed this too). Also forced on during a Charge Orb's bonus window —
-    // a lucky early orb (before the player's first potion) would otherwise
-    // grant a fireable blast with no button yet on screen to fire it with.
-    const blastTarget = (!this.isOver && (this._potionsMade() > 0 || this.chargedTimer > 0)) ? 1 : 0;
+    // needed this too).
+    const blastTarget = (!this.isOver && this._potionsMade() > 0) ? 1 : 0;
     this.blastButtonsT += (blastTarget - this.blastButtonsT) * Math.min(1, dt / 0.3);
   },
 
@@ -879,18 +817,8 @@ const PlayScreen = {
   },
 
   fireBlast() {
-    if (this.isOver) return;
-    // A Charge Orb's bonus window takes priority over a normal charge when
-    // both are available — it's the one about to expire, a normal charge
-    // just sits there until spent (Rob's "use it or lose it" bonus should
-    // never quietly cost the player a banked charge instead of itself).
-    if (this.chargedTimer > 0) {
-      this.chargedTimer = 0;
-    } else if (this.blastCharges > 0) {
-      this.blastCharges--;
-    } else {
-      return;
-    }
+    if (this.blastCharges <= 0 || this.isOver) return;
+    this.blastCharges--;
     // Bumped from 600 — this is now also the tower's climb mechanic (Rob: use
     // the existing potion blasters to get to the next platform up), so it needs
     // enough force to actually clear TOWER_SPACING, not just hop in place.

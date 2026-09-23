@@ -508,7 +508,6 @@ function tick(ticker) {
   } else if (state.screen === 'levels') {
     LevelsScreenPixi.refresh(state);
   } else if (isPlayScreenName(state.screen)) {
-    ChargeOrbFX.update(dt);
     PlayScreenPixi.update(dt, Input.tiltX);
     PlayScreenPixi.refresh();
     HudPixi.refresh();
@@ -541,10 +540,6 @@ async function main() {
   // every platform, across every tower, to construct a visual for; enter()
   // resets whichever one's actually being played for real every time a run
   // starts, and points PlayScreen.platforms at just that one.
-  // Built before the towers' own Pixi visuals — _buildPlatformVisual makes
-  // an orb Sprite off of ChargeOrbFX.texture for every platform that has
-  // one, so the shared texture needs to already exist by then.
-  ChargeOrbFX.build();
   PlayScreen.towers = PlayScreen._buildTowers();
   PlayScreen.allPlatforms = [...new Set(Object.values(PlayScreen.towers).flat())];
   // PlayScreenPixi.build() below only looks at PlayScreen.platforms — pass

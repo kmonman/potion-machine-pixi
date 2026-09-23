@@ -128,18 +128,6 @@ const PlayScreenPixi = {
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
     this.worldContainer.addChild(this._ballSprite);
 
-    // Charge Orb bonus glow (Rob: "the glow would attach to the ball") —
-    // reuses the same shared ChargeOrbFX texture/animation the orb pickups
-    // themselves use (see pixi_chargeorb.js), just bigger and additive, worn
-    // by the ball for PlayScreen.ORB_BOOST_SECONDS after a pickup. Added
-    // right after the ball so it draws on top of it, not behind.
-    this._ballGlowSprite = new PIXI.Sprite(ChargeOrbFX.texture);
-    this._ballGlowSprite.anchor.set(0.5);
-    this._ballGlowSprite.width = this._ballGlowSprite.height = ballSize * 2.4;
-    this._ballGlowSprite.blendMode = 'add';
-    this._ballGlowSprite.visible = false;
-    this.worldContainer.addChild(this._ballGlowSprite);
-
     // "Ready" / "Go!" during the pre-drop intro pause (Rob) — screen-fixed
     // (added to `c`, not worldContainer, same reasoning as the HUD: it
     // shouldn't pan with the camera), added after the ball so it draws on
@@ -286,16 +274,6 @@ const PlayScreenPixi = {
       wc.addChild(jc);
       return { particleContainer: jc, pool: [] };
     });
-
-    // Charge Orb collectible (Rob, placeholder pass) — one shared animated
-    // texture (see pixi_chargeorb.js) reused by every orb sprite in the
-    // tower; only its position and visibility are per-platform.
-    if (p.chargeOrb) {
-      v.orbSprite = new PIXI.Sprite(ChargeOrbFX.texture);
-      v.orbSprite.anchor.set(0.5);
-      v.orbSprite.width = v.orbSprite.height = 54;
-      wc.addChild(v.orbSprite);
-    }
   },
 
   // One platform's whole visual bundle is a flat set of siblings directly
@@ -318,7 +296,6 @@ const PlayScreenPixi = {
     v.hingeMagicContainer.visible = visible;
     v.hingeSparkContainer.visible = visible;
     for (const jc of v.jetContainers) jc.particleContainer.visible = visible;
-    if (v.orbSprite) v.orbSprite.visible = visible;
   },
 
   // Delegates to the OLD ui.js's PlayScreen.update() — the real single entry
@@ -379,12 +356,6 @@ const PlayScreenPixi = {
 
     this._ballSprite.position.set(Physics.x, Physics.y);
     this._ballSprite.rotation = Physics.rotation;
-    this._ballGlowSprite.position.set(Physics.x, Physics.y);
-    this._ballGlowSprite.visible = PlayScreen.chargedTimer > 0;
-    // Fades out over the last second instead of a hard cutoff when the
-    // bonus lapses unused — full strength otherwise (not a gradual ramp on
-    // pickup; Rob described a hard "you have 3 seconds", not a slow build).
-    this._ballGlowSprite.alpha = Math.min(1, PlayScreen.chargedTimer);
     this._restackBall();
     this._updateCamera();
     this._updateIntroText();
@@ -445,13 +416,8 @@ const PlayScreenPixi = {
     const p = Physics.currentPlatform || PlayScreen.platforms[0];
     const v = p._visual;
     this.worldContainer.removeChild(this._ballSprite);
-    this.worldContainer.removeChild(this._ballGlowSprite);
     const idx = this.worldContainer.getChildIndex(v.hingeGlowBlurred);
     this.worldContainer.addChildAt(this._ballSprite, idx);
-    // Glow goes right after the ball (same slot region, one further toward
-    // the front) so it still reads as wrapped around the ball rather than
-    // ever sinking behind the platform art it's currently passing.
-    this.worldContainer.addChildAt(this._ballGlowSprite, idx + 1);
   },
 
   // Camera — pans worldContainer.x/y so the ball stays roughly at the same
@@ -590,13 +556,6 @@ const PlayScreenPixi = {
     v.tubeHighlight.x = -p.angle * 3;
     this._refreshHinge(p);
     this._refreshJets(p);
-    if (p.chargeOrb) {
-      v.orbSprite.position.set(p.chargeOrb.x, p.chargeOrb.y);
-      // Independent of the goal-line hide in _setPlatformVisualVisible —
-      // this one just tracks whether THIS orb is currently collected
-      // (mid-respawn-cooldown) versus sitting there waiting to be touched.
-      v.orbSprite.visible = v.orbSprite.visible && !p.chargeOrb.collected;
-    }
   },
 
   _refreshHinge(p) {

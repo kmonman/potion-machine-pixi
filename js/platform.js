@@ -405,46 +405,6 @@ function createPlatform(pivotX, pivotY, opts = {}) {
   };
 }
 
-// Charge Orb collectible (Rob) — a placeholder to test the actual mechanic
-// before deciding how far to take the visual (see pixi_chargeorb.js).
-// `distance` is a fixed offset along the bar from the pivot, in the SAME
-// 620-reference-unit convention as a jet's mount point (createJetSystem/
-// JET_DEFS's activeDistance) — NOT raw pixels — so it rescales correctly
-// for any platform length via the same `* scale` the jets already apply,
-// instead of pre-baking a platform's current length into the stored value
-// (that double-applies the length scaling once `scale` also folds in
-// p.length — a real bug an earlier pass here had).
-// `lift` pushes it off the bar's centerline along the platform's negative
-// normal — the same side the ball actually rests on (see physics.js's
-// _resolvePlatformCollision: it rests at a NEGATIVE `perp`, i.e. the
-// opposite of p.normal) — so it visually sits ON TOP of the tube rather
-// than centered inside it (Rob: "they would be not sitting in the tube
-// they would be on top of the tube").
-// Touching it (checked in ui.js's PlayScreen.update) starts a respawn
-// cooldown instead of vanishing for the rest of the run — same "come back
-// later" rhythm jets already have.
-function createChargeOrb(distance, lift) {
-  return {
-    distance,
-    lift,
-    x: 0, y: 0,
-    collected: false,
-    cooldown: 0,
-    reset() {
-      this.collected = false;
-      this.cooldown = 0;
-    },
-    update(dt, pivot, dir, normal, scale) {
-      this.x = pivot.x + dir.x * this.distance * scale - normal.x * this.lift;
-      this.y = pivot.y + dir.y * this.distance * scale - normal.y * this.lift;
-      if (this.cooldown > 0) {
-        this.cooldown -= dt;
-        if (this.cooldown <= 0) this.collected = false;
-      }
-    },
-  };
-}
-
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 function smoothstep(lo, hi, v) {
   const t = clamp((v - lo) / (hi - lo), 0, 1);

@@ -52,10 +52,14 @@ const GameOverPixi = {
     boardSprite.width = boardW; boardSprite.height = boardH;
     this._board.addChild(boardSprite);
 
-    const ballOff = new PIXI.Sprite(textures.gameOverBallOff);
-    ballOff.position.set(92 - boardX, 261 - boardY);
-    ballOff.width = 172; ballOff.height = 106;
-    this._board.addChild(ballOff);
+    // Stored on `this` (not a local) so refresh() can hide it on a win — the
+    // art is specifically a dim, broken-looking ball, right for a loss but
+    // wrong sitting under a "LEVEL COMPLETE!" title (Rob noticed it showing
+    // on both).
+    this._ballOff = new PIXI.Sprite(textures.gameOverBallOff);
+    this._ballOff.position.set(92 - boardX, 261 - boardY);
+    this._ballOff.width = 172; this._ballOff.height = 106;
+    this._board.addChild(this._ballOff);
 
     // Bubble-up effect — cropped to one isolated glossy bubble from
     // BubblesFinal.png's sprite sheet (sx300 sy0 228x210), masked to a rect
@@ -137,12 +141,43 @@ const GameOverPixi = {
     // against _gameOverSprite/its glow in refresh() based on
     // PlayScreen.levelComplete, sharing this same container's pop/flicker
     // animation either way.
+    // A soft radial glow sits behind the title (added first, so it draws
+    // underneath) — reuses the same glowParticle art the hinge/jet effects
+    // already use elsewhere rather than any new asset, just scaled way up
+    // and tinted gold. Pulses with the same flicker used for GAME OVER's own
+    // glow so a win doesn't feel flatter than a loss.
+    this._winGlow = new PIXI.Sprite(textures.glowParticle);
+    this._winGlow.anchor.set(0.5);
+    this._winGlow.tint = 0xffd54a;
+    this._winGlow.blendMode = 'add';
+    this._winGlow.width = this._winGlow.height = 620;
+    this._gameOverContainer.addChild(this._winGlow);
+
     this._levelCompleteText = new PIXI.Text({
       text: 'LEVEL COMPLETE!', style: { fontFamily: 'PotionTitle', fontSize: 64, fill: 0xffd54a, align: 'center' },
     });
     this._levelCompleteText.anchor.set(0.5);
     this._gameOverContainer.addChild(this._levelCompleteText);
     this._gameOverH = goH;
+
+    // A one-shot confetti-style burst of small glowing dots (same shared
+    // glowParticle art again, several tints from the game's existing neon
+    // palette) fired from the title the moment a win screen opens — see
+    // refresh()'s "arm/fire" tracking below. Pool sized generously (18) so
+    // it never needs to grow mid-burst; unused ones just sit hidden.
+    this._winParticles = []; // {angle, speed, startTime, tint}
+    this._winParticlePool = [];
+    this._winParticleContainer = new PIXI.Container();
+    this._winParticleContainer.blendMode = 'add';
+    this._gameOverContainer.addChildAt(this._winParticleContainer, this._gameOverContainer.getChildIndex(this._winGlow) + 1);
+    for (let i = 0; i < 18; i++) {
+      const s = new PIXI.Sprite(textures.glowParticle);
+      s.anchor.set(0.5);
+      s.visible = false;
+      this._winParticleContainer.addChild(s);
+      this._winParticlePool.push(s);
+    }
+    this._winBurstArmed = true; // re-armed whenever PlayScreen.gameOverT resets to 0 (a fresh run) — see refresh()
 
     // Bottom 3-button pill — one image, 3 equal interactive hit-zones (home /
     // retry / leaderboard-or-levels) matching PlayScreen.hitTest()'s own
@@ -345,6 +380,51 @@ const GameOverPixi = {
     this._gameOverSprite.visible = !isWin;
     this._gameOverGlowContainer.visible = !isWin;
     this._levelCompleteText.visible = isWin;
+    // The "ball off" art is specifically a broken/dim ball, right for a
+    // loss, wrong sitting under a win title.
+    this._ballOff.visible = !isWin;
+
+    this._winGlow.visible = isWin;
+    this._winGlow.alpha = flickerMul;
+
+    // Fire the confetti burst exactly once per screen showing, the moment
+    // it pops in — armed fresh every run by gameOverT resetting to 0 (see
+    // ui.js's enter()), not by isWin alone, so retrying the same level
+    // twice in a row still re-fires it instead of firing only the first time.
+    if (PlayScreen.gameOverT <= 0) this._winBurstArmed = true;
+    if (isWin && this._winBurstArmed && PlayScreen.gameOverT > 0) {
+      this._winBurstArmed = false;
+      // Replace, not append — this._winParticles indices must line up 1:1
+      // with the fixed-size pool below (a retry firing a second burst
+      // without clearing the first would drift them out of sync, leaving
+      // old, already-expired particles stuck at the front and the new
+      // burst's entries past the pool's length, never actually drawn).
+      this._winParticles = [];
+      const palette = [0xffd54a, 0xff5fa8, 0x9013fe, 0x5fd4ff];
+      for (let i = 0; i < this._winParticlePool.length; i++) {
+        this._winParticles.push({
+          angle: (i / this._winParticlePool.length) * Math.PI * 2 + Math.random() * 0.4,
+          speed: 90 + Math.random() * 160,
+          startTime: now,
+          tint: palette[i % palette.length],
+        });
+      }
+    }
+    const WIN_PARTICLE_LIFE = 1.1;
+    for (let i = 0; i < this._winParticlePool.length; i++) {
+      const s = this._winParticlePool[i];
+      const p = this._winParticles[i];
+      if (!p) { s.visible = false; continue; }
+      const elapsed = (now - p.startTime) / 1000;
+      if (!isWin || elapsed > WIN_PARTICLE_LIFE) { s.visible = false; continue; }
+      const dist = p.speed * elapsed;
+      s.visible = true;
+      s.tint = p.tint;
+      s.position.set(Math.cos(p.angle) * dist, Math.sin(p.angle) * dist * 0.6 - 20);
+      const fade = 1 - elapsed / WIN_PARTICLE_LIFE;
+      s.alpha = fade;
+      s.width = s.height = 40 + 30 * (1 - fade);
+    }
 
     const bottomIsLevels = PlayScreen.mode !== 'freeplay';
     this._barFreeplay.visible = !bottomIsLevels;
