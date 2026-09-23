@@ -18,6 +18,7 @@ const ASSET_PATHS = {
   muteUnmuted: 'assets/Mute P.png',
   muteMuted: 'assets/Mute P1.png',
   potionCounter: 'assets/Potion Counter-8.png',
+  goalLineWitch: 'assets/GoalLineWitch.webp',
   glowParticle: 'assets/Glow.png',
   smokeParticle: 'assets/DarkMagicSmoke.png',
   jetParticle: 'assets/LightGlow.png',

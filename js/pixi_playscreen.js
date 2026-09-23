@@ -85,36 +85,41 @@ const PlayScreenPixi = {
     // like everything else the ball climbs past; only actually shown while
     // in a Level (not Free Play), and only until it's been reached (see
     // refresh() below) — no reason to keep drawing it once it's done its
-    // job. Two-layer glow (blurred copy behind a crisp one) is the same
-    // technique the pole glow already uses, for a consistent look.
+    // job.
     //
     // Built once at y=0 in group-local coordinates, then positioned every
     // level via this._goalLineGroup.position.y instead of baking a specific
-    // level's goalY into the Graphics' own stroke coordinates — different
-    // Levels sit at different heights (see PlayScreen._levelThresholdY), and
+    // level's goalY into the art's own position — different Levels sit at
+    // different heights (see PlayScreen._levelThresholdY), and
     // level1/freeplay/level2 all share this one screen/container.
-    const goalW = 640;
+    //
+    // Art (Rob): a witch stirring a cauldron, with the glowing pink
+    // potion-surface line the ball climbs to as its actual goal line — the
+    // story being the ball is the "moon stone" she's dropping in. The
+    // source image already fades to fully transparent well past that line
+    // (see GOAL_LINE_LINE_FRAC below), so it blends into the game's own
+    // dark background underneath with no separate gradient/mask needed.
     this._goalLineGroup = new PIXI.Container();
-    const goalGrad = new PIXI.FillGradient({
-      type: 'linear', x0: 0, y0: 0, x1: goalW, y1: 0,
-      colorStops: [
-        { offset: 0, color: 'rgba(255,0,195,0)' },
-        { offset: 0.5, color: 'rgba(255,0,195,0.95)' },
-        { offset: 1, color: 'rgba(255,0,195,0)' },
-      ],
-      textureSpace: 'local',
-    });
-    const goalLineBlurred = new PIXI.Graphics()
-      .moveTo(360 - goalW / 2, 0).lineTo(360 + goalW / 2, 0).stroke({ width: 10, fill: goalGrad });
-    goalLineBlurred.filters = [new PIXI.BlurFilter({ strength: 10 })];
-    const goalLineSolid = new PIXI.Graphics()
-      .moveTo(360 - goalW / 2, 0).lineTo(360 + goalW / 2, 0).stroke({ width: 3, fill: goalGrad });
+    const GOAL_LINE_DISPLAY_W = 720;
+    const goalLineSprite = new PIXI.Sprite(textures.goalLineWitch);
+    const goalLineAspect = textures.goalLineWitch.height / textures.goalLineWitch.width;
+    const goalLineDisplayH = GOAL_LINE_DISPLAY_W * goalLineAspect;
+    // How far down the source art (GoalLineWitch.png, 941x1065) the glowing
+    // potion-surface line actually sits — measured directly off the source
+    // pixels, not eyeballed, so this stays correct if the art is ever
+    // re-cropped/re-exported at a different size with the line elsewhere.
+    const GOAL_LINE_LINE_FRAC = 848 / 1065;
+    goalLineSprite.position.set(360 - GOAL_LINE_DISPLAY_W / 2, -goalLineDisplayH * GOAL_LINE_LINE_FRAC);
+    goalLineSprite.width = GOAL_LINE_DISPLAY_W;
+    goalLineSprite.height = goalLineDisplayH;
     this._goalLabel = new PIXI.Text({
       text: '', style: { fontFamily: 'PotionTitle', fontSize: 32, fill: 0xff00c3, align: 'center' },
     });
     this._goalLabel.anchor.set(0.5, 1);
-    this._goalLabel.position.set(360, -14);
-    this._goalLineGroup.addChild(goalLineBlurred, goalLineSolid, this._goalLabel);
+    // Sits in the open misty gap between the cauldron and the potion-surface
+    // line (see the art) rather than right on top of either.
+    this._goalLabel.position.set(360, -70);
+    this._goalLineGroup.addChild(goalLineSprite, this._goalLabel);
     this.worldContainer.addChild(this._goalLineGroup);
     this._goalLineLevelNum = null; // cache so refresh() only repositions/relabels on an actual level change
 
