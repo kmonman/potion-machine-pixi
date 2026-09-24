@@ -241,6 +241,8 @@ const PlayScreen = {
   mode: 'freeplay',
   timedOut: false,
   levelComplete: false, // true once the ball reaches LEVEL1_THRESHOLD_Y in level1 mode
+  _levelCompletePending: false, // true while the ball rolls to a stop above the goal line, before levelComplete flips the win screen in
+  _levelCompleteTimer: 0,
   gameOverT: 0, // 0-1 pop-in progress once the run has ended (reused for the level-complete pop-in too)
   leaderboardMsgT: 0, // >0 while the "coming soon" message is showing
   goBubbles: [], // continuously-bubbling particles next to the Game Over score
@@ -620,6 +622,8 @@ const PlayScreen = {
     this.elapsed = 0;
     this.timedOut = false;
     this.levelComplete = false;
+    this._levelCompletePending = false;
+    this._levelCompleteTimer = 0;
     this.gameOverT = 0;
     this.leaderboardMsgT = 0;
     this.goBubbles = [];
@@ -731,14 +735,25 @@ const PlayScreen = {
       // tap - the player has already earned it the moment they touch the line.
       if (this._isLevelMode()) {
         const n = this._levelNumber();
-        if (Physics.y <= this._levelThresholdY(n)) {
-          this.levelComplete = true;
+        if (!this._levelCompletePending && Physics.y <= this._levelThresholdY(n)) {
+          this._levelCompletePending = true;
+          this._levelCompleteTimer = 0;
           Storage.setHighestLevelUnlocked(n + 1);
           // Keep the live in-memory copy (game.js's `state`) in sync too, not
           // just what's persisted — LevelsScreenPixi reads state.highestLevelUnlocked
           // directly, and without this the unlock wouldn't show up on the
           // Levels page until the next full page load re-read it from Storage.
           state.highestLevelUnlocked = Math.max(state.highestLevelUnlocked, n + 1);
+        }
+        // Let the ball keep rolling on the platform and settle above the goal
+        // line for a beat before the win screen flips in, instead of cutting
+        // straight to it the instant the line is crossed (Rob).
+        if (this._levelCompletePending) {
+          this._levelCompleteTimer += dt;
+          const LEVEL_COMPLETE_ROLL_DELAY = 1.5;
+          if (this._levelCompleteTimer >= LEVEL_COMPLETE_ROLL_DELAY) {
+            this.levelComplete = true;
+          }
         }
       }
     } else {

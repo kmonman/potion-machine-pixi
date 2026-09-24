@@ -104,11 +104,12 @@ const PlayScreenPixi = {
     const goalLineSprite = new PIXI.Sprite(textures.goalLineWitch);
     const goalLineAspect = textures.goalLineWitch.height / textures.goalLineWitch.width;
     const goalLineDisplayH = GOAL_LINE_DISPLAY_W * goalLineAspect;
-    // How far down the source art (GoalLineWitch.png, 941x1065) the glowing
-    // potion-surface line actually sits — measured directly off the source
-    // pixels, not eyeballed, so this stays correct if the art is ever
-    // re-cropped/re-exported at a different size with the line elsewhere.
-    const GOAL_LINE_LINE_FRAC = 848 / 1065;
+    // How far down the source art (GoalLineWitch.webp, 1937x1090 — wider art
+    // swapped in to stop the old narrower version clipping left/right, Rob)
+    // the glowing potion-surface line actually sits — measured directly off
+    // the source pixels, not eyeballed, so this stays correct if the art is
+    // ever re-cropped/re-exported at a different size with the line elsewhere.
+    const GOAL_LINE_LINE_FRAC = 983 / 1090;
     goalLineSprite.position.set(360 - GOAL_LINE_DISPLAY_W / 2, -goalLineDisplayH * GOAL_LINE_LINE_FRAC);
     goalLineSprite.width = GOAL_LINE_DISPLAY_W;
     goalLineSprite.height = goalLineDisplayH;
