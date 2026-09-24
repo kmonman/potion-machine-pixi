@@ -76,10 +76,9 @@ const PlayScreenPixi = {
     this.worldContainer = new PIXI.Container();
     c.addChild(this.worldContainer);
 
-    for (const p of PlayScreen.platforms) {
-      this._buildPlatformVisual(p, textures);
-    }
-
+    // Built before the platforms/ball below (Rob: the win art should sit
+    // behind everything so the ball and platforms are visible in front of
+    // it as it climbs past, not drawn on top of them).
     // Each Level's goal line (Rob: "a line/threshold at the top where the
     // level is completed"). In worldContainer so it pans with the camera
     // like everything else the ball climbs past; only actually shown while
@@ -123,6 +122,10 @@ const PlayScreenPixi = {
     this._goalLineGroup.addChild(goalLineSprite, this._goalLabel);
     this.worldContainer.addChild(this._goalLineGroup);
     this._goalLineLevelNum = null; // cache so refresh() only repositions/relabels on an actual level change
+
+    for (const p of PlayScreen.platforms) {
+      this._buildPlatformVisual(p, textures);
+    }
 
     // Ball — a sprite rotating around its own center, position/rotation copied
     // from Physics.x/y/rotation every frame. Z-order relative to each

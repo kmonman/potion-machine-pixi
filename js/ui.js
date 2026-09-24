@@ -745,13 +745,25 @@ const PlayScreen = {
           // Levels page until the next full page load re-read it from Storage.
           state.highestLevelUnlocked = Math.max(state.highestLevelUnlocked, n + 1);
         }
-        // Let the ball keep rolling on the platform and settle above the goal
-        // line for a beat before the win screen flips in, instead of cutting
-        // straight to it the instant the line is crossed (Rob).
+        // Let the ball keep rolling past the goal line and actually come to
+        // rest on the platform before the win screen flips in (Rob: "let the
+        // ball go over that line and then land on it, that's when the game
+        // should be over"), instead of cutting straight to it the instant
+        // the line is crossed. "Landed" = resting on a platform's hinge with
+        // its speed settled, not just still airborne from the jet that sent
+        // it over the line. MIN_ROLL_DELAY guarantees the roll is visible
+        // even if it happens to already be resting the instant it crosses;
+        // MAX_ROLL_DELAY is a fallback so a ball that never fully settles
+        // (jitters forever at a tiny speed) can't stall the win screen.
         if (this._levelCompletePending) {
           this._levelCompleteTimer += dt;
-          const LEVEL_COMPLETE_ROLL_DELAY = 1.5;
-          if (this._levelCompleteTimer >= LEVEL_COMPLETE_ROLL_DELAY) {
+          const MIN_ROLL_DELAY = 0.6;
+          const MAX_ROLL_DELAY = 3;
+          const SETTLE_SPEED = 12; // px/s
+          const hasLanded = Physics.touchingHinge
+            && Math.abs(Physics.vx) < SETTLE_SPEED && Math.abs(Physics.vy) < SETTLE_SPEED;
+          if (this._levelCompleteTimer >= MAX_ROLL_DELAY
+            || (this._levelCompleteTimer >= MIN_ROLL_DELAY && hasLanded)) {
             this.levelComplete = true;
           }
         }
