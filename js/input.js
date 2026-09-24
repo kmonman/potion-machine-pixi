@@ -15,6 +15,20 @@ const Input = (() => {
   let rawTilt = 0;
   let smoothedTilt = 0;
   let listening = false;
+  // gamma/beta are absolute angles from dead-flat, not from however a player
+  // actually rests the phone in their hand — without correcting for that,
+  // whatever angle they happened to be holding it at when a run started
+  // read as a real, full-strength tilt from the very first frame (Rob:
+  // "right when the game starts... the ball just flies to the left or
+  // right"). baselineDeg is subtracted from every raw reading below;
+  // calibrate() (called once per run, see ui.js's enter()) doesn't set it
+  // directly since there's no "current angle" to read outside of an actual
+  // deviceorientation event firing — it just arms `calibrateOnNextReading`,
+  // and the very next real reading becomes the new zero point instead.
+  // Events fire fast enough (well over once a frame on a real phone) that
+  // the delay is never noticeable.
+  let baselineDeg = 0;
+  let calibrateOnNextReading = false;
   // Timestamp of the last usable deviceorientation reading (Rob: "the ball
   // moves even when I'm not tilting my phone") — once `listening` is true,
   // rawTilt used to only ever get set by handleOrientation, never decayed,
@@ -104,9 +118,28 @@ const Input = (() => {
     else if (angle === 180) tiltDeg = -event.gamma;
     else tiltDeg = event.gamma;
     if (tiltDeg === null || tiltDeg === undefined) return;
-    const clamped = Math.max(-TILT_CLAMP_DEGREES, Math.min(TILT_CLAMP_DEGREES, tiltDeg));
+    if (calibrateOnNextReading) {
+      baselineDeg = tiltDeg;
+      calibrateOnNextReading = false;
+    }
+    const adjustedDeg = tiltDeg - baselineDeg;
+    const clamped = Math.max(-TILT_CLAMP_DEGREES, Math.min(TILT_CLAMP_DEGREES, adjustedDeg));
     rawTilt = clamped / TILT_CLAMP_DEGREES;
     lastReadingAt = Date.now();
+  }
+
+  // Called once per run (see ui.js's enter()) — arms the NEXT real sensor
+  // reading to become the new "flat" zero point, so a run always starts
+  // centered on however the phone is actually being held at that moment.
+  // Also snaps rawTilt/smoothedTilt to 0 immediately rather than waiting for
+  // that next reading to arrive and the smoothing filter to ease down to it
+  // — without this, retrying right after crashing out while still holding a
+  // hard tilt would carry that lingering value into the first frames of the
+  // new run even though the baseline itself is about to correct.
+  function calibrate() {
+    calibrateOnNextReading = true;
+    rawTilt = 0;
+    smoothedTilt = 0;
   }
 
   function needsPermissionPrompt() {
@@ -164,6 +197,7 @@ const Input = (() => {
     get tiltX() { return smoothedTilt; },
     get isListening() { return listening; },
     requestPermission,
+    calibrate,
     update,
   };
 })();

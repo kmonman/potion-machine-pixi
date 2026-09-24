@@ -567,6 +567,15 @@ const PlayScreen = {
 
   enter(mode) {
     this.mode = mode || this.mode;
+    // Zero the tilt sensor to however the phone is actually being held right
+    // now (Rob: "right when the game starts... the ball just flies to the
+    // left or right") — deviceorientation's gamma is an absolute angle from
+    // dead-flat, not from however a player naturally rests their hand, so
+    // without this whatever angle they happened to be holding the phone at
+    // read as a real, full-strength tilt input from the very first frame.
+    // Every run start recalibrates (see Input.calibrate's own comment for
+    // why it's a "next reading" flag, not instant).
+    Input.calibrate();
     Difficulty.reset();
     // Reuse the same platform instances every run rather than rebuilding new
     // ones — game.js's main() seeds `this.towers` once at boot (before
