@@ -6,6 +6,47 @@
 const GameOverPixi = {
   container: null,
 
+  // Builds a crisp white sprite from `texture` plus the same glow-beneath
+  // effect GAME OVER's own art uses: the texture sliced into horizontal
+  // strips, each its own Sprite with its own alpha so the bottom-half fade
+  // (brightest at the bottom, gone by the vertical center) is real per-strip
+  // alpha rather than a Pixi mask (a gradient-filled Graphics mask does
+  // binary stencil masking, not a gradient — confirmed by sampling an
+  // earlier version that relied on one). All strips share one BlurFilter so
+  // there's no seam between them. Returns a container positioned/anchored
+  // like a single centered sprite, plus the glow strips so refresh() can
+  // drive their alpha with the shared flicker.
+  _buildGlowText(texture, displayW) {
+    const displayH = displayW * (texture.height / texture.width);
+    const container = new PIXI.Container();
+
+    const GLOW_STRIPS = 20;
+    const glowContainer = new PIXI.Container();
+    glowContainer.filters = [new PIXI.BlurFilter({ strength: 6 })];
+    const srcW = texture.width, srcH = texture.height;
+    const stripDisplayH = displayH / GLOW_STRIPS;
+    const glowStrips = [];
+    for (let i = 0; i < GLOW_STRIPS; i++) {
+      const frame = new PIXI.Rectangle(0, (srcH / GLOW_STRIPS) * i, srcW, srcH / GLOW_STRIPS);
+      const strip = new PIXI.Sprite(new PIXI.Texture({ source: texture.source, frame }));
+      strip.tint = 0xffffff;
+      strip.width = displayW;
+      strip.height = stripDisplayH;
+      strip.position.set(-displayW / 2, -displayH / 2 + i * stripDisplayH);
+      const centerY = (i + 0.5) * stripDisplayH - displayH / 2;
+      strip._baseAlpha = centerY <= 0 ? 0 : Math.min(1, centerY / (displayH / 2));
+      glowContainer.addChild(strip);
+      glowStrips.push(strip);
+    }
+
+    const sprite = new PIXI.Sprite(texture);
+    sprite.anchor.set(0.5);
+    sprite.width = displayW; sprite.height = displayH;
+    container.addChild(glowContainer, sprite);
+
+    return { container, sprite, glowContainer, glowStrips, height: displayH };
+  },
+
   build(textures) {
     const c = new PIXI.Container();
     c.visible = false;
@@ -135,29 +176,20 @@ const GameOverPixi = {
     this._gameOverContainer.addChild(this._gameOverGlowContainer, this._gameOverSprite);
 
     // Level-complete title — no matching art for this yet (Rob's "GAME
-    // OVER" art is specifically a loss), so a plain text title in the same
-    // spot for now, same demi font as "Ready"/"Go!" and the other UI text,
-    // in a celebratory gold instead of grey to read as a win. Toggled
+    // OVER" art is specifically a loss), so text rendered to a texture and
+    // run through the exact same crisp-sprite-plus-glow-strips treatment as
+    // "GAME OVER" itself (Rob: "make it look the same as that" — white text,
+    // glowing beneath, not the earlier gold text + round blob glow). Toggled
     // against _gameOverSprite/its glow in refresh() based on
     // PlayScreen.levelComplete, sharing this same container's pop/flicker
     // animation either way.
-    // A soft radial glow sits behind the title (added first, so it draws
-    // underneath) — reuses the same glowParticle art the hinge/jet effects
-    // already use elsewhere rather than any new asset, just scaled way up
-    // and tinted gold. Pulses with the same flicker used for GAME OVER's own
-    // glow so a win doesn't feel flatter than a loss.
-    this._winGlow = new PIXI.Sprite(textures.glowParticle);
-    this._winGlow.anchor.set(0.5);
-    this._winGlow.tint = 0xffd54a;
-    this._winGlow.blendMode = 'add';
-    this._winGlow.width = this._winGlow.height = 620;
-    this._gameOverContainer.addChild(this._winGlow);
-
-    this._levelCompleteText = new PIXI.Text({
-      text: 'LEVEL COMPLETE!', style: { fontFamily: 'PotionTitle', fontSize: 64, fill: 0xffd54a, align: 'center' },
+    const levelCompleteLabel = new PIXI.Text({
+      text: 'LEVEL COMPLETE!', style: { fontFamily: 'PotionTitle', fontSize: 64, fill: 0xffffff, align: 'center' },
     });
-    this._levelCompleteText.anchor.set(0.5);
-    this._gameOverContainer.addChild(this._levelCompleteText);
+    const levelCompleteTexture = app.renderer.generateTexture(levelCompleteLabel);
+    levelCompleteLabel.destroy();
+    this._levelComplete = this._buildGlowText(levelCompleteTexture, goW);
+    this._gameOverContainer.addChild(this._levelComplete.container);
     this._gameOverH = goH;
 
     // A one-shot confetti-style burst of small glowing dots (same shared
@@ -169,7 +201,7 @@ const GameOverPixi = {
     this._winParticlePool = [];
     this._winParticleContainer = new PIXI.Container();
     this._winParticleContainer.blendMode = 'add';
-    this._gameOverContainer.addChildAt(this._winParticleContainer, this._gameOverContainer.getChildIndex(this._winGlow) + 1);
+    this._gameOverContainer.addChildAt(this._winParticleContainer, this._gameOverContainer.getChildIndex(this._levelComplete.container) + 1);
     for (let i = 0; i < 18; i++) {
       const s = new PIXI.Sprite(textures.glowParticle);
       s.anchor.set(0.5);
@@ -372,20 +404,18 @@ const GameOverPixi = {
     this._gameOverContainer.alpha = fadeIn;
     const flickerMul = Math.max(0, 0.9 * flicker);
     for (const strip of this._gameOverGlowStrips) strip.alpha = strip._baseAlpha * flickerMul;
+    for (const strip of this._levelComplete.glowStrips) strip.alpha = strip._baseAlpha * flickerMul;
 
-    // A Level's win screen swaps the title for plain text (no matching art
-    // yet — "GAME OVER" specifically means a loss) but keeps sharing this
-    // same container's pop-in/flicker animation either way.
+    // A Level's win screen swaps the title for the same crisp-text-plus-glow
+    // treatment as "GAME OVER" itself (see _buildGlowText), just different
+    // text, sharing this same container's pop-in/flicker animation either way.
     const isWin = PlayScreen.levelComplete;
     this._gameOverSprite.visible = !isWin;
     this._gameOverGlowContainer.visible = !isWin;
-    this._levelCompleteText.visible = isWin;
+    this._levelComplete.container.visible = isWin;
     // The "ball off" art is specifically a broken/dim ball, right for a
     // loss, wrong sitting under a win title.
     this._ballOff.visible = !isWin;
-
-    this._winGlow.visible = isWin;
-    this._winGlow.alpha = flickerMul;
 
     // Fire the confetti burst exactly once per screen showing, the moment
     // it pops in — armed fresh every run by gameOverT resetting to 0 (see
