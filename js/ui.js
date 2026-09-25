@@ -415,6 +415,29 @@ const PlayScreen = {
     return base;
   },
 
+  // Appends a real, solid "goal platform" above a level's topmost climbing
+  // platform (Rob: "make sure that the top scene with the winning bar is a
+  // ways higher than the lowest platform... make the line there as if it
+  // were one of the other platforms so the moon stone can land on it" — the
+  // witch/cauldron goal-line art's glowing line used to just be a bare Y
+  // coordinate the ball flew past, with nothing actually solid there).
+  // Flat (createPlatform's isGoal skips the tilt tween — see platform.js),
+  // wide (lengthScale 1.1, wider than a normal small platform, so landing
+  // on it doesn't feel like a tight target after a whole climb), and a full
+  // TOWER_SPACING above the platform it's stacked on — same real gap as
+  // between any other two platforms, not the old cramped ~80px. Given no
+  // Pixi visual of its own — pixi_playscreen.js's refresh() skips it
+  // entirely, since the goal-line art's own painted line already reads as
+  // the surface; this object exists purely so Physics has real geometry to
+  // rest the ball on there.
+  _appendGoalPlatform(platforms) {
+    const top = platforms[platforms.length - 1];
+    const goal = createPlatform(360, top.pivot.y - this.TOWER_SPACING, { isGoal: true, lengthScale: 1.1 });
+    goal.jetSystem = createJetSystem({ allowedIndices: [] });
+    platforms.push(goal);
+    return platforms;
+  },
+
   // Levels 1-4 (Rob: "we need a new design for each level" instead of every
   // level just being a shorter/taller slice of one shared tower — "keep the
   // first 5 levels pretty short so beginners can power through them and get
@@ -439,7 +462,7 @@ const PlayScreen = {
     ];
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
     platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    return this._finishTower(platforms);
+    return this._finishTower(this._appendGoalPlatform(platforms));
   },
 
   // Level 2 — same length (2 jumps) as Level 1, but drifts left twice in a
@@ -456,7 +479,7 @@ const PlayScreen = {
     ];
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
     platforms[2].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
-    return this._finishTower(platforms);
+    return this._finishTower(this._appendGoalPlatform(platforms));
   },
 
   // Level 3 — one jump longer (3), a quicker right-left-right zigzag. Same
@@ -471,7 +494,7 @@ const PlayScreen = {
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
     platforms[2].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
     platforms[3].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    return this._finishTower(platforms);
+    return this._finishTower(this._appendGoalPlatform(platforms));
   },
 
   // Level 4 — also 3 jumps, left-left-right this time (a different pattern
@@ -487,7 +510,7 @@ const PlayScreen = {
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
     platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
     platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
-    return this._finishTower(platforms);
+    return this._finishTower(this._appendGoalPlatform(platforms));
   },
 
   // The original single hand-placed tower, now serving only Level 5-10 and
@@ -659,20 +682,23 @@ const PlayScreen = {
   // the ball climbs) to complete it — computed off the tower's own actual
   // platform pivots (not hand-copied magic numbers) so it can't drift out of
   // sync if a tower's layout ever changes. Levels 1-4 each have their own
-  // short, independent tower now (see _buildTowers) — the goal is simply
-  // just above that tower's own topmost platform, reachable with one blast
-  // from there, same margin for all four since none of them are trying to
-  // teach a specific trick yet (Rob: keep the first several levels short and
-  // about *variation*, not an escalating gap/multi-blast puzzle — that's
-  // deferred to Level 5+). Levels 5-10 still climb the original shared
-  // tower (platforms 5-11 of it), goal just above each one in turn — a
-  // first pass to react to and retune once there's been real play on each
-  // (Rob: "do all 10, we can evaluate from there"), not a final balance
-  // pass. Clamped at 10 (platform 11) since that's as tall as that shared
-  // tower currently goes.
+  // short, independent tower now (see _buildTowers), each with a real solid
+  // "goal platform" appended above its topmost climbing platform (see
+  // _appendGoalPlatform) — the threshold is that goal platform's own actual
+  // resting surface (its pivot, lifted by the same thickness/2 +
+  // displayRadius offset Physics uses to rest a ball on any platform), not
+  // an eyeballed margin above thin air the way it was before that existed.
+  // Levels 5-10 still climb the original shared tower (platforms 5-11 of
+  // it), goal just above each one in turn — a first pass to react to and
+  // retune once there's been real play on each (Rob: "do all 10, we can
+  // evaluate from there"), not a final balance pass. Clamped at 10
+  // (platform 11) since that's as tall as that shared tower currently goes.
   _levelThresholdY(levelNum) {
     const p = this.platforms;
-    if (levelNum <= 4) return p[p.length - 1].pivot.y - 80;
+    if (levelNum <= 4) {
+      const goal = p[p.length - 1];
+      return goal.pivot.y - (goal.thickness / 2 + Physics.displayRadius);
+    }
     const n = Math.min(levelNum, 10);
     return p[n + 1].pivot.y - 60;
   },

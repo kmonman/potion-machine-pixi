@@ -73,7 +73,16 @@ function createPlatform(pivotX, pivotY, opts = {}) {
   // stops being "on" it and falls — the intended fair-if-you're-not-
   // watching behavior, not a bug.
   const lengthPulse = opts.lengthPulse || null;
+  // A level's finish line (Rob: "make the line there as if it were one of
+  // the other platforms so the moon stone can land on it") — a real,
+  // collidable platform like any other, just never tilts (see reset()/
+  // update() below skipping the angle tween entirely for it) and has no
+  // Pixi visual of its own (see pixi_playscreen.js's refresh() — the goal-
+  // line art's own painted line stands in for it visually; this object only
+  // needs to exist for Physics to have solid geometry there).
+  const isGoal = !!opts.isGoal;
   return {
+    isGoal,
     pivot: { x: pivotX, y: pivotY },
     visualScale: scale,
     lengthScale,
@@ -169,7 +178,9 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       // direction), same as before this was ever a multi-platform question.
       this.direction = 1;
       this.startAngle = 0;
-      this.targetAngle = (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
+      // A goal platform never picks a real target angle — it stays flat at
+      // 0 forever (see update()'s matching guard).
+      this.targetAngle = this.isGoal ? 0 : (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
       this.tweenElapsed = 0;
       this.timer = 0;
       this.hingeGlow = 0;
@@ -222,6 +233,10 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     },
 
     update(dt) {
+      // A goal platform stays flat — skip the tilt tween/re-roll entirely
+      // rather than letting it wobble like a normal platform (it's meant to
+      // read as solid ground to land the run on, not another obstacle).
+      if (this.isGoal) { this._updateTube(dt); this._updateLiquid(dt); return; }
       this.timer += dt;
       this.tweenElapsed = Math.min(this.tweenElapsed + dt, this.tweenDuration);
       const t = this.tweenElapsed / this.tweenDuration;

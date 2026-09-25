@@ -351,6 +351,14 @@ const PlayScreenPixi = {
     const levelNum = PlayScreen._levelNumber();
     const thresholdY = levelNum !== null ? PlayScreen._levelThresholdY(levelNum) : null;
     for (const p of PlayScreen.platforms) {
+      // A goal platform (see ui.js's _appendGoalPlatform) is real, solid
+      // Physics geometry with no Pixi visual of its own — the goal-line
+      // art's own painted line already reads as its surface, so it never
+      // gets a bar sprite shown, regardless of the threshold math below
+      // (its own pivot sits just below that threshold, which would
+      // otherwise read as "not above the goal" and show it like any other
+      // platform).
+      if (p.isGoal) { this._setPlatformVisualVisible(p, false); continue; }
       const aboveGoal = thresholdY !== null && p.pivot.y < thresholdY;
       this._setPlatformVisualVisible(p, !aboveGoal);
       if (!aboveGoal) this._refreshPlatform(p);
