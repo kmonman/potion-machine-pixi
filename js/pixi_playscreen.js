@@ -116,6 +116,10 @@ const PlayScreenPixi = {
     // ever re-cropped/re-exported at a different size with the line elsewhere.
     const GOAL_LINE_LINE_FRAC = 983 / 1090;
     goalLineSprite.position.set(360 - GOAL_LINE_DISPLAY_W / 2, -goalLineDisplayH * GOAL_LINE_LINE_FRAC);
+    // Distance from the line (this group's own y=0) up to the image's actual
+    // top edge — used by _updateCamera to keep the camera from panning past
+    // where this art still covers the screen (see its own comment).
+    this._goalLineTopOffset = goalLineDisplayH * GOAL_LINE_LINE_FRAC;
     goalLineSprite.width = GOAL_LINE_DISPLAY_W;
     goalLineSprite.height = goalLineDisplayH;
     this._goalLabel = new PIXI.Text({
@@ -490,7 +494,34 @@ const PlayScreenPixi = {
     // an earlier version had these two swapped, which pinned the camera at
     // one bound permanently since min > max made the clamp always pick the
     // min. Same care applies to X below.
-    this._camY = this._updateCameraAxis(this._camY, 760, Physics.y, Math.max(...pivotYs), Math.min(...pivotYs) - 260);
+    //
+    // Levels 5-10 share one tall tower (see _buildTowers) that reaches well
+    // above any given level's own goal — platforms belonging to later
+    // levels, hidden but still present in PlayScreen.platforms. Using the
+    // tower's actual topmost pivot as the upper bound let the camera pan up
+    // past the current level's own goal-line art into that empty space
+    // above it, revealing plain background past the top of the image (Rob:
+    // "the image at the top creates black space"). In level mode, clamp to
+    // this level's own goal line instead — nothing meaningful exists above
+    // it anyway (see the "platforms above goal stay hidden" logic below).
+    // Free Play has no goal line (levelNum null) so it keeps the old
+    // tower-extent behavior, which is correct there.
+    //
+    // The bound itself has to account for the 760 screen-anchor offset
+    // _updateCameraAxis below aims for, not just "however far above the
+    // goal the art extends" — at the clamp, world Y = upperBoundSource maps
+    // to screen Y 760 (not screen Y 0), so screen Y 0 lands on world Y
+    // (upperBoundSource - 760). That has to still be at or below the art's
+    // actual top edge, or the top of the screen shows past it. A flat -260
+    // headroom (fine for a bare platform, which has no art above it to run
+    // out of) let the camera pan much further up than that, well past the
+    // art's real extent, and was the actual cause of the gap.
+    const levelNum = PlayScreen._levelNumber();
+    const GOAL_LINE_TOP_SAFETY_MARGIN = 20; // stay just inside the art's real top edge, not flush with it
+    const upperBoundSource = levelNum !== null
+      ? (PlayScreen._levelThresholdY(levelNum) + Physics.displayRadius - this._goalLineTopOffset) + 760 + GOAL_LINE_TOP_SAFETY_MARGIN
+      : Math.min(...pivotYs) - 260;
+    this._camY = this._updateCameraAxis(this._camY, 760, Physics.y, Math.max(...pivotYs), upperBoundSource);
     this.worldContainer.y = this._camY;
 
     this._camX = this._updateCameraAxis(this._camX, this.renderWidth / 2, camTargetX, Math.max(...pivotXs) + 260, Math.min(...pivotXs) - 260);
