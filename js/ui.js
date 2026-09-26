@@ -342,8 +342,14 @@ const PlayScreen = {
   // Play is untouched (always the full 20° range, same as it always was).
   _maxTiltAngleForLevel() {
     const n = this._levelNumber();
+    // Free Play untouched for now (Rob: "let's just apply the bumping to
+    // the levels for now, I'll deal with free play later").
     if (n === null) return 20;
-    return Math.min(20, 10 + (n - 1) * 2.5);
+    // ~25% steeper across the board (Rob: "make the platforms tilt a
+    // little more... now that we have more control over the ball") — was
+    // 10°→20° over Levels 1-5, now 12.5°→25° over the same ramp, staying
+    // at 25° through Level 10.
+    return Math.min(25, 12.5 + (n - 1) * 3.125);
   },
 
   // How many of a platform's jets can be on at once, and whether the choice
