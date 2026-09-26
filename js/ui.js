@@ -781,6 +781,16 @@ const PlayScreen = {
         else if (p.jetGraceRemaining > 0) p.jetGraceRemaining -= dt;
         if (isCurrentPlatform || p.jetGraceRemaining > 0) {
           p.jetSystem.update(dt, p.pivot, p.dir, p.length / (620 * p.visualScale));
+        } else {
+          // Past the grace window — no more spawning/active-toggle
+          // decisions for this platform, but any particles already
+          // mid-flight still need to keep moving and fading on their own,
+          // or they freeze into a static leftover image right where update()
+          // stopped touching them (Rob: "the stream stops and there's just
+          // a static image of the jet there rather than the jet kind of
+          // like going up and dissipating"). Cheap once there's nothing
+          // left to advance — jet.particles is empty within half a second.
+          p.jetSystem._advanceParticles(dt);
         }
       }
       Difficulty.update(dt);

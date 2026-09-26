@@ -218,6 +218,22 @@ function createJetSystem(opts = {}) {
           jet.wasInRange = false;
         }
 
+      }
+      this._advanceParticles(dt);
+    },
+
+    // Just the particle motion/fade/removal — no spawning, no active-toggle
+    // decisions. Split out so a platform whose jets have stopped being
+    // "current" (past ui.js's JET_GRACE_SECONDS window) can still let
+    // whatever particles are already mid-flight finish traveling up and
+    // fading out on their own, instead of the whole stream freezing into a
+    // static snapshot the instant this stops being called (Rob: "the stream
+    // stops and there's just a static image of the jet there rather than
+    // the jet kind of like going up and dissipating"). Each particle's own
+    // maxLife (0.5s) means this always finishes draining well within a
+    // couple frames of being the only thing still running.
+    _advanceParticles(dt) {
+      for (const jet of this.jets) {
         for (const p of jet.particles) {
           p.x += p.vx * dt;
           p.y += p.vy * dt;
