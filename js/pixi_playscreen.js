@@ -105,7 +105,7 @@ const PlayScreenPixi = {
     // lands at this group's own y=0 regardless of this value (see
     // GOAL_LINE_LINE_FRAC below), so making the art bigger never shifts the
     // level's actual goal line out of sync with it.
-    const GOAL_LINE_DISPLAY_W = 1300;
+    const GOAL_LINE_DISPLAY_W = 1560; // 1300 * 1.2 (Rob: "20% bigger... when I jump to that last level, it's all I see")
     const goalLineSprite = new PIXI.Sprite(textures.goalLineWitch);
     const goalLineAspect = textures.goalLineWitch.height / textures.goalLineWitch.width;
     const goalLineDisplayH = GOAL_LINE_DISPLAY_W * goalLineAspect;
