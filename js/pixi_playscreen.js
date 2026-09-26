@@ -373,7 +373,17 @@ const PlayScreenPixi = {
     this._goalLineGroup.visible = levelNum !== null && !PlayScreen.levelComplete;
     if (levelNum !== null && levelNum !== this._goalLineLevelNum) {
       this._goalLineLevelNum = levelNum;
-      this._goalLineGroup.position.y = PlayScreen._levelThresholdY(levelNum);
+      // _levelThresholdY is the ball's CENTER position when resting there
+      // (it already bakes in one displayRadius so the win-check compares
+      // apples to apples with Physics.y — see ui.js), but the art's pink
+      // line is meant to read as the physical surface the ball's bottom
+      // rests ON, same as every other platform in the tower. Positioning
+      // the art at the threshold itself put the line straight through the
+      // ball's middle instead of under it (Rob: "move the line... so it
+      // lines up with that pink line"). Nudging the art down by one radius
+      // puts the drawn line at the ball's actual resting bottom edge,
+      // without touching the win condition itself.
+      this._goalLineGroup.position.y = PlayScreen._levelThresholdY(levelNum) + Physics.displayRadius;
       this._goalLabel.text = `LEVEL ${levelNum} GOAL`;
     }
 
