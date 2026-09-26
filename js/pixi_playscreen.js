@@ -168,9 +168,20 @@ const PlayScreenPixi = {
     // refresh()) — off is the resting state, not a dim idle glow, so it
     // reads as a clear on/off "charged" signal.
     this._moonOrb = new PlasmaOrb({
-      radius: Physics.displayRadius * 1.6, particleCount: 70,
-      energyColor: 0xff4fb8, secondColor: 0x3aa8ff, arcFrequency: 1.2,
+      // Tighter (was 1.6x — Rob: "the orb around the moonstone is too big"),
+      // more sparks alive at once and far more frequent/jagged arcs (Rob:
+      // "a lot more particles... more electricity") — was 70/1.2/default.
+      radius: Physics.displayRadius * 1.2, particleCount: 180,
+      energyColor: 0xff4fb8, secondColor: 0x3aa8ff, arcFrequency: 3.5, arcJaggedness: 1.4,
     });
+    // "Fuzzier and brighter" (Rob) — the orb's own layers have no built-in
+    // blur/brightness knob, so a small blur softens every spark/arc's edge
+    // into a glow instead of a hard dot/line, and ColorMatrixFilter's
+    // brightness boost pushes the (already additive-blended) colors further
+    // past white for a hotter, more intense look.
+    const moonBrightness = new PIXI.ColorMatrixFilter();
+    moonBrightness.brightness(1.5, false);
+    this._moonOrb.view.filters = [new PIXI.BlurFilter({ strength: 2.5 }), moonBrightness];
     // Cloud layer off (Rob: "the cloud is covering the moon... remove the
     // cloud element and just keep the electrical and particles swirling
     // around our existing moon") — that layer is the smoky puffs plus a
