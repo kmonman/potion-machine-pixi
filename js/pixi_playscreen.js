@@ -444,7 +444,14 @@ const PlayScreenPixi = {
       // lines up with that pink line"). Nudging the art down by one radius
       // puts the drawn line at the ball's actual resting bottom edge,
       // without touching the win condition itself.
-      this._goalLineGroup.position.y = PlayScreen._levelThresholdY(levelNum) + Physics.displayRadius;
+      //
+      // +15 more on top of that (Rob's follow-up: "it comes to a roll on
+      // the bottom of the tube... needs to be a few pixels higher so that
+      // it rests on the top of the tube") — the glowing rail itself has
+      // real visible thickness, and one radius alone put the ball's bottom
+      // edge at the rail's vertical middle rather than clearly on its top
+      // surface.
+      this._goalLineGroup.position.y = PlayScreen._levelThresholdY(levelNum) + Physics.displayRadius + 15;
       this._goalLabel.text = `LEVEL ${levelNum} GOAL`;
     }
 
