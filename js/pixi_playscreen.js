@@ -196,9 +196,11 @@ const PlayScreenPixi = {
     // which is exactly "electrical and particles swirling around" the moon.
     this._moonOrb.layers.cloud.visible = false;
     this._moonOrb.view.visible = false;
+    this._moonOrb.view.alpha = 0;
     this.worldContainer.addChild(this._moonOrb.view);
     this._moonDischargeSeen = PlayScreen.moonDischargeCount;
     this._moonDischargeGraceT = 0;
+    this._moonOrbAlpha = 0;
 
     this.worldContainer.addChild(this._ballSprite);
 
@@ -467,6 +469,11 @@ const PlayScreenPixi = {
   // drawn. _moonDischargeGraceT keeps it visible/animating for a brief
   // window after a discharge regardless of charge state, so the burst
   // actually gets to play out.
+  //
+  // Eases in/out (Rob: "make sure the effect is easing in and easing out
+  // rather than the quick on and off") instead of the instant visible
+  // toggle it had before — same lerp-toward-target-alpha shape ui.js's own
+  // blastButtonsT pop-in/out already uses elsewhere in this file.
   _updateMoonOrb() {
     const orb = this._moonOrb;
     orb.view.position.set(Physics.x, Physics.y);
@@ -476,7 +483,10 @@ const PlayScreenPixi = {
       orb.discharge(3);
     }
     if (this._moonDischargeGraceT > 0) this._moonDischargeGraceT -= this._dt;
-    orb.view.visible = PlayScreen.blastCharges > 0 || this._moonDischargeGraceT > 0;
+    const target = (PlayScreen.blastCharges > 0 || this._moonDischargeGraceT > 0) ? 1 : 0;
+    this._moonOrbAlpha += (target - this._moonOrbAlpha) * Math.min(1, this._dt / 0.35);
+    orb.view.alpha = this._moonOrbAlpha;
+    orb.view.visible = this._moonOrbAlpha > 0.002;
     if (orb.view.visible) orb.update(this._dt);
   },
 
