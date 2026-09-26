@@ -173,10 +173,11 @@ function createPlatform(pivotX, pivotY, opts = {}) {
 
     reset() {
       this.angle = 0;
-      // Fixed at 1, not randomized — every platform starts tilting the same
-      // way (Rob: the tubes should all start off moving in the same
-      // direction), same as before this was ever a multi-platform question.
-      this.direction = 1;
+      // Randomized per platform (Rob: "all of the platforms start off
+      // leaning the same direction... some should start leaning to the
+      // right and others should start leaning to the left") — was fixed at
+      // 1 so every platform tilted the same way from the very first tween.
+      this.direction = Math.random() < 0.5 ? 1 : -1;
       this.startAngle = 0;
       // A goal platform never picks a real target angle — it stays flat at
       // 0 forever (see update()'s matching guard).
