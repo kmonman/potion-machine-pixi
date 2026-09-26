@@ -198,6 +198,25 @@ const PlayScreenPixi = {
     this._moonOrb.view.visible = false;
     this._moonOrb.view.alpha = 0;
     this.worldContainer.addChild(this._moonOrb.view);
+
+    // Soft light-blue ambient glow behind the ball (Rob: "keep working on
+    // that emitter around the moon... add a little light blue glow around
+    // the moon to go along with the emitter") — a separate, simple radial
+    // glow underneath the sparks/arcs, not another particle effect. Same
+    // soft-glow texture the hinge/jet effects already use elsewhere,
+    // tinted and additively blended so it reads as a gentle backlight
+    // rather than a hard-edged circle. Added before the orb so it sits
+    // furthest back (glow, then sparks/arcs, then the ball on top).
+    this._moonGlow = new PIXI.Sprite(textures.glowParticle);
+    this._moonGlow.anchor.set(0.5);
+    this._moonGlow.tint = 0x7fd4ff;
+    this._moonGlow.blendMode = 'add';
+    const moonGlowSize = Physics.displayRadius * 4.5;
+    this._moonGlow.width = this._moonGlow.height = moonGlowSize;
+    this._moonGlow.visible = false;
+    this._moonGlow.alpha = 0;
+    this.worldContainer.addChild(this._moonGlow);
+
     this._moonDischargeSeen = PlayScreen.moonDischargeCount;
     this._moonDischargeGraceT = 0;
     this._moonOrbAlpha = 0;
@@ -495,6 +514,13 @@ const PlayScreenPixi = {
     orb.view.alpha = this._moonOrbAlpha;
     orb.view.visible = this._moonOrbAlpha > 0.002;
     if (orb.view.visible) orb.update(this._dt);
+
+    // Ambient light-blue backlight — same charged/not-charged visibility
+    // and ease as the orb itself, just a plain glow with nothing of its
+    // own to update() every frame.
+    this._moonGlow.position.set(Physics.x, Physics.y);
+    this._moonGlow.alpha = this._moonOrbAlpha * 0.85;
+    this._moonGlow.visible = this._moonOrbAlpha > 0.002;
   },
 
   // "Ready" for the first half of the intro pause, "Go!" for the second
