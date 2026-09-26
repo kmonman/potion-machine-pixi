@@ -944,12 +944,22 @@ const PlayScreen = {
   // win-particle burst already uses.
   moonDischargeCount: 0,
 
+  _lastBlastAt: 0, // Date.now() of the last accepted tap — see the debounce below
   fireBlast() {
     // introT > 0 shouldn't be reachable via the HUD button (it stays
     // invisible/non-hit-testable until blastButtonsT eases in, which only
     // starts after the intro pause) but belt-and-suspenders against firing
     // during the frozen "Ready" pause regardless of how it got called.
     if (this.isOver || this.introT > 0) return;
+    // iOS Safari can fire two separate tap events for what the player felt
+    // as one single tap (Rob: "you can double tap and add multiple jumps on
+    // iOS... versus just one jump" — Android doesn't do this). A real
+    // double-fire lands within a handful of ms of each other; 200ms comfortably
+    // swallows that while still being far shorter than any realistic gap
+    // between two deliberate jumps in normal play.
+    const now = Date.now();
+    if (now - this._lastBlastAt < 200) return;
+    this._lastBlastAt = now;
     // Same single tap either way — spends a charge for the bigger jump only
     // when one's actually banked, otherwise it's just the free normal jump.
     const big = this.blastCharges > 0;

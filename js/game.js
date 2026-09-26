@@ -570,6 +570,16 @@ async function main() {
   // it now that both exist, so landscape is correct from the first frame
   // instead of only fixing itself on the next window resize.
   fitGameWrap();
+  // Same iOS Safari quirk the orientationchange listener below already
+  // works around (window.innerWidth/innerHeight briefly reporting stale
+  // numbers) can also hit this very first load, not just a later rotation —
+  // Rob: "even in portrait mode it keeps showing landscape" on iOS, no
+  // rotation involved at all, so orientationchange's own recheck never even
+  // fires to correct it. Same delayed-recheck safety net, just run once at
+  // boot too.
+  setTimeout(fitGameWrap, 50);
+  setTimeout(fitGameWrap, 300);
+  setTimeout(fitGameWrap, 600);
 
   // Forces one real frame to paint immediately, rather than only queuing
   // Home's content and waiting for the ticker's next scheduled tick to
