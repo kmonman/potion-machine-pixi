@@ -175,6 +175,13 @@ const PlayScreenPixi = {
       // fuzz/brightness instead) — original was 70/1.2.
       radius: Physics.displayRadius * 1.2, particleCount: 260,
       energyColor: 0xff4fb8, secondColor: 0x3aa8ff, arcFrequency: 3.5, arcJaggedness: 1.4,
+      // A spark's own size is a fraction of `radius`, so shrinking the orb
+      // to 1.2x (from 1.6x) shrank every spark right along with it, down to
+      // just a couple px each — Rob: "it's like we lost all of the
+      // particles... figure out how to get them back so I can see them."
+      // sparkScale keeps sparks a visible size independent of the orb's
+      // own (now much smaller) radius.
+      sparkScale: 2.2,
     });
     // No filters — the blur+brightness pass tried for "fuzzier and
     // brighter" made the whole orb wash out and bury the moon underneath it

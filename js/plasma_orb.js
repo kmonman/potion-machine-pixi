@@ -460,7 +460,7 @@
         const fadeIn = clamp01(lt / 0.08);
         const fadeOut = Math.pow(1 - lt, 1.4);
         const sizeDecay = Math.pow(1 - lt, 0.6);
-        const size = R * p.size * sizeDecay * (0.7 + 0.5 * depth) * 2;
+        const size = R * p.size * sizeDecay * (0.7 + 0.5 * depth) * 2 * opt.sparkScale;
 
         const s = p.sprite;
         s.position.set(p.x, p.y);
@@ -675,6 +675,11 @@
     swirlSpeed: 2.6,        // orbit speed, in orb-radii per second
     inwardGravity: 1.2,     // extra inward pull, in orb-radii per second²
     arcJaggedness: 1.0,     // multiplier on arc displacement
+    sparkScale: 1.0,        // multiplier on swirl-spark size, independent of radius —
+                             // a spark's own size is a fraction of `radius` (see
+                             // OrbSwirlLayer.update), so shrinking the orb shrinks its
+                             // sparks right along with it; this lets a small orb still
+                             // have visible-sized sparks without inflating the orb itself
   };
 
   class PlasmaOrb {
