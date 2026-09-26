@@ -160,17 +160,24 @@ const Physics = {
       // an overlap still counts as "resting" rejects that case while still
       // catching genuine landings.
       //
-      // Was a full ball-radius (35px) — Rob: a jump that only grazed a
+      // Was a flat full ball-radius (35px) — Rob: a jump that only grazed a
       // platform's edge at a shallow angle, and should have kept falling
       // past it, was instead getting snapped up onto the platform as a
       // "freebie" ("I don't want it to make it unless it literally makes it
-      // to the top"). A shallow near-miss can dip well past the platform's
-      // exact resting line in a single substep while still technically
-      // within its length, and the old radius-sized window happily caught
-      // that as a clean landing. Down to a few px — just enough to still
-      // catch a genuine landing despite substep/frame-rate jitter, not
-      // enough to rescue an actual miss.
-      const maxRestOverlap = restPerp + 8;
+      // to the top"). Down to a flat 8px fixed that, but broke fast/legit
+      // landings instead — Rob: "the moon started just falling through the
+      // platforms" right after the moon-charge system (bigger BIG_BLAST_FORCE,
+      // faster ball) shipped. A ball moving fast enough covers more than 8px
+      // in a single 1/60s substep, so it can step clean over that whole
+      // window in one substep and never register perp inside it at all —
+      // tunneling straight through, not a near-miss. The window has to
+      // scale with how far the ball can actually travel in one substep
+      // (velocity * dt) or a fast enough ball always finds some window too
+      // narrow for it, no matter the constant. 8px stays the floor (still the
+      // exact fix for the original slow-grazing "freebie" case), but never
+      // shrinks smaller than one substep's worth of travel.
+      const stepTravel = Math.hypot(this.vx, this.vy) * dt;
+      const maxRestOverlap = restPerp + Math.max(8, stepTravel);
       // Decompose velocity into along-bar / into-bar components up front — the
       // into-bar sign is what makes this a jump-through platform (Rob): a
       // blast launches the ball up through a platform's underside on the way
