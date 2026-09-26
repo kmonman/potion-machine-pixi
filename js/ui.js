@@ -677,6 +677,7 @@ const PlayScreen = {
     this.blastCharges = 0;
     this.blastThreshold = 0;
     this.blastButtonsT = 0;
+    this._introJustEnded = false;
     // Brief pause before anything moves (Rob): the new screen appears with
     // the ball sitting at its starting spot just above the platform, held
     // there for a beat so the player actually sees the layout before the
@@ -726,6 +727,19 @@ const PlayScreen = {
     if (this.introT > 0) {
       this.introT -= dt;
       return;
+    }
+    // Hard guarantee the ball starts its very first fall from true rest,
+    // whatever the actual cause of Rob's "ball flies off right when it
+    // drops" turns out to be — a stray blast-button tap, a sensor reading,
+    // anything else that could apply velocity during the frozen intro pause
+    // above. Runs exactly once per run, the first frame the intro pause
+    // ends (_introJustEnded reset in enter()), not every frame — a real
+    // blast/jet/tilt taken immediately after intro should still work
+    // normally starting the very next frame.
+    if (!this._introJustEnded) {
+      this._introJustEnded = true;
+      Physics.vx = 0;
+      Physics.vy = 0;
     }
     if (!this.isOver) {
       for (const p of this.platforms) {
@@ -910,7 +924,11 @@ const PlayScreen = {
   BIG_BLAST_FORCE: 1300,
 
   fireBlast() {
-    if (this.isOver) return;
+    // introT > 0 shouldn't be reachable via the HUD button (it stays
+    // invisible/non-hit-testable until blastButtonsT eases in, which only
+    // starts after the intro pause) but belt-and-suspenders against firing
+    // during the frozen "Ready" pause regardless of how it got called.
+    if (this.isOver || this.introT > 0) return;
     // Same single tap either way — spends a charge for the bigger jump only
     // when one's actually banked, otherwise it's just the free normal jump.
     const big = this.blastCharges > 0;
