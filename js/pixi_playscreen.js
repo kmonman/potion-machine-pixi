@@ -36,6 +36,20 @@ const PlayScreenPixi = {
     this.container = c;
 
     this._bg = new PIXI.Graphics().rect(0, 0, this.renderWidth, 1280).fill(0x0a0410);
+    // Tap anywhere on screen to jump (Rob: "allow the moon to jump anytime
+    // someone taps the screen anywhere... remove the jumping icons with the
+    // potion bottles — we're not going to use those anymore"), replacing
+    // the two dedicated tap-to-jump buttons (see pixi_hud.js). Wired on the
+    // full-screen background rather than the stage/canvas itself so it only
+    // fires during actual gameplay (this container's own screen), and sits
+    // behind every other interactive object in the tree (buttons, Game
+    // Over's bottom bar) — Pixi hit-tests front-to-back and stops at the
+    // first interactive match, so this background tap never steals a touch
+    // meant for something drawn on top of it. fireBlast() itself already
+    // no-ops when the run is over or still in its intro pause.
+    this._bg.eventMode = 'static';
+    this._bg.cursor = 'pointer';
+    this._bg.on('pointertap', () => PlayScreen.fireBlast());
     c.addChild(this._bg);
 
     // Fog — 3 layers, each 2 stacked sprites (see Fog.layers in fog.js for the

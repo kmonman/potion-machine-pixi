@@ -1,13 +1,15 @@
-// In-game HUD, rebuilt on Pixi — the score pill, the 3-bottle blast-charge
-// indicator, and Free Play's blast buttons (mute lives outside this
-// entirely now — see index.html/game.js's #muteBtn, one persistent DOM
-// button shared by every screen instead of a separate Pixi one per
-// screen). Reuses `PlayScreen` (old ui.js) directly for all the
-// geometry/state (scorePillBtn, blastLeftBtn/RightBtn, blastCharges,
-// MAX_BLAST_CHARGES, blastButtonsT, _scoreText()) rather than recomputing
-// any of it — that object's dense oval-matching math and state machine are
-// unaffected by how things get drawn, only PlayScreen's old draw()/​
-// _drawHud() methods are being replaced here.
+// In-game HUD, rebuilt on Pixi — the score pill and the 3-bottle
+// blast-charge indicator (mute lives outside this entirely now — see
+// index.html/game.js's #muteBtn, one persistent DOM button shared by every
+// screen instead of a separate Pixi one per screen). The dedicated tap-to-
+// jump buttons are gone (Rob: "allow the moon to jump anytime someone taps
+// the screen anywhere... remove the jumping icons with the potion bottles"
+// — see pixi_playscreen.js's background tap handler for the replacement).
+// Reuses `PlayScreen` (old ui.js) directly for all the geometry/state
+// (scorePillBtn, blastCharges, MAX_BLAST_CHARGES, _scoreText()) rather than
+// recomputing any of it — that object's dense oval-matching math and state
+// machine are unaffected by how things get drawn, only PlayScreen's old
+// draw()/​_drawHud() methods are being replaced here.
 const HudPixi = {
   container: null,
 
@@ -42,65 +44,14 @@ const HudPixi = {
       c.addChild(s);
       this._chargeIcons.push(s);
     }
-
-
-    // Blast buttons — ring (Blast.png) + bottle + a badge number, all scaled
-    // together by the pop-in/out animation (PlayScreen.blastButtonsT), same
-    // as the old ctx version's per-button save/scale/restore block.
-    this._blastButtons = [PlayScreen.blastLeftBtn, PlayScreen.blastRightBtn].map((btn) => {
-      const bc = new PIXI.Container();
-      bc.position.set(btn.x + btn.w / 2, btn.y + btn.h / 2); // pivot at button center, matches the old scale-from-center behavior
-      const ringR = btn.w * 0.5 * 0.7;
-      const ring = new PIXI.Sprite(textures.blastRing);
-      const ringDrawSize = (ringR / 0.595) * 2;
-      ring.anchor.set(0.5);
-      ring.width = ringDrawSize; ring.height = ringDrawSize;
-      const bw = btn.w * 0.55, bh = bw * (176 / 144);
-      const bottle = new PIXI.Sprite(textures.potionFilled);
-      bottle.anchor.set(0.5);
-      bottle.width = bw; bottle.height = bh;
-      bc.addChild(ring, bottle);
-      // Small circle behind the charge number, colored to match the pole's
-      // own flat sprite fill (rgb(33,24,46), sampled directly from
-      // NewSprite.png) — missed when this was first ported to Pixi, caught
-      // during the side-by-side comparison against the live version.
-      const numFontSize = btn.w * 0.11 * 1.15 * 1.5;
-      const badgeBg = new PIXI.Graphics().circle(0, 0, numFontSize * 0.62).fill(0x21182e);
-      badgeBg.position.set(-bw * 0.42, -bh * 0.42);
-      const badge = new PIXI.Text({ text: '0', style: { fontFamily: 'PotionTitle', fontSize: numFontSize, fill: 0x9b9b9b } });
-      badge.anchor.set(0.5);
-      badge.position.set(-bw * 0.42, -bh * 0.42);
-      bc.addChild(badgeBg, badge);
-      bc.eventMode = 'static';
-      bc.cursor = 'pointer';
-      bc.on('pointertap', () => PlayScreen.fireBlast());
-      c.addChild(bc);
-      return { container: bc, badge, btn };
-    });
     this._isLandscape = false;
   },
 
-  // Called by game.js's fitGameWrap() on every resize/orientation change.
-  // The two "potion bottle" blast buttons (Rob's term) pop in near the
-  // bottom-left/right of the portrait design (y=920) — fine there, but in
-  // the short landscape crop that's off past the visible area. Moves each
-  // to hug its own screen edge instead, vertically centered on the canvas's
-  // own middle (640 — same "centered top to bottom" reference point used
-  // for Game Over/Home). Portrait passes isLandscape=false and each button
-  // goes back to its authored (btn.x+w/2, btn.y+h/2) position, unchanged.
+  // Landscape no longer has to move anything here — the old blast buttons
+  // were the only HUD element that needed repositioning off-edge in
+  // landscape; the charge icons/score pill stay put same as before.
   setLandscapeMode(isLandscape, renderWidth) {
-    if (!this._blastButtons) return;
     this._isLandscape = isLandscape;
-    const EDGE_MARGIN = 50;
-    for (let i = 0; i < this._blastButtons.length; i++) {
-      const { container, btn } = this._blastButtons[i];
-      if (isLandscape) {
-        const x = i === 0 ? EDGE_MARGIN + btn.w / 2 : renderWidth - EDGE_MARGIN - btn.w / 2;
-        container.position.set(x, 640);
-      } else {
-        container.position.set(btn.x + btn.w / 2, btn.y + btn.h / 2);
-      }
-    }
   },
 
   refresh() {
@@ -122,19 +73,6 @@ const HudPixi = {
       this._chargeIcons.forEach((s, i) => {
         s.texture = i < PlayScreen.blastCharges ? textures.potionFilled : textures.potionEmpty;
       });
-    }
-
-    // Full brightness always now — the tap is a free, always-usable jump
-    // (see ui.js's fireBlast()), not something gated on a banked charge
-    // anymore. The badge/bottle-fill count still shows 0-3 so a banked
-    // charge (which makes that same tap into a bigger jump) is visible.
-    const t = PlayScreen.blastButtonsT;
-    const scale = 0.85 + 0.15 * t;
-    for (const b of this._blastButtons) {
-      b.container.visible = t > 0.001;
-      b.container.scale.set(scale);
-      b.container.alpha = t;
-      b.badge.text = String(PlayScreen.blastCharges);
     }
   },
 };
