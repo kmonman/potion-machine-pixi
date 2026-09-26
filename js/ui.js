@@ -967,6 +967,11 @@ const PlayScreen = {
     // starts after the intro pause) but belt-and-suspenders against firing
     // during the frozen "Ready" pause regardless of how it got called.
     if (this.isOver || this.introT > 0) return;
+    // Rob: "once I hit the jump button, you shouldn't be able to jump again
+    // until it lands on something" — Physics.airborne is set true the
+    // instant a blast fires and only cleared back to false on landing (see
+    // physics.js), so it's exactly "still mid-jump from the last tap."
+    if (Physics.airborne) return;
     // iOS Safari can fire two separate tap events for what the player felt
     // as one single tap (Rob: "you can double tap and add multiple jumps on
     // iOS... versus just one jump" — Android doesn't do this). A real
