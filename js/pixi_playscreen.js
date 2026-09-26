@@ -99,7 +99,13 @@ const PlayScreenPixi = {
     // (see GOAL_LINE_LINE_FRAC below), so it blends into the game's own
     // dark background underneath with no separate gradient/mask needed.
     this._goalLineGroup = new PIXI.Container();
-    const GOAL_LINE_DISPLAY_W = 720;
+    // Sized well past the 720px canvas width (Rob: "make that PNG image
+    // much bigger") — centered, so it bleeds off both edges rather than
+    // being fit to the canvas. Safe to scale freely: the pink line always
+    // lands at this group's own y=0 regardless of this value (see
+    // GOAL_LINE_LINE_FRAC below), so making the art bigger never shifts the
+    // level's actual goal line out of sync with it.
+    const GOAL_LINE_DISPLAY_W = 1300;
     const goalLineSprite = new PIXI.Sprite(textures.goalLineWitch);
     const goalLineAspect = textures.goalLineWitch.height / textures.goalLineWitch.width;
     const goalLineDisplayH = GOAL_LINE_DISPLAY_W * goalLineAspect;
