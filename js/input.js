@@ -24,11 +24,20 @@ const Input = (() => {
   // calibrate() (called once per run, see ui.js's enter()) doesn't set it
   // directly since there's no "current angle" to read outside of an actual
   // deviceorientation event firing — it just arms `calibrateOnNextReading`,
-  // and the very next real reading becomes the new zero point instead.
-  // Events fire fast enough (well over once a frame on a real phone) that
-  // the delay is never noticeable.
+  // and the next few real readings (see CALIBRATE_SAMPLES below) become the
+  // new zero point instead. Events fire fast enough (well over once a frame
+  // on a real phone) that the delay is never noticeable.
   let baselineDeg = 0;
   let calibrateOnNextReading = false;
+  // Averaged over several readings instead of trusting a single sample as the
+  // new zero point (Rob: still saw the ball "fly off" right at the start of a
+  // run even with calibration in place) — one noisy/transient reading right
+  // as the sensor wakes up for a run could land as the baseline and bake a
+  // wrong "flat" angle in for the whole run. CALIBRATE_SAMPLES readings
+  // (well under half a second of real sensor data) are averaged instead.
+  const CALIBRATE_SAMPLES = 6;
+  let calibrateSampleCount = 0;
+  let calibrateSampleSum = 0;
   // Timestamp of the last usable deviceorientation reading (Rob: "the ball
   // moves even when I'm not tilting my phone") — once `listening` is true,
   // rawTilt used to only ever get set by handleOrientation, never decayed,
@@ -119,8 +128,14 @@ const Input = (() => {
     else tiltDeg = event.gamma;
     if (tiltDeg === null || tiltDeg === undefined) return;
     if (calibrateOnNextReading) {
-      baselineDeg = tiltDeg;
-      calibrateOnNextReading = false;
+      calibrateSampleSum += tiltDeg;
+      calibrateSampleCount++;
+      lastReadingAt = Date.now(); // still counts as "recent" so the staleness decay above doesn't kick in mid-calibration
+      if (calibrateSampleCount >= CALIBRATE_SAMPLES) {
+        baselineDeg = calibrateSampleSum / calibrateSampleCount;
+        calibrateOnNextReading = false;
+      }
+      return; // don't act on tilt yet — rawTilt/smoothedTilt stay at the 0 calibrate() already set
     }
     const adjustedDeg = tiltDeg - baselineDeg;
     const clamped = Math.max(-TILT_CLAMP_DEGREES, Math.min(TILT_CLAMP_DEGREES, adjustedDeg));
@@ -138,6 +153,8 @@ const Input = (() => {
   // new run even though the baseline itself is about to correct.
   function calibrate() {
     calibrateOnNextReading = true;
+    calibrateSampleCount = 0;
+    calibrateSampleSum = 0;
     rawTilt = 0;
     smoothedTilt = 0;
   }
