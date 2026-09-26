@@ -211,18 +211,21 @@ const Physics = {
         vAlong *= Math.pow(p.grip, dt);
 
         // The goal platform (Rob: "once you get to the top... it can't
-        // roll off of it. Once it gets to the end, it just stops") gets an
-        // invisible stopper a radius in from each real end — otherwise the
-        // very next frame the ball rolls past `halfLength` it stops
-        // matching the catch condition above entirely and just falls
-        // straight through/off, same as rolling off any other platform
-        // (the normal, intended behavior everywhere else in the tower,
-        // left untouched). Zeroing vAlong there reads as hitting a wall,
-        // not bouncing off one.
+        // roll off of it") gets an invisible stopper a radius in from each
+        // real end — otherwise the very next frame the ball rolls past
+        // `halfLength` it stops matching the catch condition above
+        // entirely and just falls straight through/off, same as rolling
+        // off any other platform (the normal, intended behavior everywhere
+        // else in the tower, left untouched). Bounces back rather than
+        // going dead at the wall (Rob's follow-up: "instead of having it
+        // just stop, have it bounce back the other way but still slowing
+        // down") — same soft, energy-losing bounce _checkBoundaries' own
+        // screen-edge wall already uses, not a full elastic reflection.
         if (p.isGoal) {
+          const STOPPER_RESTITUTION = 0.4;
           const stopLimit = halfLength - this.displayRadius;
-          if (clampedAlong > stopLimit) { clampedAlong = stopLimit; if (vAlong > 0) vAlong = 0; }
-          else if (clampedAlong < -stopLimit) { clampedAlong = -stopLimit; if (vAlong < 0) vAlong = 0; }
+          if (clampedAlong > stopLimit) { clampedAlong = stopLimit; if (vAlong > 0) vAlong = -vAlong * STOPPER_RESTITUTION; }
+          else if (clampedAlong < -stopLimit) { clampedAlong = -stopLimit; if (vAlong < 0) vAlong = -vAlong * STOPPER_RESTITUTION; }
         }
 
         this.x = p.pivot.x + dir.x * clampedAlong + normal.x * clampedPerp;
