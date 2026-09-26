@@ -285,6 +285,11 @@ const PlayScreen = {
   // actual projectile range (v^2/gravityY ≈ 600px) once aimed toward it rather
   // than straight up.
   TOWER_SPACING: 300,
+  // The occasional "big jump" gap some levels place, cleared only by a
+  // banked-charge blast (see fireBlast()'s BIG_BLAST_FORCE, tuned to this
+  // exact multiple via the same force²/(2*gravityY) relationship noted
+  // above: 950*sqrt(1.8) ≈ 1275 clears 300*1.8 = 540px).
+  BIG_TOWER_SPACING: 540,
   // Horizontal offset (world px) for the middle/top platforms — Rob: move one
   // right and one left instead of stacking every platform straight above the
   // base. Middle goes right, top goes left, so climbing the tower zigzags
@@ -451,17 +456,26 @@ const PlayScreen = {
   // Real bigger gaps are also reserved for Level 5 and up. First pass, built
   // to react to, same as the original single tower was.
 
-  // Level 1 — untouched in shape from the original shared tower's first two
-  // platforms (already played and tuned this whole session; no reason to
-  // reset that work just to fit the new per-level structure).
+  // Level 1 — doubled from its original 3 jumps to 6 (Rob: "make the first
+  // level twice as big and then build it from there" — too little climb to
+  // read as real action once the every-jump blast is free). Keeps the
+  // original first two platforms' exact placement (already played and
+  // tuned) and continues their same right/left zigzag upward. One
+  // BIG_TOWER_SPACING gap (p3->p4) is the level's one required big jump —
+  // Rob: "starting with maybe only one big jump on the first three levels" —
+  // everything else stays a normal free jump.
   _buildLevel1(base) {
     const platforms = [
       base,
       createPlatform(490, 352, { lengthScale: 0.7, tubeSpeed: 0.75 }),
       createPlatform(230, 52, { lengthScale: 0.7, tubeSpeed: 1.3 }),
+      createPlatform(490, -248, { lengthScale: 0.7, tubeSpeed: 0.9 }),
+      createPlatform(230, -248 - this.BIG_TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 1.1 }),
+      createPlatform(490, -248 - this.BIG_TOWER_SPACING - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.85 }),
     ];
-    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    for (let i = 1; i < platforms.length; i++) {
+      platforms[i].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+    }
     return this._finishTower(this._appendGoalPlatform(platforms));
   },
 
@@ -810,13 +824,13 @@ const PlayScreen = {
       this._updateGoBubbles(dt);
     }
 
-    // Blast buttons show once the player has ever earned a potion this run
-    // (stays true for the rest of the run even after spending down to 0 —
-    // that's what the separate 0.35-alpha dimming in pixi_hud.js's refresh()
-    // is for), and ease in/out (~0.3s) rather than popping instantly (Rob).
-    // Every mode now (see the blastCharges accrual above for why Levels
-    // needed this too).
-    const blastTarget = (!this.isOver && this._potionsMade() > 0) ? 1 : 0;
+    // Blast buttons show as soon as a run starts, not gated on ever having
+    // earned a potion (Rob: waiting on a charge before you could take your
+    // very first jump was the "sit around and wait" problem — the normal
+    // jump is free/always-available now, see fireBlast() below; a banked
+    // charge just makes that same tap into a bigger jump). Still eases
+    // in/out (~0.3s) rather than popping instantly.
+    const blastTarget = !this.isOver ? 1 : 0;
     this.blastButtonsT += (blastTarget - this.blastButtonsT) * Math.min(1, dt / 0.3);
   },
 
@@ -878,19 +892,30 @@ const PlayScreen = {
     this.leaderboardMsgT = 1.6;
   },
 
+  // Force for the normal, every-platform jump — always free, no charge
+  // spent, tap it anytime (Rob: waiting on a charge before every single hop
+  // was the game's "not enough action" problem). Unchanged from the
+  // original single-tier value (Rob: the boost shouldn't inherit tilt's
+  // reduction — a Potion Blast is a deliberate, player-triggered launch, not
+  // a steering force) — tuned to comfortably clear one TOWER_SPACING gap.
+  BLAST_FORCE: 950,
+  // Force for the rarer "big jump", spent from a banked charge — clears the
+  // wider BIG_TOWER_GAP some levels place every so often (Rob: "extra big
+  // jumps... only need to build up the potion every once in a while").
+  // Height under constant gravity scales with force squared, so clearing a
+  // gap BIG_TOWER_GAP_SCALE times taller needs force scaled by roughly
+  // sqrt(BIG_TOWER_GAP_SCALE), not the same multiple — 950 * sqrt(1.8) ≈
+  // 1275, rounded up for margin. Adjust alongside BIG_TOWER_GAP_SCALE if a
+  // big jump ends up falling short/overshooting in testing.
+  BIG_BLAST_FORCE: 1300,
+
   fireBlast() {
-    if (this.blastCharges <= 0 || this.isOver) return;
-    this.blastCharges--;
-    // Bumped from 600 — this is now also the tower's climb mechanic (Rob: use
-    // the existing potion blasters to get to the next platform up), so it needs
-    // enough force to actually clear TOWER_SPACING, not just hop in place.
-    // Kept at its original 950 (Rob: the boost shouldn't inherit tilt's
-    // reduction — a Potion Blast is a deliberate, player-triggered launch,
-    // not a steering force, so it doesn't need to feel gentler the way
-    // constant tilt input does). Also sidesteps the platform-spacing margin
-    // getting any tighter than it already was — see TOWER_SPACING in this
-    // file and the reachability numbers checked when Levels 1-10 were built.
-    Physics.applyBlast(950);
+    if (this.isOver) return;
+    // Same single tap either way — spends a charge for the bigger jump only
+    // when one's actually banked, otherwise it's just the free normal jump.
+    const big = this.blastCharges > 0;
+    if (big) this.blastCharges--;
+    Physics.applyBlast(big ? this.BIG_BLAST_FORCE : this.BLAST_FORCE);
   },
 
   _timeText() {

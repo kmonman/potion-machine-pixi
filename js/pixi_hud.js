@@ -124,13 +124,16 @@ const HudPixi = {
       });
     }
 
-    const active = PlayScreen.blastCharges > 0;
+    // Full brightness always now — the tap is a free, always-usable jump
+    // (see ui.js's fireBlast()), not something gated on a banked charge
+    // anymore. The badge/bottle-fill count still shows 0-3 so a banked
+    // charge (which makes that same tap into a bigger jump) is visible.
     const t = PlayScreen.blastButtonsT;
     const scale = 0.85 + 0.15 * t;
     for (const b of this._blastButtons) {
       b.container.visible = t > 0.001;
       b.container.scale.set(scale);
-      b.container.alpha = (active ? 1 : 0.35) * t;
+      b.container.alpha = t;
       b.badge.text = String(PlayScreen.blastCharges);
     }
   },
