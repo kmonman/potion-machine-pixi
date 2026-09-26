@@ -189,12 +189,18 @@ const Physics = {
       // like landing on top of it, stopping the climb dead.
       let vAlong = this.vx * dir.x + this.vy * dir.y;
       let vNormal = this.vx * normal.x + this.vy * normal.y;
-      if (vNormal >= 0 && Math.abs(along) <= halfLength && perp > restPerp && perp < maxRestOverlap) {
+      // Goal platform's catch region is widened a bit past its real
+      // halfLength (the stopper below still clamps the ball well inside
+      // the visual tip) — a ball sliding fast enough while resting near
+      // the very end could otherwise cross from "inside" to "past
+      // halfLength" in a single substep and never register as caught at
+      // all that frame, falling through right where it should have hit
+      // the stopper instead.
+      const alongLimit = p.isGoal ? halfLength + 40 : halfLength;
+      if (vNormal >= 0 && Math.abs(along) <= alongLimit && perp > restPerp && perp < maxRestOverlap) {
         // Push the ball back to rest on the surface.
-        const clampedAlong = along;
+        let clampedAlong = along;
         const clampedPerp = restPerp;
-        this.x = p.pivot.x + dir.x * clampedAlong + normal.x * clampedPerp;
-        this.y = p.pivot.y + dir.y * clampedAlong + normal.y * clampedPerp;
 
         if (vNormal > 0) vNormal = 0; // stop moving into the surface
         // grip is meant as "fraction of speed kept per second of contact"
@@ -204,6 +210,23 @@ const Physics = {
         // independently, rather than one grip shared by the whole run.
         vAlong *= Math.pow(p.grip, dt);
 
+        // The goal platform (Rob: "once you get to the top... it can't
+        // roll off of it. Once it gets to the end, it just stops") gets an
+        // invisible stopper a radius in from each real end — otherwise the
+        // very next frame the ball rolls past `halfLength` it stops
+        // matching the catch condition above entirely and just falls
+        // straight through/off, same as rolling off any other platform
+        // (the normal, intended behavior everywhere else in the tower,
+        // left untouched). Zeroing vAlong there reads as hitting a wall,
+        // not bouncing off one.
+        if (p.isGoal) {
+          const stopLimit = halfLength - this.displayRadius;
+          if (clampedAlong > stopLimit) { clampedAlong = stopLimit; if (vAlong > 0) vAlong = 0; }
+          else if (clampedAlong < -stopLimit) { clampedAlong = -stopLimit; if (vAlong < 0) vAlong = 0; }
+        }
+
+        this.x = p.pivot.x + dir.x * clampedAlong + normal.x * clampedPerp;
+        this.y = p.pivot.y + dir.y * clampedAlong + normal.y * clampedPerp;
         this.vx = dir.x * vAlong + normal.x * vNormal;
         this.vy = dir.y * vAlong + normal.y * vNormal;
         this.currentPlatform = p;
