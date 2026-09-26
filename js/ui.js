@@ -740,6 +740,18 @@ const PlayScreen = {
       this._introJustEnded = true;
       Physics.vx = 0;
       Physics.vy = 0;
+      // Recalibrate again right here, not just once back in enter() (Rob:
+      // "it's almost like the phone is slightly tilted" — a slow drift off
+      // the platform, not a launch, so this isn't the velocity reset above;
+      // it's the tilt baseline itself being off). enter()'s calibrate() call
+      // happens the instant the level is entered, before the ~2s "Ready...
+      // Go!" pause — plenty of time for a hand to settle into a slightly
+      // different resting angle than whatever it was doing at that first
+      // instant, which would read as a small constant residual tilt for the
+      // whole run once gameplay actually starts. Recalibrating at the exact
+      // moment gameplay begins instead zeroes to however the phone is
+      // *actually* being held right as it matters.
+      Input.calibrate();
     }
     if (!this.isOver) {
       for (const p of this.platforms) {
