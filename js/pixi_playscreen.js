@@ -220,6 +220,7 @@ const PlayScreenPixi = {
     this._moonDischargeSeen = PlayScreen.moonDischargeCount;
     this._moonDischargeGraceT = 0;
     this._moonOrbAlpha = 0;
+    this._runStartSeen = PlayScreen.runStartCount;
 
     this.worldContainer.addChild(this._ballSprite);
 
@@ -502,6 +503,19 @@ const PlayScreenPixi = {
   // blastButtonsT pop-in/out already uses elsewhere in this file.
   _updateMoonOrb() {
     const orb = this._moonOrb;
+    // A fresh run (Rob: "when the game ends with the ball charged up,
+    // sometimes that carries over to the start of the next game") snaps
+    // the glow straight to off instead of just letting it ease there like
+    // normal — a run that ended charged, or mid-fade from a discharge,
+    // would otherwise still show a visible flash of leftover glow for a
+    // moment at the very start of the next one even though blastCharges
+    // itself was already correctly reset.
+    if (PlayScreen.runStartCount !== this._runStartSeen) {
+      this._runStartSeen = PlayScreen.runStartCount;
+      this._moonOrbAlpha = 0;
+      this._moonDischargeGraceT = 0;
+      this._moonDischargeSeen = PlayScreen.moonDischargeCount;
+    }
     orb.view.position.set(Physics.x, Physics.y);
     if (PlayScreen.moonDischargeCount !== this._moonDischargeSeen) {
       this._moonDischargeSeen = PlayScreen.moonDischargeCount;

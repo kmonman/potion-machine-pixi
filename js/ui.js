@@ -611,6 +611,15 @@ const PlayScreen = {
 
   enter(mode) {
     this.mode = mode || this.mode;
+    // Bumped every run so pixi_playscreen.js can snap the moon's charge
+    // glow instantly to off instead of only easing there over its usual
+    // ~0.35s — same "leave a marker here, let the renderer notice" pattern
+    // moonDischargeCount already uses. Without this a run that ended
+    // charged (or mid-fade) still showed a visible flash of glow for a
+    // moment at the start of the next one, even with blastCharges already
+    // reset above (Rob: "sometimes that carries over to the start of the
+    // next game").
+    this.runStartCount = (this.runStartCount || 0) + 1;
     // Zero the tilt sensor to however the phone is actually being held right
     // now (Rob: "right when the game starts... the ball just flies to the
     // left or right") — deviceorientation's gamma is an absolute angle from
@@ -684,7 +693,18 @@ const PlayScreen = {
     this.blastCharges = 0;
     this.blastThreshold = 0;
     this.blastButtonsT = 0;
-    this.moonDischargeCount = 0;
+    // NOT reset to 0 here (Rob: "when the game ends with the ball charged
+    // up, sometimes that carries over to the start of the next game" — the
+    // moon glow, not blastCharges itself, which already reset correctly
+    // above). pixi_playscreen.js detects a new discharge purely by this
+    // counter changing from whatever it last saw — resetting it to 0 every
+    // run meant a run that had ANY discharge left _moonDischargeSeen at a
+    // stale nonzero value, so the very next run's fresh 0 looked like a
+    // brand-new discharge the instant it started, replaying the moon's
+    // charge-spent flash/glow for a jump that never happened. It only
+    // needs to keep changing on a real discharge, not stay small — letting
+    // it climb forever across the whole session does that with no reset
+    // needed at all.
     this._introJustEnded = false;
     // Brief pause before anything moves (Rob): the new screen appears with
     // the ball sitting at its starting spot just above the platform, held
