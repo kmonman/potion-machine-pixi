@@ -171,6 +171,14 @@ const PlayScreenPixi = {
       radius: Physics.displayRadius * 1.6, particleCount: 70,
       energyColor: 0xff4fb8, secondColor: 0x3aa8ff, arcFrequency: 1.2,
     });
+    // Cloud layer off (Rob: "the cloud is covering the moon... remove the
+    // cloud element and just keep the electrical and particles swirling
+    // around our existing moon") — that layer is the smoky puffs plus a
+    // solid dark body disc meant to read as the orb's own volume, which
+    // was sitting right on top of the moon/ball art instead of just
+    // glowing around it. Swirl (sparks) + arcs (electric discharges) stay,
+    // which is exactly "electrical and particles swirling around" the moon.
+    this._moonOrb.layers.cloud.visible = false;
     this._moonOrb.view.visible = false;
     this.worldContainer.addChild(this._moonOrb.view);
     this._moonDischargeSeen = PlayScreen.moonDischargeCount;
