@@ -169,19 +169,17 @@ const PlayScreenPixi = {
     // reads as a clear on/off "charged" signal.
     this._moonOrb = new PlasmaOrb({
       // Tighter (was 1.6x — Rob: "the orb around the moonstone is too big"),
-      // more sparks alive at once and far more frequent/jagged arcs (Rob:
-      // "a lot more particles... more electricity") — was 70/1.2/default.
-      radius: Physics.displayRadius * 1.2, particleCount: 180,
+      // and even more sparks alive at once (Rob's follow-up: the blur pass
+      // below buried the ball itself — "bring it back to how it was but
+      // just shrink it down," with more particles standing in for the
+      // fuzz/brightness instead) — original was 70/1.2.
+      radius: Physics.displayRadius * 1.2, particleCount: 260,
       energyColor: 0xff4fb8, secondColor: 0x3aa8ff, arcFrequency: 3.5, arcJaggedness: 1.4,
     });
-    // "Fuzzier and brighter" (Rob) — the orb's own layers have no built-in
-    // blur/brightness knob, so a small blur softens every spark/arc's edge
-    // into a glow instead of a hard dot/line, and ColorMatrixFilter's
-    // brightness boost pushes the (already additive-blended) colors further
-    // past white for a hotter, more intense look.
-    const moonBrightness = new PIXI.ColorMatrixFilter();
-    moonBrightness.brightness(1.5, false);
-    this._moonOrb.view.filters = [new PIXI.BlurFilter({ strength: 2.5 }), moonBrightness];
+    // No filters — the blur+brightness pass tried for "fuzzier and
+    // brighter" made the whole orb wash out and bury the moon underneath it
+    // (Rob: "everything is too blurred around the ball so you can barely
+    // see it"). Back to the orb's own crisp/additive look, unfiltered.
     // Cloud layer off (Rob: "the cloud is covering the moon... remove the
     // cloud element and just keep the electrical and particles swirling
     // around our existing moon") — that layer is the smoky puffs plus a
