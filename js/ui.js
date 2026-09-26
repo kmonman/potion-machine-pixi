@@ -253,10 +253,12 @@ const PlayScreen = {
   // MAX_BLAST_CHARGES (Rob: without a cap, someone could just camp at the
   // base collecting charges indefinitely, then chain them all in one blast
   // to trivialize the whole climb — scoring past the cap simply doesn't
-  // bank anything further until a charge gets spent). Shown as 3 bottle
-  // icons in the HUD now (see pixi_hud.js) instead of a raw number, same
-  // filled/empty art Game Over's own summary row already used.
-  MAX_BLAST_CHARGES: 3,
+  // bank anything further until a charge gets spent). Down from 3 to 1 —
+  // the potion-bottle charge icons are gone entirely now (Rob: "no potion
+  // bottles, one charge per jump"), replaced by the moon itself glowing via
+  // a PlasmaOrb effect (see pixi_playscreen.js) — a single orb only really
+  // reads as "charged" or "not", not a stack of several, so the cap matches.
+  MAX_BLAST_CHARGES: 1,
   blastCharges: 0,
 
   blastThreshold: 0,
@@ -286,10 +288,9 @@ const PlayScreen = {
   // than straight up.
   TOWER_SPACING: 300,
   // The occasional "big jump" gap some levels place, cleared only by a
-  // banked-charge blast (see fireBlast()'s BIG_BLAST_FORCE, tuned to this
-  // exact multiple via the same force²/(2*gravityY) relationship noted
-  // above: 950*sqrt(1.8) ≈ 1275 clears 300*1.8 = 540px).
-  BIG_TOWER_SPACING: 540,
+  // charged-moon blast — 50% taller than a normal gap, matching
+  // BIG_BLAST_FORCE's own "50% higher jump" spec exactly (300 * 1.5 = 450).
+  BIG_TOWER_SPACING: 450,
   // Horizontal offset (world px) for the middle/top platforms — Rob: move one
   // right and one left instead of stacking every platform straight above the
   // base. Middle goes right, top goes left, so climbing the tower zigzags
@@ -677,6 +678,7 @@ const PlayScreen = {
     this.blastCharges = 0;
     this.blastThreshold = 0;
     this.blastButtonsT = 0;
+    this.moonDischargeCount = 0;
     this._introJustEnded = false;
     // Brief pause before anything moves (Rob): the new screen appears with
     // the ball sitting at its starting spot just above the platform, held
@@ -925,15 +927,22 @@ const PlayScreen = {
   // reduction — a Potion Blast is a deliberate, player-triggered launch, not
   // a steering force) — tuned to comfortably clear one TOWER_SPACING gap.
   BLAST_FORCE: 950,
-  // Force for the rarer "big jump", spent from a banked charge — clears the
-  // wider BIG_TOWER_GAP some levels place every so often (Rob: "extra big
-  // jumps... only need to build up the potion every once in a while").
-  // Height under constant gravity scales with force squared, so clearing a
-  // gap BIG_TOWER_GAP_SCALE times taller needs force scaled by roughly
-  // sqrt(BIG_TOWER_GAP_SCALE), not the same multiple — 950 * sqrt(1.8) ≈
-  // 1275, rounded up for margin. Adjust alongside BIG_TOWER_GAP_SCALE if a
-  // big jump ends up falling short/overshooting in testing.
-  BIG_BLAST_FORCE: 1300,
+  // Force for the "big jump", spent from a charged moon — a charged moon
+  // jumps 50% HIGHER than normal (Rob's exact spec for the PlasmaOrb "moon
+  // charge" system replacing the old potion-bottle charges). Height under
+  // constant gravity scales with force squared, so a 50%-higher jump needs
+  // force scaled by sqrt(1.5), not 1.5x outright — 950 * sqrt(1.5) ≈ 1163.
+  BIG_BLAST_FORCE: 1163,
+
+  // Bumped by the same monotonically each time a charge is actually spent on
+  // a big jump — pixi_playscreen.js's refresh() watches this (not a boolean)
+  // so it can't miss a discharge that happens to land on the same frame as
+  // the last one it noticed, and fires the PlasmaOrb's spark-burst effect
+  // for each one. ui.js has no direct handle on the Pixi orb object itself
+  // (rendering stays over there), so this is the same "leave a marker here,
+  // let the renderer notice and animate it" pattern pixi_gameover.js's own
+  // win-particle burst already uses.
+  moonDischargeCount: 0,
 
   fireBlast() {
     // introT > 0 shouldn't be reachable via the HUD button (it stays
@@ -944,7 +953,10 @@ const PlayScreen = {
     // Same single tap either way — spends a charge for the bigger jump only
     // when one's actually banked, otherwise it's just the free normal jump.
     const big = this.blastCharges > 0;
-    if (big) this.blastCharges--;
+    if (big) {
+      this.blastCharges--;
+      this.moonDischargeCount++;
+    }
     Physics.applyBlast(big ? this.BIG_BLAST_FORCE : this.BLAST_FORCE);
   },
 

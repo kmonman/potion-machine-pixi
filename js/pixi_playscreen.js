@@ -159,6 +159,23 @@ const PlayScreenPixi = {
     this._ballSprite.anchor.set(0.5);
     const ballSize = Physics.displayRadius * 2;
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
+
+    // Moon charge — a PlasmaOrb glow wrapped around the existing moon/ball
+    // art (Rob: replaces the old potion-bottle charge system entirely; the
+    // moon itself glows when a charge is banked, dark/off otherwise). Added
+    // right before the ball sprite so it renders as an aura behind it, not
+    // covering it. Only ever visible while a charge is actually banked (see
+    // refresh()) — off is the resting state, not a dim idle glow, so it
+    // reads as a clear on/off "charged" signal.
+    this._moonOrb = new PlasmaOrb({
+      radius: Physics.displayRadius * 1.6, particleCount: 70,
+      energyColor: 0xff4fb8, secondColor: 0x3aa8ff, arcFrequency: 1.2,
+    });
+    this._moonOrb.view.visible = false;
+    this.worldContainer.addChild(this._moonOrb.view);
+    this._moonDischargeSeen = PlayScreen.moonDischargeCount;
+    this._moonDischargeGraceT = 0;
+
     this.worldContainer.addChild(this._ballSprite);
 
     // "Ready" / "Go!" during the pre-drop intro pause (Rob) — screen-fixed
@@ -408,8 +425,35 @@ const PlayScreenPixi = {
     this._ballSprite.position.set(Physics.x, Physics.y);
     this._ballSprite.rotation = Physics.rotation;
     this._restackBall();
+    this._updateMoonOrb();
     this._updateCamera();
     this._updateIntroText();
+  },
+
+  // Moon charge glow — visible exactly while a charge is banked (Rob: the
+  // moon reads as charged or not, no in-between idle glow), tracks the ball
+  // 1:1 like the sprite it wraps, and fires a spark-burst the instant a
+  // charge is actually spent on a big jump. ui.js can't reach this Pixi
+  // object directly (see PlayScreen.moonDischargeCount's own comment), so
+  // this just watches that counter for changes instead.
+  //
+  // blastCharges is already back to 0 by the time this sees a discharge
+  // (fireBlast() decrements it before applying the jump) — hiding the orb
+  // on that same frame would cut its release burst off before it's even
+  // drawn. _moonDischargeGraceT keeps it visible/animating for a brief
+  // window after a discharge regardless of charge state, so the burst
+  // actually gets to play out.
+  _updateMoonOrb() {
+    const orb = this._moonOrb;
+    orb.view.position.set(Physics.x, Physics.y);
+    if (PlayScreen.moonDischargeCount !== this._moonDischargeSeen) {
+      this._moonDischargeSeen = PlayScreen.moonDischargeCount;
+      this._moonDischargeGraceT = 0.6;
+      orb.discharge(3);
+    }
+    if (this._moonDischargeGraceT > 0) this._moonDischargeGraceT -= this._dt;
+    orb.view.visible = PlayScreen.blastCharges > 0 || this._moonDischargeGraceT > 0;
+    if (orb.view.visible) orb.update(this._dt);
   },
 
   // "Ready" for the first half of the intro pause, "Go!" for the second
