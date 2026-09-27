@@ -167,6 +167,16 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     liquidAmbientSpeed: 1.6,
     liquidTime: 0,
 
+    // Rob's liquid polish pass — small bubbles rising through the fill,
+    // popping when they reach the real (wavy) surface. See
+    // _updateLiquidBubbles/_refreshLiquidBubbles.
+    liquidBubbles: [],
+    liquidBubbleTimer: 0,
+    // Foam — tiny flecks a popped bubble leaves behind, right at the
+    // surface (Rob: "a little frothier at the surface so it looks like
+    // there's something in the tube"). See _updateLiquidBubbles.
+    liquidFoam: [],
+
     // Padding between the liquid and the tube's own edges.
     _liquidHalfLength() { return this.length / 2 - 6; },
     _liquidHalfThickness() { return this.thickness / 2 - 4; },
@@ -196,6 +206,9 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       this._applyTubeStage(TUBE_STAGE_SCHEDULE[0].stage);
       this.tubeColor = TUBE_STAGE_PARAMS[this.tubeStage].color.slice();
       this._initLiquid();
+      this.liquidBubbles = [];
+      this.liquidBubbleTimer = 0.3 + Math.random() * 0.5;
+      this.liquidFoam = [];
     },
 
     _applyTubeStage(stage) {
@@ -237,7 +250,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       // A goal platform stays flat — skip the tilt tween/re-roll entirely
       // rather than letting it wobble like a normal platform (it's meant to
       // read as solid ground to land the run on, not another obstacle).
-      if (this.isGoal) { this._updateTube(dt); this._updateLiquid(dt); return; }
+      if (this.isGoal) { this._updateTube(dt); this._updateLiquid(dt); this._updateLiquidBubbles(dt, this.isNearBall()); return; }
       this.timer += dt;
       this.tweenElapsed = Math.min(this.tweenElapsed + dt, this.tweenDuration);
       const t = this.tweenElapsed / this.tweenDuration;
@@ -263,6 +276,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
 
       this._updateTube(dt);
       this._updateLiquid(dt);
+      this._updateLiquidBubbles(dt, this.isNearBall());
       this._updateHinge(dt, this.isNearBall());
     },
 
@@ -416,6 +430,160 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       for (const col of cols) {
         col.level = clamp(col.level, -maxLevel, maxLevel);
         col.velocity = clamp(col.velocity, -maxVelocity, maxVelocity);
+      }
+    },
+
+    // Interpolates the current (wavy) surface level at an arbitrary x —
+    // used by the bubbles below to know when they've actually reached the
+    // real surface at their own position, not just some fixed height.
+    _liquidLevelAt(x) {
+      const cols = this.liquidColumns;
+      if (!cols.length) return 0;
+      if (x <= cols[0].x) return cols[0].level;
+      const last = cols[cols.length - 1];
+      if (x >= last.x) return last.level;
+      for (let i = 0; i < cols.length - 1; i++) {
+        if (x >= cols[i].x && x <= cols[i + 1].x) {
+          const f = (x - cols[i].x) / (cols[i + 1].x - cols[i].x);
+          return cols[i].level + (cols[i + 1].level - cols[i].level) * f;
+        }
+      }
+      return 0;
+    },
+
+    // Rob's liquid polish pass: "spawn low-opacity circular bubbles inside
+    // the liquid body. Bubbles should rise with slight buoyant
+    // acceleration, wobble horizontally... and match the tube's lateral
+    // inertia. When a bubble crosses the dynamic surface curve, despawn it
+    // with a tiny splash/pop effect." Gated on `particlesActive` (ball
+    // nearby) same as the hinge smoke/sparks above — this runs on every
+    // platform in the tower at once, so an always-on version would be the
+    // same kind of GPU cost that already crashed a real phone once before
+    // (see _updateHinge's own comment).
+    _updateLiquidBubbles(dt, particlesActive) {
+      if (!particlesActive) return;
+      const halfT = this._liquidHalfThickness();
+      const halfL = this._liquidHalfLength();
+
+      this.liquidBubbleTimer -= dt;
+      let spawnGuard = 0;
+      while (this.liquidBubbleTimer <= 0 && spawnGuard < 20) {
+        // Rob: "add a lot more bubbles with contrast because I can't see
+        // them so small" — much faster supply (was 0.25-0.75s) so the tube
+        // reads as actively bubbling rather than one at a time.
+        this.liquidBubbleTimer += 0.08 + Math.random() * 0.14;
+        spawnGuard++;
+        // Capped (Rob's phone-crash lesson again) — still bounded per
+        // tube, just raised a lot (9 → 22) alongside the faster spawn
+        // rate and bigger size below, since "a lot more" was the ask.
+        if (this.liquidBubbles.length < 22) {
+          // Rob: "only make them on the outside of the tube" — real
+          // carbonation nucleates at the glass, not out in open liquid.
+          // Picks a wall (left or right) and starts close to it instead
+          // of anywhere across the full width.
+          const wall = Math.random() < 0.5 ? -1 : 1;
+          const startX = wall * (halfL * 0.55 + Math.random() * halfL * 0.35);
+          this.liquidBubbles.push({
+            x: startX,
+            y: halfT - 2, // starts near the tube's rounded base
+            startY: halfT - 2,
+            r: 1.5 + Math.random() * 2, // Rob: smaller — was 4-9, now 1.5-3.5
+            speed: 18 + Math.random() * 14, // px/s rise (buoyancy, world-space)
+            // Turbulence (Rob: "add some turbulence... so they're moving
+            // around") — two independent jitter axes (not just
+            // sideways), each its own frequency/phase so bubbles don't
+            // all jitter in lockstep.
+            turbPhaseX: Math.random() * Math.PI * 2,
+            turbPhaseY: Math.random() * Math.PI * 2,
+            turbFreqX: 3 + Math.random() * 4,
+            turbFreqY: 3 + Math.random() * 4,
+            turbAmp: 2 + Math.random() * 2,
+            speedMod: 1,
+            popping: false, popT: 0,
+          });
+        }
+      }
+
+      // Rob: "always move from the top of the tube towards the bottom as
+      // the tube is shifting... flowing with the liquid." Buoyancy always
+      // pulls a bubble straight UP IN WORLD SPACE, not "toward the
+      // tube's own surface" — those only agree when the tube is level. A
+      // real bubble in a tilted tube also gets carried sideways along the
+      // tube by that same upward pull, toward whichever end is currently
+      // higher in world space, exactly the way the liquid itself is
+      // already being pulled toward the low end (see _stepLiquid's own
+      // gravityTarget = -x*tanA). Decomposing world-up into this
+      // platform's own rotated dir/normal axes gives that for free and
+      // correctly reverses as the tube rocks the other way, instead of
+      // the old fixed "drift toward whichever way tilted" hack.
+      const angle = this.angleRad;
+      const alongFromUp = -Math.sin(angle); // world-up's component along the tube's length
+      const perpFromUp = -Math.cos(angle);  // world-up's component toward the surface
+      // Rob: "only pop when there is space between the liquid and the
+      // tube" — a bubble waiting under a spot where the wavy surface is
+      // pressed right up against the tube's own top wall (near-zero
+      // headspace, e.g. mid-slosh) has nowhere real to break through into,
+      // so it just holds just under the surface instead of popping into
+      // the glass; the instant that local headspace opens back up (as the
+      // wave keeps moving) it pops normally.
+      const minHeadspace = 5;
+      for (let i = this.liquidBubbles.length - 1; i >= 0; i--) {
+        const b = this.liquidBubbles[i];
+        if (b.popping) {
+          b.popT += dt;
+          if (b.popT >= 0.18) this.liquidBubbles.splice(i, 1);
+          continue;
+        }
+        b.turbPhaseX += b.turbFreqX * dt;
+        b.turbPhaseY += b.turbFreqY * dt;
+        // speedMod wanders slowly within [0.6, 1.6] via damped random
+        // kicks — a plain random walk rather than a fixed pattern, so two
+        // bubbles never rise in lockstep.
+        b.speedMod = clamp(b.speedMod + (Math.random() * 2 - 1) * dt * 1.5, 0.6, 1.6);
+        const rise = b.speed * b.speedMod;
+        const surfaceY = this._liquidLevelAt(b.x);
+        const headspace = surfaceY - (-halfT);
+        if (headspace > minHeadspace) {
+          b.x = clamp(b.x + alongFromUp * rise * dt, -halfL * 0.94, halfL * 0.94);
+          b.y += perpFromUp * rise * dt;
+        } // else: holds in place, just under the crest, until space opens
+        // Turbulence on top of the real flow above — small, fast jitter
+        // on both axes so the path reads chaotic/"moving around" rather
+        // than one clean line, without overriding where the flow is
+        // actually carrying it.
+        b.x = clamp(b.x + Math.sin(b.turbPhaseX) * b.turbAmp * dt * 6, -halfL * 0.94, halfL * 0.94);
+        b.y += Math.sin(b.turbPhaseY) * b.turbAmp * dt * 6;
+
+        if (b.y <= surfaceY + 2 && headspace > minHeadspace) {
+          b.popping = true;
+          b.popT = 0;
+          // Froth — 2-4 tiny flecks scattered right where the bubble
+          // popped, each drifting its own short distance along the
+          // surface before fading. A handful of these lingering longer
+          // than the pop flash itself (0.18s) is what actually reads as
+          // "something frothy going on" rather than one bubble winking
+          // out at a time — capped well below the bubble cap since these
+          // are purely decorative and there can be several alive from
+          // different pops at once.
+          if (this.liquidFoam.length < 18) {
+            const count = 2 + Math.floor(Math.random() * 3);
+            for (let f = 0; f < count && this.liquidFoam.length < 18; f++) {
+              this.liquidFoam.push({
+                x: b.x + (Math.random() * 2 - 1) * (b.r + 2),
+                driftX: (Math.random() * 2 - 1) * 10, // px/s along the surface
+                r: 0.8 + Math.random() * 1.4,
+                life: 0, maxLife: 0.35 + Math.random() * 0.35,
+              });
+            }
+          }
+        }
+      }
+
+      for (let i = this.liquidFoam.length - 1; i >= 0; i--) {
+        const f = this.liquidFoam[i];
+        f.life += dt;
+        if (f.life >= f.maxLife) { this.liquidFoam.splice(i, 1); continue; }
+        f.x += f.driftX * dt;
       }
     },
   };

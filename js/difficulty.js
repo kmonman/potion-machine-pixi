@@ -182,6 +182,13 @@ function createJetSystem(opts = {}) {
           if (inRange && !jet.wasInRange && this.jetCooldown === 0) {
             Physics.vy = JET_IMPULSE_VY;
             this.jetCooldown = JET_COOLDOWN;
+            // Marker for pixi_playscreen.js's plasma-jet visual (Rob: flare
+            // the jet the instant it actually launches the stone) — same
+            // "leave a marker, let the renderer notice" pattern as
+            // moonDischargeCount, since this plain data object can't reach
+            // into Pixi directly. Only ever read/cleared by platforms that
+            // opted into the plasma-jet visual; harmless if left unread.
+            jet.justFired = true;
           }
           jet.wasInRange = inRange;
 

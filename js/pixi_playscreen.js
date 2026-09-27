@@ -145,6 +145,16 @@ const PlayScreenPixi = {
     this._goalLabel.position.set(360, -70);
     this._goalLineGroup.addChild(goalLineSprite, this._goalLabel);
     this.worldContainer.addChild(this._goalLineGroup);
+
+    // Plasma storm fields (Rob: Level 4's appearing/disappearing storm —
+    // see ui.js's _createPlasmaStorm for the cycle and physics.js for the
+    // push). Added this early so it draws behind the platforms and the
+    // ball: it's a backdrop field the stone passes through, not a cloud it
+    // sinks into. Mapped per PlayScreen.plasmaStorms entry, same as the
+    // dark matter visuals (see _updatePlasmaStorms).
+    this._plasmaStormContainer = new PIXI.Container();
+    this.worldContainer.addChild(this._plasmaStormContainer);
+    this._plasmaStormVisuals = new Map();
     this._goalLineLevelNum = null; // cache so refresh() only repositions/relabels on an actual level change
 
     for (const p of PlayScreen.platforms) {
@@ -334,8 +344,20 @@ const PlayScreenPixi = {
     v.liquidBody = new PIXI.Graphics();
     v.liquidShine = new PIXI.Graphics();
     v.liquidShine.blendMode = 'screen';
+    // Bubbles (Rob's liquid polish pass) — a plain particle pool like the
+    // jets/hinge ones, but sitting between the fill and the surface shine
+    // so the wavy highlight line still reads on top as bubbles rise
+    // through it. Inside liquidContainer so the same mask clips them to
+    // the tube's rounded shape automatically.
+    v.liquidBubbleContainer = new PIXI.Container();
+    v.liquidBubblePool = [];
+    // Foam flecks (see platform.js's liquidFoam) sit above the shine so
+    // the frothy cluster reads clearly right at the crest, not buried
+    // under it.
+    v.liquidFoamContainer = new PIXI.Container();
+    v.liquidFoamPool = [];
     v.liquidContainer = new PIXI.Container();
-    v.liquidContainer.addChild(v.liquidBody, v.liquidShine, v.liquidMask);
+    v.liquidContainer.addChild(v.liquidBody, v.liquidBubbleContainer, v.liquidShine, v.liquidFoamContainer, v.liquidMask);
     v.liquidContainer.mask = v.liquidMask;
     v.platformContainer.addChild(v.liquidContainer);
     // Reference length this container's own liquid was built/simulated at —
@@ -411,6 +433,39 @@ const PlayScreenPixi = {
       wc.addChild(jc);
       return { particleContainer: jc, pool: [] };
     });
+
+    // Plasma jets (handed off from another session — js/plasma_jet.js) —
+    // Rob: try it on one level first before it goes everywhere, so this is
+    // Level 1's own two non-base platforms only (the base's jets are
+    // shared across every level, so upgrading it would upgrade every
+    // level at once, not just this one). One PlasmaJet per mount (same 4
+    // mounts as JET_DEFS), color set live from p.tubeColor in
+    // _refreshPlasmaJets so it tracks the tube the same way the old
+    // particle jets already did (Rob: "changing the colors to match the
+    // tube"). Kept idle (power 0, no live particles) skips virtually all
+    // work per plasma_jet.js's own `idle` check, so the 6 unused mounts
+    // per platform cost is negligible.
+    const isLevel1Extra = PlayScreen.towers && PlayScreen.towers.level1
+      && PlayScreen.towers.level1.includes(p) && !p.hasPole && !p.isGoal;
+    if (isLevel1Extra) {
+      v.plasmaJets = JET_DEFS.map(() => {
+        // Rob's retuned settings (plasma_jet_demo.html) — shorter/thinner,
+        // dimmer, less blur, the works. Was 380/22/0.85/0/60/8.5/0.85.
+        const jet = new PlasmaJet({
+          height: 170, width: 16, speed: 470, intensity: 0.65,
+          blobRate: 50, pulseRate: 0.5, sparkCount: 45, sparkBlur: 3.5,
+          arcFrequency: 0, wobble: 2.1, blur: 7, beamOpacity: 0.45,
+          color: 0xff40e0, secondColor: 0xb04dff,
+        });
+        jet.on = false;
+        wc.addChild(jet.view);
+        return jet;
+      });
+      // Old particle streams for these specific mounts are still spawned
+      // by difficulty.js (untouched gameplay code) but never drawn —
+      // hidden once here rather than skipped every frame.
+      for (const jc of v.jetContainers) jc.particleContainer.visible = false;
+    }
   },
 
   // One platform's whole visual bundle is a flat set of siblings directly
@@ -521,6 +576,7 @@ const PlayScreenPixi = {
     this._restackBall();
     this._updateMoonOrb();
     this._updateDarkMatterClouds();
+    this._updatePlasmaStorms();
     this._updateDarkMatterWisp();
     this._updateCamera();
     this._updateIntroText();
@@ -575,6 +631,40 @@ const PlayScreenPixi = {
       }
       visual.view.position.set(cloud.x, cloud.y);
       visual.update(this._dt);
+    }
+  },
+
+  // Keeps this._plasmaStormVisuals in sync with PlayScreen.plasmaStorms
+  // (built/destroyed to match, like _updateDarkMatterClouds). Each storm's
+  // alpha follows its own visibility; while it's fully hidden the visual
+  // is switched off and not updated at all, so a storm costs nothing
+  // during its "gone" stretch — it's the heaviest effect in the game.
+  _updatePlasmaStorms() {
+    const live = new Set(PlayScreen.plasmaStorms);
+    for (const [storm, visual] of this._plasmaStormVisuals) {
+      if (!live.has(storm)) {
+        visual.destroy();
+        this._plasmaStormVisuals.delete(storm);
+      }
+    }
+    for (const storm of PlayScreen.plasmaStorms) {
+      let visual = this._plasmaStormVisuals.get(storm);
+      if (!visual) {
+        // Rob's test-page settings (plasma_storm_demo.html).
+        visual = new PlasmaStorm({
+          width: storm.width, height: storm.height,
+          flowSpeed: 100, intensity: 0.45, density: 32,
+          lineCount: 11, particleCount: 270, particleOpacity: 0.24,
+          waveFrequency: 0, lineBlur: 8, lineOpacity: 0.08, turbulence: 2.2,
+          color: 0xff4fb8, secondColor: 0x3aa8ff,
+        });
+        this._plasmaStormContainer.addChild(visual.view);
+        this._plasmaStormVisuals.set(storm, visual);
+      }
+      visual.view.position.set(storm.x, storm.y);
+      visual.view.alpha = storm.visibility;
+      visual.view.visible = storm.visibility > 0.002;
+      if (visual.view.visible) visual.update(this._dt);
     }
   },
 
@@ -851,9 +941,128 @@ const PlayScreenPixi = {
       v.liquidContainer.scale.x = p.length / v.liquidBaseLength;
     }
     this._refreshLiquid(p);
+    this._refreshLiquidBubbles(p);
     v.tubeHighlight.x = -p.angle * 3;
     this._refreshHinge(p);
     this._refreshJets(p);
+    if (p._visual.plasmaJets) this._refreshPlasmaJets(p);
+  },
+
+  // Drives this platform's plasma-jet mounts (see build()'s isLevel1Extra
+  // block) — one real PlasmaJet per JET_DEFS mount, only actually "on"
+  // when BOTH the mount is currently the game's active jet (p.jetSystem's
+  // own toggle logic, untouched) AND Rob's new condition: "only have the
+  // jets going on when the liquid has flowed to that side of the jet".
+  // Headspace at the mount's own x (same helper the bubbles use) small
+  // means the surface has risen close to the glass there — that side is
+  // currently the "wetter"/downhill one as the tube rocks, same physical
+  // read as the bubble flow's own current. A mount whose side hasn't
+  // pooled that way yet just stays dark even while the game logic itself
+  // has it armed.
+  _refreshPlasmaJets(p) {
+    const halfT = p._liquidHalfThickness();
+    const scale = p.length / (620 * p.visualScale);
+    const [tr, tg, tb] = p.tubeColor;
+    const accent = rgbToHex(
+      tr + (255 - tr) * 0.35,
+      tg + (255 - tg) * 0.35,
+      tb + (255 - tb) * 0.35,
+    );
+    for (let i = 0; i < p.jetSystem.jets.length; i++) {
+      const gameJet = p.jetSystem.jets[i];
+      const visual = p._visual.plasmaJets[i];
+      const mountX = JET_DEFS[i].activeDistance * scale;
+      const headspace = p._liquidLevelAt(mountX) - (-halfT);
+      const wet = headspace < halfT * 0.85;
+      visual.on = gameJet.active && wet;
+      visual.color = rgbToHex(tr, tg, tb);
+      visual.secondColor = accent;
+      visual.view.position.set(gameJet.x, gameJet.y);
+      if (gameJet.justFired) { visual.surge(); gameJet.justFired = false; }
+      visual.update(this._dt);
+    }
+  },
+
+  // Rob's liquid polish pass — draws p.liquidBubbles (see platform.js's
+  // _updateLiquidBubbles). Not run through _syncParticlePool since bubbles
+  // don't share that helper's life/maxLife shape (they're either rising,
+  // in which case t=0 means "not popping yet", or popping, where t is pop
+  // progress 0..1 and drives a quick grow-and-fade rather than a fade
+  // alone) — small enough to just pool directly here.
+  _refreshLiquidBubbles(p) {
+    const bubbles = p.liquidBubbles;
+    const pool = p._visual.liquidBubblePool;
+    const container = p._visual.liquidBubbleContainer;
+    while (pool.length < bubbles.length) {
+      const s = new PIXI.Sprite(textures.hingeBubbleParticle);
+      s.anchor.set(0.5);
+      container.addChild(s);
+      pool.push(s);
+    }
+    while (pool.length > bubbles.length) container.removeChild(pool.pop());
+
+    // Rob: "make them match the color more pink as they're starting at
+    // the bottom... lower the transparency and make them appear more as
+    // they get to the top" — riseT (0 at spawn, 1 once they've climbed to
+    // roughly the tube's own top wall) drives both a tint blend from the
+    // tube's own live color up to white, and an alpha ramp from faint to
+    // fully punchy, so each bubble visibly brightens and clears the
+    // tube's own tint on its way up instead of looking the same the whole
+    // trip.
+    const halfT = p._liquidHalfThickness();
+    const [tr, tg, tb] = p.tubeColor;
+    for (let i = 0; i < bubbles.length; i++) {
+      const b = bubbles[i];
+      const s = pool[i];
+      s.position.set(b.x, b.y);
+      const t = b.popping ? b.popT / 0.18 : 0;
+      // Pop reads as a quick soft flash — briefly bigger and brighter,
+      // then gone, rather than just blinking out.
+      s.width = s.height = (b.r * 2) * (1 + t * 1.8);
+      const riseT = Math.max(0, Math.min(1, (b.startY - b.y) / (b.startY - (-halfT))));
+      // Rob: "add a lot more bubbles with contrast because I can't see
+      // them so small" — alpha roughly doubled and switched to additive
+      // blending so each bubble reads as a bright highlight punching
+      // through the tube's own tint instead of a faint pale circle
+      // sitting on top of it, the same trick the jets' own particles
+      // already use for visibility against the tube color. Ramped by
+      // riseT on top of that per Rob's follow-up (faint near the bottom,
+      // fully visible by the time it nears the surface).
+      const baseAlpha = 0.35 + 0.4 * riseT;
+      s.alpha = b.popping ? 0.7 * (1 - t) : baseAlpha;
+      s.tint = rgbToHex(
+        tr + (255 - tr) * riseT,
+        tg + (255 - tg) * riseT,
+        tb + (255 - tb) * riseT,
+      );
+      s.blendMode = 'add';
+    }
+
+    // Foam flecks (see platform.js's liquidFoam) — tiny, sit right at the
+    // live surface level under their own x (not a stored y, so they track
+    // the wave as it keeps moving under them for however briefly they
+    // live), fading out over their short lifetime.
+    const foam = p.liquidFoam;
+    const foamPool = p._visual.liquidFoamPool;
+    const foamContainer = p._visual.liquidFoamContainer;
+    while (foamPool.length < foam.length) {
+      const s = new PIXI.Sprite(textures.hingeBubbleParticle);
+      s.anchor.set(0.5);
+      foamContainer.addChild(s);
+      foamPool.push(s);
+    }
+    while (foamPool.length > foam.length) foamContainer.removeChild(foamPool.pop());
+
+    for (let i = 0; i < foam.length; i++) {
+      const f = foam[i];
+      const s = foamPool[i];
+      const t = f.life / f.maxLife;
+      s.position.set(f.x, p._liquidLevelAt(f.x));
+      s.width = s.height = f.r * 2;
+      s.alpha = 0.8 * (1 - t); // contrast pass alongside the bubbles above
+      s.tint = 0xffffff;
+      s.blendMode = 'normal';
+    }
   },
 
   _refreshHinge(p) {
@@ -906,15 +1115,63 @@ const PlayScreenPixi = {
   // at the jet's origin point) was removed entirely (Rob: something read wrong
   // about it, simpler to just drop it) — the particle stream itself is the
   // jet's whole visual now.
+  // Experiment (Rob: "make them the same color as the potion in the tube
+  // ... if the tube changes from pink to light blue, then the plasma would
+  // change to be that same color" — not committed to keeping this yet,
+  // just seeing what it looks like). Reads p.tubeColor directly, the same
+  // live-lerping [r,g,b] platform.js already animates for the tube's own
+  // liquid fill (see _refreshLiquid), so the jets track it automatically
+  // as it shifts through Cool/Warm/Fire.
+  //
+  // First pass just tinted every particle one flat color — Rob: "too
+  // blobby, all the same color... they need to have darks and lights to
+  // create some 3D form, like the original jets had" (the old fixed
+  // (40,80,160)→(64,0,128) gradient did exactly that, just tied to a
+  // color that never matched the tube). Restored that same idea — a
+  // lighter, near-white highlight near the nozzle easing toward a
+  // darker, shadowed version of the same hue toward the tail — but
+  // mixed from the tube's own live color instead of a fixed pair, so the
+  // 3D shading effect survives the color now shifting with the tube.
   _refreshJets(p) {
+    const [tr, tg, tb] = p.tubeColor;
+    // mix() blends tubeColor toward white (highlight) or black (shadow) by
+    // `amt` — same "closer to nozzle = brighter/whiter, further along =
+    // darker" read the original two-stop gradient had.
+    const mix = (target, amt) => [
+      tr + (target - tr) * amt,
+      tg + (target - tg) * amt,
+      tb + (target - tb) * amt,
+    ];
+    // Rob: "too much white... going a little too far" — pulled back from
+    // 0.55 toward white (55% of the way to pure white read as washed-out)
+    // down to a much lighter tint of the tube's own color instead of
+    // nearly replacing it.
+    const highlight = mix(255, 0.2); // lightly brightened, close to the nozzle
+    // Rob's follow-up: "still need a little more contrast... let's start
+    // adding in some for the light blue... add in some darker colors
+    // there to get some contrast." Light blue (Warm's [126,190,252]) is a
+    // pale, high-brightness color to start with, so the same 0.45-toward-
+    // black mix that read as clearly darker on pink barely dented it —
+    // pushed to 0.7 so every tube color, pastel or not, reaches a real
+    // shadow tone instead of just a slightly dimmer version of itself.
+    const shadow = mix(0, 0.7); // darker, toward the tail
     for (let i = 0; i < p.jetSystem.jets.length; i++) {
       const jet = p.jetSystem.jets[i];
       const { particleContainer, pool } = p._visual.jetContainers[i];
       this._syncParticlePool(pool, particleContainer, jet.particles, textures.jetParticle, (jp, t) => ({
         x: jp.x, y: jp.y,
         size: (60 + (20 - 60) * t) * 0.85,
-        alpha: 1 - t,
-        tint: rgbToHex(40 + (64 - 40) * t, 80 + (0 - 80) * t, 160 + (128 - 160) * t),
+        // Rob: "maybe for all of them add a little transparency. I think
+        // that's the problem" — capped below fully opaque (was a flat
+        // 1 - t) so overlapping particles read as translucent streams
+        // with real depth instead of solid, opaque blobs stacking on
+        // top of each other.
+        alpha: (1 - t) * 0.8,
+        tint: rgbToHex(
+          highlight[0] + (shadow[0] - highlight[0]) * t,
+          highlight[1] + (shadow[1] - highlight[1]) * t,
+          highlight[2] + (shadow[2] - highlight[2]) * t,
+        ),
         additive: true,
       }));
     }
@@ -929,17 +1186,34 @@ const PlayScreenPixi = {
     const cols = p.liquidColumns;
     if (!cols.length) return;
 
+    // Meniscus (Rob: liquid polish pass) — a real fluid climbs slightly up
+    // a glass wall from surface tension, regardless of which way the tube
+    // is tilted. Purely a render-time bias on top of the physics columns
+    // (not written back into them) so it doesn't feed into the spring sim
+    // at all — just the last few columns at each edge nudged upward,
+    // easing back to the real simulated level within a short span so it
+    // reads as a curve hugging the walls, not a kink.
+    const n = cols.length;
+    const meniscusSpan = Math.max(2, Math.floor(n * 0.12));
+    const meniscusLift = 5; // px risen at the very edge
+    const levelAt = (i) => {
+      const edgeDist = Math.min(i, n - 1 - i);
+      if (edgeDist >= meniscusSpan) return cols[i].level;
+      const f = 1 - edgeDist / meniscusSpan;
+      return cols[i].level - meniscusLift * f * f; // negative = up
+    };
+
     const body = v.liquidBody;
     body.clear();
     body.moveTo(cols[0].x, halfT);
-    body.lineTo(cols[0].x, cols[0].level);
+    body.lineTo(cols[0].x, levelAt(0));
     for (let i = 1; i < cols.length - 1; i++) {
       const midX = (cols[i].x + cols[i + 1].x) / 2;
-      const midY = (cols[i].level + cols[i + 1].level) / 2;
-      body.quadraticCurveTo(cols[i].x, cols[i].level, midX, midY);
+      const midY = (levelAt(i) + levelAt(i + 1)) / 2;
+      body.quadraticCurveTo(cols[i].x, levelAt(i), midX, midY);
     }
     const last = cols[cols.length - 1];
-    body.lineTo(last.x, last.level);
+    body.lineTo(last.x, levelAt(cols.length - 1));
     body.lineTo(last.x, halfT);
     body.closePath();
 
@@ -977,12 +1251,12 @@ const PlayScreenPixi = {
     shine.clear();
     const maxDepth = halfT * 2;
     for (let i = 0; i < cols.length - 1; i++) {
-      const a = cols[i], b = cols[i + 1];
-      const depthA = halfT - a.level, depthB = halfT - b.level;
+      const aLevel = levelAt(i), bLevel = levelAt(i + 1);
+      const depthA = halfT - aLevel, depthB = halfT - bLevel;
       const depth = Math.min(depthA, depthB);
       const alpha = smoothstep(0, maxDepth * 0.22, depth) * 0.45;
       if (alpha <= 0.01) continue;
-      shine.moveTo(a.x, a.level).lineTo(b.x, b.level)
+      shine.moveTo(cols[i].x, aLevel).lineTo(cols[i + 1].x, bLevel)
         .stroke({ width: 3, color: `rgba(${lighten(tr, 150)},${lighten(tg, 150)},${lighten(tb, 150)},${alpha.toFixed(3)})` });
     }
   },

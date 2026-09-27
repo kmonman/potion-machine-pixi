@@ -79,6 +79,12 @@ const Physics = {
   // no one-frame velocity discontinuity to read as a bounce.
   DARK_MATTER_EXTRA_GRAVITY: 2200,
 
+  // Plasma storm fields (see ui.js's _createPlasmaStorm) — same "ui.js owns
+  // them, physics just reads the array" convention as darkMatterClouds.
+  // While the stone is inside one, it gets a small sideways push in the
+  // storm's direction (see _plasmaStormAccel).
+  plasmaStorms: [],
+
   reset(platforms) {
     this.platforms = platforms;
     // Drop from the center of the base platform (Rob) — same -140 offset as
@@ -141,7 +147,7 @@ const Physics = {
     // DARK_MATTER_EXTRA_GRAVITY's own comment for why this is a continuous
     // accel rather than a one-time velocity snap.
     const gy = this.gravityY + (this.darkMatterSkipsRemaining !== null ? this.DARK_MATTER_EXTRA_GRAVITY : 0);
-    this.vx += gx * dt;
+    this.vx += (gx + this._plasmaStormAccel()) * dt;
     this.vy += gy * dt;
     const damp = Math.pow(this.airDamping, dt * 60);
     this.vx *= damp;
@@ -172,6 +178,25 @@ const Physics = {
     if (this.y > base.pivot.y + 448) {
       this.fellOff = true;
     }
+  },
+
+  // Sideways acceleration from any plasma storm the stone is inside.
+  // Scaled by the storm's own visibility (so the push fades in/out with it
+  // and is zero while it's hidden) and by how deep inside the storm the
+  // stone is — full strength in the middle, tapering to nothing across the
+  // storm's soft outer edges (the same edges its visuals fade out over), so
+  // there's no sudden shove at an invisible boundary.
+  _plasmaStormAccel() {
+    let ax = 0;
+    for (const s of this.plasmaStorms) {
+      if (s.visibility <= 0) continue;
+      const u = Math.abs(this.x - s.x) / (s.width / 2);
+      const v = Math.abs(this.y - s.y) / (s.height / 2);
+      if (u >= 1 || v >= 1) continue;
+      const edge = Math.min(1, (1 - u) / 0.35) * Math.min(1, (1 - v) / 0.4);
+      ax += s.dir * s.push * s.visibility * edge;
+    }
+    return ax;
   },
 
   // Simple AABB touch test against each drifting cloud (each one's own

@@ -248,6 +248,7 @@ const PlayScreen = {
   goBubbles: [], // continuously-bubbling particles next to the Game Over score
   goBubbleTimer: 0,
   darkMatterClouds: [], // dark matter cloud hazards — see _buildDarkMatterClouds; real array set fresh each enter()
+  plasmaStorms: [], // plasma storm fields — see _buildPlasmaStorms; real array set fresh each enter()
 
   // A charge every 1000 points, tap a blast button to spend one — shared by
   // every mode now (see the accrual comment in update() for why). Capped at
@@ -556,6 +557,78 @@ const PlayScreen = {
     }));
   },
 
+  // Plasma storm field (Rob: "put a plasma storm on level 4. it should
+  // slowly appear for a few seconds then slowly disappear. There should be
+  // a small force on the moon stone in the direction the storm is going
+  // when the stone touches the storm"). Unlike a dark matter cloud it
+  // doesn't travel across the screen — it stays put, spanning the full
+  // width, and its own visuals stream right-to-left inside it. It cycles:
+  // hidden → fades in → holds → fades out → hidden → … `visibility` (0..1)
+  // is both how visible pixi_playscreen.js draws it and how strongly
+  // physics.js pushes the stone, so the push fades in and out with the
+  // storm itself and there's no push at all while it's gone.
+  _createPlasmaStorm(pivotY, opts = {}) {
+    return {
+      x: 360, y: pivotY,
+      // pivotY is the vertical center it slowly drifts around (Rob: "let's
+      // make it slowly move up and down rather than just being stationary
+      // at one horizontal level") — driftRange is how far above/below that
+      // center it travels, driftSpeed how fast it cycles up and down.
+      // driftT is its own running clock, separate from the appear/hold/
+      // fade timer below, so drifting continues smoothly through every
+      // phase rather than resetting each cycle.
+      baseY: pivotY,
+      driftRange: opts.driftRange ?? 120,
+      driftSpeed: opts.driftSpeed ?? 0.25, // full up-down-up cycles per second-ish (see Math.sin below)
+      driftT: 0,
+      width: opts.width ?? 1150, height: opts.height ?? 440,
+      dir: -1,                          // pushes/streams right → left
+      push: opts.push ?? 150,           // px/s² at full strength — "small": ~15% of full tilt (280 slid a still stone off a platform in ~1.3s)
+      fadeIn: opts.fadeIn ?? 3, hold: opts.hold ?? 4, fadeOut: opts.fadeOut ?? 3,
+      offTime: opts.offTime ?? 5,
+      phase: 'off', t: opts.firstDelay ?? 3, // first appearance a few seconds into the run
+      visibility: 0,
+    };
+  },
+
+  // Advances each storm's appear/hold/disappear cycle and its slow up/down
+  // drift. Fades use smoothstep so they ease in and out rather than
+  // ramping linearly; the drift is a plain sine wave — smooth and
+  // continuous, no phase to ease in/out of.
+  _updatePlasmaStorms(dt) {
+    const ease = (x) => x * x * (3 - 2 * x);
+    for (const s of this.plasmaStorms) {
+      s.driftT += dt;
+      s.y = s.baseY + Math.sin(s.driftT * s.driftSpeed) * s.driftRange;
+
+      s.t -= dt;
+      if (s.t <= 0) {
+        if (s.phase === 'off') { s.phase = 'in'; s.t = s.fadeIn; }
+        else if (s.phase === 'in') { s.phase = 'hold'; s.t = s.hold; }
+        else if (s.phase === 'hold') { s.phase = 'out'; s.t = s.fadeOut; }
+        else { s.phase = 'off'; s.t = s.offTime; }
+      }
+      if (s.phase === 'in') s.visibility = ease(1 - s.t / s.fadeIn);
+      else if (s.phase === 'hold') s.visibility = 1;
+      else if (s.phase === 'out') s.visibility = ease(s.t / s.fadeOut);
+      else s.visibility = 0;
+    }
+  },
+
+  // Which levels get a plasma storm, and where. Level 4 only for now —
+  // centered between its platforms at y=352 and y=52 (see _buildLevel4),
+  // so the jump between them passes through it, and clear of Level 4's
+  // dark matter cloud at y=-100. 1150x440 is Rob's test-page size (wider
+  // than the 720 screen, so its soft ends sit off-screen).
+  _buildPlasmaStorms(levelNum) {
+    const specs = {
+      4: [{ pivotY: 200 }],
+    };
+    const list = specs[levelNum];
+    if (!list) return [];
+    return list.map(spec => this._createPlasmaStorm(spec.pivotY, spec));
+  },
+
   // Levels 1-4 (Rob: "we need a new design for each level" instead of every
   // level just being a shorter/taller slice of one shared tower — "keep the
   // first 5 levels pretty short so beginners can power through them and get
@@ -794,6 +867,8 @@ const PlayScreen = {
     // mechanic without turning it on anywhere yet.
     this.darkMatterClouds = this._buildDarkMatterClouds(this._levelNumber());
     Physics.darkMatterClouds = this.darkMatterClouds;
+    this.plasmaStorms = this._buildPlasmaStorms(this._levelNumber());
+    Physics.plasmaStorms = this.plasmaStorms;
     Fog.reset();
     this.score = 0;
     this.elapsed = 0;
@@ -943,6 +1018,7 @@ const PlayScreen = {
       }
       Difficulty.update(dt);
       this._updateDarkMatterClouds(dt);
+      this._updatePlasmaStorms(dt);
       Physics.update(dt, tiltX);
       for (const p of this.platforms) {
         p.hingeBubbles.update(dt, p.touching, p.pivot.x, p.pivot.y);
