@@ -489,7 +489,17 @@ const PlayScreen = {
   // it on anywhere. To add one once that's decided: push the result of
   // _createDarkMatterCloud(minX, maxX, pivotY, opts) for that level's
   // number below.
+  //
+  // Level 1 gets a single test cloud (Rob: "let's do a test one on level
+  // 1") — drifts the full width between platforms 2 and 3 (pivotY -100
+  // sits roughly halfway between their y=52/y=-248). Placed here rather
+  // than lower in the tower so a drop always has at least a couple of real
+  // platforms beneath it to land on (physics.js's darkMatterSkipsRemaining
+  // needs somewhere to actually catch after skipping — a cloud with fewer
+  // real platforms below it than the skip count guarantees falling off the
+  // bottom of the tower entirely instead of landing).
   _buildDarkMatterClouds(levelNum) {
+    if (levelNum === 1) return [this._createDarkMatterCloud(100, 620, -100)];
     return [];
   },
 
