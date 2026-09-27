@@ -90,6 +90,20 @@ const PlayScreenPixi = {
     this.worldContainer = new PIXI.Container();
     c.addChild(this.worldContainer);
 
+    // Dark matter cloud hazards (Rob: drifting clouds that drop the ball
+    // through platforms on touch — see physics.js/ui.js for the actual
+    // collision/movement). Own container so they draw above everything in
+    // worldContainer including the ball (a real hazard should read as being
+    // in front of what it's about to swallow), but still pans with the
+    // camera like the rest of the world. this._darkMatterVisuals maps each
+    // live PlayScreen.darkMatterClouds entry to its own NebulaCloud
+    // instance — built/torn down to match that array every frame (see
+    // _updateDarkMatterClouds), since which levels actually have any
+    // clouds isn't decided yet and may change.
+    this._darkMatterContainer = new PIXI.Container();
+    this.worldContainer.addChild(this._darkMatterContainer);
+    this._darkMatterVisuals = new Map();
+
     // Built before the platforms/ball below (Rob: the win art should sit
     // behind everything so the ball and platforms are visible in front of
     // it as it climbs past, not drawn on top of them).
@@ -479,8 +493,39 @@ const PlayScreenPixi = {
     this._ballSprite.rotation = Physics.rotation;
     this._restackBall();
     this._updateMoonOrb();
+    this._updateDarkMatterClouds();
     this._updateCamera();
     this._updateIntroText();
+  },
+
+  // Keeps this._darkMatterVisuals in sync with PlayScreen.darkMatterClouds
+  // — creates a NebulaCloud for any new entry, destroys one for any that's
+  // gone (a level change swaps in a whole new array), and otherwise just
+  // syncs position/size and calls update(dt) every frame. Empty for every
+  // level right now (see ui.js's _buildDarkMatterClouds), so this is a
+  // no-op in practice until Rob decides which levels get them — built and
+  // ready for that rather than left half-wired.
+  _updateDarkMatterClouds() {
+    const live = new Set(PlayScreen.darkMatterClouds);
+    for (const [cloud, visual] of this._darkMatterVisuals) {
+      if (!live.has(cloud)) {
+        visual.destroy();
+        this._darkMatterVisuals.delete(cloud);
+      }
+    }
+    for (const cloud of PlayScreen.darkMatterClouds) {
+      let visual = this._darkMatterVisuals.get(cloud);
+      if (!visual) {
+        visual = new NebulaCloud({
+          width: cloud.width, height: cloud.height, density: 40, emberCount: 150,
+          color: 0xff3a1a, secondColor: 0xffa21f, lightningFrequency: 1.2, turbulence: 1,
+        });
+        this._darkMatterContainer.addChild(visual.view);
+        this._darkMatterVisuals.set(cloud, visual);
+      }
+      visual.view.position.set(cloud.x, cloud.y);
+      visual.update(this._dt);
+    }
   },
 
   // Moon charge glow — visible exactly while a charge is banked (Rob: the

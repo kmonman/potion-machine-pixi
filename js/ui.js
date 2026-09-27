@@ -247,6 +247,7 @@ const PlayScreen = {
   leaderboardMsgT: 0, // >0 while the "coming soon" message is showing
   goBubbles: [], // continuously-bubbling particles next to the Game Over score
   goBubbleTimer: 0,
+  darkMatterClouds: [], // dark matter cloud hazards — see _buildDarkMatterClouds; real array set fresh each enter()
 
   // A charge every 1000 points, tap a blast button to spend one — shared by
   // every mode now (see the accrual comment in update() for why). Capped at
@@ -448,6 +449,45 @@ const PlayScreen = {
     goal.jetSystem = createJetSystem({ allowedIndices: [] });
     platforms.push(goal);
     return platforms;
+  },
+
+  // One dark matter cloud hazard — drifts back and forth between minX/maxX
+  // at pivotY (world space, same coordinate system as a platform's pivot).
+  // startDir picks which way it's moving the moment the level starts;
+  // width/height are its collision box (see physics.js's
+  // _checkDarkMatterClouds) and also what pixi_playscreen.js sizes the
+  // actual NebulaCloud visual to.
+  _createDarkMatterCloud(minX, maxX, pivotY, opts = {}) {
+    const width = opts.width ?? 260, height = opts.height ?? 170;
+    const speed = opts.speed ?? 60; // px/s
+    return {
+      x: opts.startX ?? (minX + maxX) / 2, y: pivotY,
+      minX, maxX, width, height,
+      vx: speed * (opts.startDir ?? (Math.random() < 0.5 ? 1 : -1)),
+    };
+  },
+
+  // Moves every active dark matter cloud, bouncing at its own drift bounds
+  // (Rob: "floating across the screen from right to left and left to
+  // right"). Called every frame from update(), same as jets/platforms.
+  _updateDarkMatterClouds(dt) {
+    for (const c of this.darkMatterClouds) {
+      c.x += c.vx * dt;
+      if (c.x > c.maxX) { c.x = c.maxX; c.vx = -Math.abs(c.vx); }
+      else if (c.x < c.minX) { c.x = c.minX; c.vx = Math.abs(c.vx); }
+    }
+  },
+
+  // Which levels get dark matter clouds, and where — empty for every level
+  // right now. Rob's asked for the hazard itself (drifting clouds that drop
+  // the ball through platforms on touch — see physics.js) but hasn't said
+  // yet which levels should actually have them ("not sure yet / decide
+  // later"), so this wires up the full mechanic end to end without turning
+  // it on anywhere. To add one once that's decided: push the result of
+  // _createDarkMatterCloud(minX, maxX, pivotY, opts) for that level's
+  // number below.
+  _buildDarkMatterClouds(levelNum) {
+    return [];
   },
 
   // Levels 1-4 (Rob: "we need a new design for each level" instead of every
@@ -679,6 +719,15 @@ const PlayScreen = {
       p.hingeBubbles.reset();
     }
     Physics.reset(this.platforms);
+    // Dark matter cloud hazard (Rob: floating clouds that drift across the
+    // screen and drop the ball through 1-2 levels' worth of platforms on
+    // touch — see physics.js's own darkMatterClouds handling for the actual
+    // collision/drop). Built here, empty for every level for now — Rob
+    // hasn't said yet which levels should actually have them (see
+    // _buildDarkMatterClouds's own comment), so this wires up the full
+    // mechanic without turning it on anywhere yet.
+    this.darkMatterClouds = this._buildDarkMatterClouds(this._levelNumber());
+    Physics.darkMatterClouds = this.darkMatterClouds;
     Fog.reset();
     this.score = 0;
     this.elapsed = 0;
@@ -820,6 +869,7 @@ const PlayScreen = {
         }
       }
       Difficulty.update(dt);
+      this._updateDarkMatterClouds(dt);
       Physics.update(dt, tiltX);
       for (const p of this.platforms) {
         p.hingeBubbles.update(dt, p.touching, p.pivot.x, p.pivot.y);

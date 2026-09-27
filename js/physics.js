@@ -43,6 +43,25 @@ const Physics = {
   // while just resting/rolling on a platform).
   airborne: false,
 
+  // Dark matter cloud hazard (Rob: "floating across the screen... if the
+  // ball touches it, it automatically takes it, adds downward pressure,
+  // drops it through platforms one to two levels down"). ui.js owns the
+  // actual cloud objects (position/drift, same "set this array, physics
+  // just reads it" convention `platforms` already uses) and moves them each
+  // frame before calling Physics.update(); physics.js only needs to know
+  // where they currently are to test the ball against, and how to make the
+  // ball fall through solid ground once one's been touched.
+  darkMatterClouds: [],
+  // How far past the ball's y at the moment of contact it has to fall
+  // before platforms catch it again — TOWER_SPACING is 300px per level, so
+  // 1.5x lands solidly in Rob's "one to two levels down".
+  DARK_MATTER_DROP_DISTANCE: 450,
+  // Minimum downward speed a touch forces the ball to right away, so it
+  // visibly plunges instead of just quietly stopping being caught while
+  // still coasting on whatever gentle velocity it already had.
+  DARK_MATTER_PLUNGE_VY: 700,
+  darkMatterUntilY: null, // world Y the ball must fall past before it can be caught by a platform again; null = not currently dropping
+
   reset(platforms) {
     this.platforms = platforms;
     // Drop from the center of the base platform (Rob) — same -140 offset as
@@ -58,6 +77,7 @@ const Physics = {
     this.airborne = false;
     this.fellOff = false;
     this.currentPlatform = base;
+    this.darkMatterUntilY = null;
     for (const p of platforms) p.touching = false;
   },
 
@@ -113,7 +133,16 @@ const Physics = {
     // also keeps it spinning sensibly through the air, which looks right too.
     this.rotation += (this.vx / this.radius) * dt;
 
-    this._resolvePlatformCollision(dt);
+    this._checkDarkMatterClouds();
+    // While dropping through from a cloud touch, platforms simply can't
+    // catch the ball at all — same "ignore landings for a stretch" Rob
+    // asked for, not a teleport. Cleared the instant it's fallen far
+    // enough, so a real platform can catch it again starting that same
+    // step rather than waiting a frame.
+    if (this.darkMatterUntilY !== null) {
+      if (this.y >= this.darkMatterUntilY) this.darkMatterUntilY = null;
+    }
+    if (this.darkMatterUntilY === null) this._resolvePlatformCollision(dt);
     this._checkBoundaries();
     this._checkHinge();
 
@@ -125,6 +154,23 @@ const Physics = {
     const base = this.platforms[0];
     if (this.y > base.pivot.y + 448) {
       this.fellOff = true;
+    }
+  },
+
+  // Simple AABB touch test against each drifting cloud (each one's own
+  // {x, y, width, height} in world space, moved by ui.js every frame before
+  // Physics.update runs). Only arms a fresh drop if one isn't already in
+  // progress — touching a second cloud mid-fall doesn't stack/extend it.
+  _checkDarkMatterClouds() {
+    if (this.darkMatterUntilY !== null) return;
+    for (const c of this.darkMatterClouds) {
+      const halfW = c.width / 2 + this.displayRadius, halfH = c.height / 2 + this.displayRadius;
+      if (Math.abs(this.x - c.x) < halfW && Math.abs(this.y - c.y) < halfH) {
+        this.darkMatterUntilY = this.y + this.DARK_MATTER_DROP_DISTANCE;
+        if (this.vy < this.DARK_MATTER_PLUNGE_VY) this.vy = this.DARK_MATTER_PLUNGE_VY;
+        this.airborne = true;
+        return;
+      }
     }
   },
 
