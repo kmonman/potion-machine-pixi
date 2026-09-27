@@ -71,10 +71,14 @@ const Physics = {
   // touch would just match the platform the ball hasn't even left yet,
   // burning through the skip count before it ever really falls anywhere.
   _darkMatterOriginPlatform: null,
-  // Minimum downward speed a touch forces the ball to right away, so it
-  // visibly plunges instead of just quietly stopping being caught while
-  // still coasting on whatever gentle velocity it already had.
-  DARK_MATTER_PLUNGE_VY: 700,
+  // Extra downward acceleration (added on top of normal gravityY) applied
+  // the whole time a drop is in progress — Rob's follow-up: an earlier
+  // version snapped vy to a fixed speed the instant the ball touched the
+  // cloud, which read as bouncing off its edge rather than the ball
+  // "flowing into it". A continuous extra pull instead lets its existing
+  // velocity carry through smoothly and just builds from there, so there's
+  // no one-frame velocity discontinuity to read as a bounce.
+  DARK_MATTER_EXTRA_GRAVITY: 2200,
 
   reset(platforms) {
     this.platforms = platforms;
@@ -134,7 +138,10 @@ const Physics = {
     const tiltForce = (this.currentPlatform || this.platforms[0]).tiltForce;
     const difficultyMultiplier = tiltForce * Difficulty.moonTiltMultiplier;
     const gx = tiltX * this.tiltAccel * difficultyMultiplier;
-    const gy = this.gravityY;
+    // Extra pull while a dark matter drop is in progress — see
+    // DARK_MATTER_EXTRA_GRAVITY's own comment for why this is a continuous
+    // accel rather than a one-time velocity snap.
+    const gy = this.gravityY + (this.darkMatterSkipsRemaining !== null ? this.DARK_MATTER_EXTRA_GRAVITY : 0);
     this.vx += gx * dt;
     this.vy += gy * dt;
     const damp = Math.pow(this.airDamping, dt * 60);
@@ -184,7 +191,6 @@ const Physics = {
         // are only ever placed high enough in a tower for that to matter.
         this.darkMatterSkipsRemaining = 1;
         this._darkMatterOriginPlatform = this.currentPlatform;
-        if (this.vy < this.DARK_MATTER_PLUNGE_VY) this.vy = this.DARK_MATTER_PLUNGE_VY;
         this.airborne = true;
         return;
       }

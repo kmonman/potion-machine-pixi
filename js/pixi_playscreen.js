@@ -90,20 +90,6 @@ const PlayScreenPixi = {
     this.worldContainer = new PIXI.Container();
     c.addChild(this.worldContainer);
 
-    // Dark matter cloud hazards (Rob: drifting clouds that drop the ball
-    // through platforms on touch — see physics.js/ui.js for the actual
-    // collision/movement). Own container so they draw above everything in
-    // worldContainer including the ball (a real hazard should read as being
-    // in front of what it's about to swallow), but still pans with the
-    // camera like the rest of the world. this._darkMatterVisuals maps each
-    // live PlayScreen.darkMatterClouds entry to its own NebulaCloud
-    // instance — built/torn down to match that array every frame (see
-    // _updateDarkMatterClouds), since which levels actually have any
-    // clouds isn't decided yet and may change.
-    this._darkMatterContainer = new PIXI.Container();
-    this.worldContainer.addChild(this._darkMatterContainer);
-    this._darkMatterVisuals = new Map();
-
     // Built before the platforms/ball below (Rob: the win art should sit
     // behind everything so the ball and platforms are visible in front of
     // it as it climbs past, not drawn on top of them).
@@ -237,6 +223,37 @@ const PlayScreenPixi = {
     this._runStartSeen = PlayScreen.runStartCount;
 
     this.worldContainer.addChild(this._ballSprite);
+
+    // Dark matter cloud hazards (Rob: drifting clouds that drop the ball
+    // through platforms on touch — see physics.js/ui.js for the actual
+    // collision/movement). Own container, added after the ball so it draws
+    // in front of it (Rob: "it shouldn't be reflected off the edge of the
+    // nebula, it should flow into it... it will be behind it") — the ball
+    // visually disappears into the cloud rather than the cloud passing
+    // behind it. Still pans with the camera like the rest of the world.
+    // this._darkMatterVisuals maps each live PlayScreen.darkMatterClouds
+    // entry to its own NebulaCloud instance — built/torn down to match
+    // that array every frame (see _updateDarkMatterClouds).
+    this._darkMatterContainer = new PIXI.Container();
+    this.worldContainer.addChild(this._darkMatterContainer);
+    this._darkMatterVisuals = new Map();
+
+    // Small trailing wisp of cloud that wraps the ball itself while a drop
+    // is in progress (Rob: "as it falls down, it should take a little
+    // piece of the nebula... overlaid around the stone as it falls down,
+    // so you can see it's being affected by the nebula, and then fades
+    // away as it hits one or two platforms down"). Added after the dark
+    // matter clouds themselves so it draws in front of everything,
+    // including the full-size cloud the ball just sank into. Own small
+    // NebulaCloud rather than reusing a big one — see _updateDarkMatterWisp.
+    this._darkMatterWisp = new NebulaCloud({
+      width: 160, height: 160, density: 14, emberCount: 35,
+      color: 0x1a71ff, secondColor: null, lightningFrequency: 0.6, turbulence: 1.3,
+    });
+    this._darkMatterWisp.view.visible = false;
+    this._darkMatterWisp.view.alpha = 0;
+    this.worldContainer.addChild(this._darkMatterWisp.view);
+    this._darkMatterWispAlpha = 0;
 
     // "Ready" / "Go!" during the pre-drop intro pause (Rob) — screen-fixed
     // (added to `c`, not worldContainer, same reasoning as the HUD: it
@@ -494,8 +511,28 @@ const PlayScreenPixi = {
     this._restackBall();
     this._updateMoonOrb();
     this._updateDarkMatterClouds();
+    this._updateDarkMatterWisp();
     this._updateCamera();
     this._updateIntroText();
+  },
+
+  // The small "piece of the nebula" that wraps the ball while a drop is in
+  // progress (Rob — see the wisp's own build()-time comment for the full
+  // quote). Reads Physics.darkMatterSkipsRemaining directly (same as other
+  // Physics fields this file already reads straight off Physics elsewhere,
+  // e.g. Physics.x/y/airborne) rather than routing through a PlayScreen
+  // marker — there's nothing to miss/debounce here, just "is a drop
+  // currently happening", so a direct read is simplest. Eases in/out same
+  // shape as the moon orb's own charged glow, so it fades rather than
+  // popping (Rob: "fades away as it hits one or two platforms down").
+  _updateDarkMatterWisp() {
+    const wisp = this._darkMatterWisp;
+    const target = Physics.darkMatterSkipsRemaining !== null ? 1 : 0;
+    this._darkMatterWispAlpha += (target - this._darkMatterWispAlpha) * Math.min(1, this._dt / 0.35);
+    wisp.view.position.set(Physics.x, Physics.y);
+    wisp.view.alpha = this._darkMatterWispAlpha;
+    wisp.view.visible = this._darkMatterWispAlpha > 0.002;
+    if (wisp.view.visible) wisp.update(this._dt);
   },
 
   // Keeps this._darkMatterVisuals in sync with PlayScreen.darkMatterClouds

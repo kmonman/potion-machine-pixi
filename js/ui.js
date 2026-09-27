@@ -451,33 +451,41 @@ const PlayScreen = {
     return platforms;
   },
 
-  // One dark matter cloud hazard — drifts back and forth between minX/maxX
-  // at pivotY (world space, same coordinate system as a platform's pivot).
-  // startDir picks which way it's moving the moment the level starts;
+  // One dark matter cloud hazard, at pivotY (world space, same coordinate
+  // system as a platform's pivot). Rob's follow-up: bouncing back and forth
+  // within the visible width meant it could just sit there parked in the
+  // player's way indefinitely, blocking climbing entirely — "it prevents
+  // the player from being able to move to the next level." Now a one-way
+  // pass instead: starts fully off-screen on one side, crosses, exits
+  // fully off-screen the other side, then respawns back at its start and
+  // does it again — so there's always a real window where it's gone.
   // width/height are its collision box (see physics.js's
   // _checkDarkMatterClouds) and also what pixi_playscreen.js sizes the
   // actual NebulaCloud visual to.
-  _createDarkMatterCloud(minX, maxX, pivotY, opts = {}) {
+  _createDarkMatterCloud(pivotY, opts = {}) {
     // Rob's test-page size for the NebulaCloud visual (560x340) — kept as
     // the collision box's own default too so the hitbox always matches
     // what's actually drawn, not a separately-tuned size.
     const width = opts.width ?? 560, height = opts.height ?? 340;
     const speed = opts.speed ?? 60; // px/s
-    return {
-      x: opts.startX ?? (minX + maxX) / 2, y: pivotY,
-      minX, maxX, width, height,
-      vx: speed * (opts.startDir ?? (Math.random() < 0.5 ? 1 : -1)),
-    };
+    const dir = opts.startDir ?? (Math.random() < 0.5 ? 1 : -1);
+    // Comfortably past CONFIG.WIDTH (720) on either side so it's genuinely
+    // fully off-screen at both ends, not just clipped at the very edge.
+    const margin = width / 2 + 80;
+    const startX = dir > 0 ? -margin : 720 + margin;
+    const endX = dir > 0 ? 720 + margin : -margin;
+    return { x: startX, y: pivotY, startX, endX, width, height, vx: speed * dir };
   },
 
-  // Moves every active dark matter cloud, bouncing at its own drift bounds
-  // (Rob: "floating across the screen from right to left and left to
-  // right"). Called every frame from update(), same as jets/platforms.
+  // Moves every active dark matter cloud straight across in its one
+  // direction, respawning at its own off-screen start the instant it
+  // fully exits the far side. Called every frame from update(), same as
+  // jets/platforms.
   _updateDarkMatterClouds(dt) {
     for (const c of this.darkMatterClouds) {
       c.x += c.vx * dt;
-      if (c.x > c.maxX) { c.x = c.maxX; c.vx = -Math.abs(c.vx); }
-      else if (c.x < c.minX) { c.x = c.minX; c.vx = Math.abs(c.vx); }
+      const reachedEnd = c.vx > 0 ? c.x >= c.endX : c.x <= c.endX;
+      if (reachedEnd) c.x = c.startX;
     }
   },
 
@@ -499,7 +507,7 @@ const PlayScreen = {
   // real platforms below it than the skip count guarantees falling off the
   // bottom of the tower entirely instead of landing).
   _buildDarkMatterClouds(levelNum) {
-    if (levelNum === 1) return [this._createDarkMatterCloud(100, 620, -100)];
+    if (levelNum === 1) return [this._createDarkMatterCloud(-100)];
     return [];
   },
 
