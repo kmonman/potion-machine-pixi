@@ -505,14 +505,18 @@ const PlayScreen = {
   // _createDarkMatterCloud(minX, maxX, pivotY, opts) for that level's
   // number below.
   //
-  // Level 1 gets a single test cloud (Rob: "let's do a test one on level
-  // 1") — drifts the full width between platforms 2 and 3 (pivotY -100
-  // sits roughly halfway between their y=52/y=-248). Placed here rather
-  // than lower in the tower so a drop always has at least a couple of real
-  // platforms beneath it to land on (physics.js's darkMatterSkipsRemaining
-  // needs somewhere to actually catch after skipping — a cloud with fewer
-  // real platforms below it than the skip count guarantees falling off the
-  // bottom of the tower entirely instead of landing).
+  // Level 2 gets a single test cloud (moved off Level 1 — Rob: "it's too
+  // low on the first level" and "don't introduce it until level 2"; Level
+  // 1 stays hazard-free so total beginners get one clean climb first).
+  // Sized at 30% of the original 560x340 test cloud per Rob (168x102).
+  // pivotY 200 sits between Level 2's own two platforms (y=352 and y=52,
+  // see _buildLevel2) — Level 2 is a short 2-jump tower, so a pivot far
+  // above its top platform (like Level 1's old -100/-300 choices) would
+  // put the cloud above the goal with nothing real below it to land on
+  // after a skip (physics.js's darkMatterSkipsRemaining needs real
+  // platforms beneath it to actually catch — placing it too low/high for
+  // the specific tower it's on is exactly what made it "too low" on
+  // Level 1 originally).
   // Rob: "for the first five levels, only make it fall through one
   // level" — a level-based cap on cloud.skips (default already 1, see
   // _createDarkMatterCloud), applied explicitly here so it's a durable
@@ -524,12 +528,10 @@ const PlayScreen = {
   },
 
   _buildDarkMatterClouds(levelNum) {
-    if (levelNum === 1) {
-      // Explicit 560x340 (the original test-page size) — Rob's own
-      // deliberately-bigger reference cloud now that the default
-      // (_createDarkMatterCloud) has shrunk for everything else.
-      return [this._createDarkMatterCloud(-100, {
-        skips: this._darkMatterSkipsForLevel(levelNum), width: 560, height: 340,
+    if (levelNum === 2) {
+      // 168x102 = 30% of the original 560x340 test cloud (Rob).
+      return [this._createDarkMatterCloud(200, {
+        skips: this._darkMatterSkipsForLevel(levelNum), width: 168, height: 102,
       })];
     }
     return [];
