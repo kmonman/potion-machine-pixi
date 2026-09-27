@@ -832,6 +832,13 @@ const PlayScreen = {
   // retune once there's been real play on each (Rob: "do all 10, we can
   // evaluate from there"), not a final balance pass. Clamped at 10
   // (platform 11) since that's as tall as that shared tower currently goes.
+  // Rob (Level 8): "one of the levels is overlapping the PNG at the top.
+  // It shouldn't get that close. You should have to jump to the top." The
+  // old -60 gap was way tighter than the real jump distance between any
+  // two platforms (TOWER_SPACING, 300) — barely more than the ball's own
+  // radius — so the goal line's art sat almost on top of the last real
+  // platform instead of requiring an actual jump up to it, the same real
+  // gap Levels 1-4's own appended goal platform already uses.
   _levelThresholdY(levelNum) {
     const p = this.platforms;
     if (levelNum <= 4) {
@@ -839,7 +846,7 @@ const PlayScreen = {
       return goal.pivot.y - (goal.thickness / 2 + Physics.displayRadius);
     }
     const n = Math.min(levelNum, 10);
-    return p[n + 1].pivot.y - 60;
+    return p[n + 1].pivot.y - this.TOWER_SPACING;
   },
 
   update(dt, tiltX) {
