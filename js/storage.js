@@ -50,4 +50,21 @@ const Storage = {
     data.muted = muted;
     this._write(data);
   },
+
+  // Rob: "all of a sudden the ball is moving in reverse left when it
+  // should go right and vice versa" (portrait mode) — deviceorientation's
+  // gamma sign can genuinely read backwards on some phones/OS versions,
+  // and there's no reliable way to auto-detect that from here (nothing in
+  // this codebase changed to cause it — it's the sensor's own report).
+  // A manual toggle is the one fix guaranteed to work regardless of the
+  // actual cause, and persists per-device like mute does.
+  getTiltInverted() {
+    return !!this._read().tiltInverted;
+  },
+
+  setTiltInverted(inverted) {
+    const data = this._read();
+    data.tiltInverted = inverted;
+    this._write(data);
+  },
 };

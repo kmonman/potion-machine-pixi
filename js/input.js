@@ -15,6 +15,16 @@ const Input = (() => {
   let rawTilt = 0;
   let smoothedTilt = 0;
   let listening = false;
+  // Manual tilt-direction flip, persisted per-device (Rob: "all of a
+  // sudden the ball is moving in reverse left when it should go right and
+  // vice versa" — deviceorientation's gamma sign can genuinely read
+  // backwards on some phones/OS versions; nothing in this codebase caused
+  // it, and there's no reliable way to auto-detect it, so a player-facing
+  // toggle is the one fix guaranteed to work regardless of the real cause.
+  // Loaded from Storage at startup below; toggleInverted() is what a
+  // settings button calls.
+  let inverted = false;
+  try { inverted = Storage.getTiltInverted(); } catch (e) { /* Storage unavailable — default false */ }
   // gamma/beta are absolute angles from dead-flat, not from however a player
   // actually rests the phone in their hand — without correcting for that,
   // whatever angle they happened to be holding it at when a run started
@@ -139,7 +149,7 @@ const Input = (() => {
     }
     const adjustedDeg = tiltDeg - baselineDeg;
     const clamped = Math.max(-TILT_CLAMP_DEGREES, Math.min(TILT_CLAMP_DEGREES, adjustedDeg));
-    rawTilt = clamped / TILT_CLAMP_DEGREES;
+    rawTilt = (clamped / TILT_CLAMP_DEGREES) * (inverted ? -1 : 1);
     lastReadingAt = Date.now();
   }
 
@@ -210,11 +220,26 @@ const Input = (() => {
     smoothedTilt += (rawTilt - smoothedTilt) * (1 - SMOOTHING);
   }
 
+  // Flips the tilt direction and persists the choice (Storage.setTiltInverted)
+  // so it stays flipped on this device across runs/sessions without the
+  // player needing to redo it every time. Snaps rawTilt/smoothedTilt to 0
+  // immediately, same reasoning as calibrate() — otherwise a tilt held at
+  // the moment of toggling would jump to its mirrored value instantly
+  // instead of easing there, reading as a sudden yank.
+  function toggleInverted() {
+    inverted = !inverted;
+    try { Storage.setTiltInverted(inverted); } catch (e) { /* Storage unavailable */ }
+    rawTilt = 0;
+    smoothedTilt = 0;
+  }
+
   return {
     get tiltX() { return smoothedTilt; },
     get isListening() { return listening; },
+    get isInverted() { return inverted; },
     requestPermission,
     calibrate,
     update,
+    toggleInverted,
   };
 })();

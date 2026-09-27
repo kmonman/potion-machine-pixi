@@ -29,6 +29,14 @@
      button in the project always used), swapped by game.js's updateMuteBtn(). -->
 <button id="fullscreenBtn" aria-label="Toggle fullscreen" type="button">⛶</button>
 <button id="muteBtn" aria-label="Toggle mute" type="button"><img id="muteBtnImg" src="assets/Mute P.png" alt=""></button>
+<!-- Manual tilt-direction flip (Rob: "all of a sudden the ball is moving
+     in reverse left when it should go right and vice versa") — some
+     phones/OS versions genuinely report the tilt sensor's sign backwards,
+     with no reliable way to auto-detect that from here, so this lets the
+     player fix it themselves and it's remembered per-device (see
+     input.js's toggleInverted/Storage.getTiltInverted). Stacked above the
+     mute button so it doesn't collide with it. -->
+<button id="tiltInvertBtn" aria-label="Invert tilt direction" type="button">⇄</button>
 
 <!-- PixiJS — the GPU/WebGL rendering foundation for the "pinball expansion" rebuild
      (see PINBALL_EXPANSION_PLAN.md). Loaded as a plain local file (downloaded from

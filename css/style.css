@@ -120,7 +120,7 @@ body {
    independent of the game's own portrait/landscape scaling and never hidden
    behind any screen's own overlays — mute bottom-left, fullscreen
    bottom-right (Rob). No circle/border chrome (Rob) — just the bare icon. */
-#fullscreenBtn, #muteBtn {
+#fullscreenBtn, #muteBtn, #tiltInvertBtn {
   position: fixed;
   bottom: 86px; /* portrait value; landscape override below */
   width: 44px;
@@ -139,8 +139,18 @@ body {
 }
 #fullscreenBtn { right: 12px; }
 #muteBtn { left: 12px; }
-#fullscreenBtn:active, #muteBtn:active {
+/* Stacked directly above muteBtn (same left edge, 44px taller) rather than
+   competing for its own corner — this is a rarely-needed fix toggle, not
+   an every-screen control like mute/fullscreen. */
+#tiltInvertBtn { left: 12px; bottom: 136px; }
+#fullscreenBtn:active, #muteBtn:active, #tiltInvertBtn:active {
   opacity: 0.6;
+}
+/* On (inverted) state reads clearly different from the resting purple —
+   same bright pink the rest of the game's own active/highlighted UI
+   already uses, not a new color introduced just for this. */
+#tiltInvertBtn.active {
+  color: rgba(255, 0, 195, 0.95);
 }
 /* muteBtn's own art (Mute P.png/Mute P1.png) already has its speaker icon
    drawn with real padding baked in, so it can fill the circle rather than
@@ -157,5 +167,8 @@ body {
 @media (orientation: landscape) {
   #fullscreenBtn, #muteBtn {
     bottom: 2px;
+  }
+  #tiltInvertBtn {
+    bottom: 52px;
   }
 }

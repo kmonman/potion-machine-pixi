@@ -117,6 +117,16 @@ function updateMuteBtn() {
   muteBtnImg.src = state.muted ? 'assets/Mute P1.png' : 'assets/Mute P.png';
 }
 
+// Manual tilt-direction flip (Rob: "all of a sudden the ball is moving in
+// reverse left when it should go right and vice versa") — see
+// input.js's toggleInverted/Storage.getTiltInverted for why this exists as
+// a player-facing fix rather than something auto-detected.
+const tiltInvertBtn = document.getElementById('tiltInvertBtn');
+tiltInvertBtn.addEventListener('click', () => { Input.toggleInverted(); updateTiltInvertBtn(); });
+function updateTiltInvertBtn() {
+  tiltInvertBtn.classList.toggle('active', Input.isInverted);
+}
+
 // A handful of PlayScreen's (old ui.js) own methods do real text-layout math
 // with a Canvas 2D context — not drawing, just using ctx.font/measureText to
 // figure out where things go (e.g. _goScoreLayout() sizing the Game Over
@@ -521,6 +531,7 @@ async function main() {
   fitGameWrap();
   nameInput.value = state.playerName;
   updateMuteBtn(); // reflect the muted state already loaded from Storage
+  updateTiltInvertBtn(); // reflect the tilt-inverted state already loaded from Storage
 
   // Pixi v8's init is async — resizeTo keeps its internal render resolution
   // matched to the canvas's own backing size, and reuses the existing
