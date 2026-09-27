@@ -463,10 +463,13 @@ const PlayScreen = {
   // _checkDarkMatterClouds) and also what pixi_playscreen.js sizes the
   // actual NebulaCloud visual to.
   _createDarkMatterCloud(pivotY, opts = {}) {
-    // Rob's test-page size for the NebulaCloud visual (560x340) — kept as
-    // the collision box's own default too so the hitbox always matches
-    // what's actually drawn, not a separately-tuned size.
-    const width = opts.width ?? 560, height = opts.height ?? 340;
+    // Rob: "most of them should be a little smaller than the one we had on
+    // the first level" — Level 1's own cloud (see _buildDarkMatterClouds)
+    // now passes its original 560x340 explicitly so it stays put as the
+    // one deliberately-bigger reference cloud; every other one defaults to
+    // this smaller size unless it overrides it. Kept as the collision box's
+    // own default too so the hitbox always matches what's actually drawn.
+    const width = opts.width ?? 400, height = opts.height ?? 250;
     const speed = opts.speed ?? 60; // px/s
     const dir = opts.startDir ?? (Math.random() < 0.5 ? 1 : -1);
     // Comfortably past CONFIG.WIDTH (720) on either side so it's genuinely
@@ -522,7 +525,12 @@ const PlayScreen = {
 
   _buildDarkMatterClouds(levelNum) {
     if (levelNum === 1) {
-      return [this._createDarkMatterCloud(-100, { skips: this._darkMatterSkipsForLevel(levelNum) })];
+      // Explicit 560x340 (the original test-page size) — Rob's own
+      // deliberately-bigger reference cloud now that the default
+      // (_createDarkMatterCloud) has shrunk for everything else.
+      return [this._createDarkMatterCloud(-100, {
+        skips: this._darkMatterSkipsForLevel(levelNum), width: 560, height: 340,
+      })];
     }
     return [];
   },
