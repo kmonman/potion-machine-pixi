@@ -458,7 +458,10 @@ const PlayScreen = {
   // _checkDarkMatterClouds) and also what pixi_playscreen.js sizes the
   // actual NebulaCloud visual to.
   _createDarkMatterCloud(minX, maxX, pivotY, opts = {}) {
-    const width = opts.width ?? 260, height = opts.height ?? 170;
+    // Rob's test-page size for the NebulaCloud visual (560x340) — kept as
+    // the collision box's own default too so the hitbox always matches
+    // what's actually drawn, not a separately-tuned size.
+    const width = opts.width ?? 560, height = opts.height ?? 340;
     const speed = opts.speed ?? 60; // px/s
     return {
       x: opts.startX ?? (minX + maxX) / 2, y: pivotY,

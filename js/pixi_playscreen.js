@@ -516,9 +516,12 @@ const PlayScreenPixi = {
     for (const cloud of PlayScreen.darkMatterClouds) {
       let visual = this._darkMatterVisuals.get(cloud);
       if (!visual) {
+        // Rob's test-page values, and a single blue instead of the
+        // original red/orange (secondColor: null = one color, no second
+        // tone blended in).
         visual = new NebulaCloud({
-          width: cloud.width, height: cloud.height, density: 40, emberCount: 150,
-          color: 0xff3a1a, secondColor: 0xffa21f, lightningFrequency: 1.2, turbulence: 1,
+          width: cloud.width, height: cloud.height, density: 44, emberCount: 180,
+          color: 0x1a71ff, secondColor: null, lightningFrequency: 1.25, turbulence: 1,
         });
         this._darkMatterContainer.addChild(visual.view);
         this._darkMatterVisuals.set(cloud, visual);
