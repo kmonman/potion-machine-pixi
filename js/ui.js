@@ -527,24 +527,45 @@ const PlayScreen = {
   // pivot sits between the two platforms just below *that level's own*
   // threshold rather than reusing one fixed spot.
   _buildDarkMatterClouds(levelNum) {
-    // width, height, pivotY, startDir (1 = left-to-right, -1 = right-to-left)
+    // Each entry: width, height, pivotY, startDir (1 = left-to-right,
+    // -1 = right-to-left). Most levels get one cloud; Rob: "Levels eight,
+    // nine, and ten should have increasing clouds" — those three now get
+    // 2, 3, and 4 respectively, each independently timed/directed and
+    // spread across that level's own available climb (shared tower
+    // pivots, see the per-level comments) so they don't all bunch at one
+    // height.
     const specs = {
-      2: { width: 336, height: 204, pivotY: 200, startDir: 1 },      // between y=352/y=52 (Level 2)
-      3: { width: 300, height: 190, pivotY: -100, startDir: -1 },    // between y=52/y=-248 (Level 3)
-      4: { width: 460, height: 140, pivotY: -100, startDir: 1 },     // long/flat — between y=52/y=-248 (Level 4)
-      5: { width: 320, height: 210, pivotY: -600, startDir: -1 },    // between y=-448/y=-748 (shared tower)
-      6: { width: 520, height: 150, pivotY: -900, startDir: 1 },     // long/flat — between y=-748/y=-1048
-      7: { width: 300, height: 230, pivotY: -1200, startDir: -1 },   // between y=-1048/y=-1348
-      8: { width: 500, height: 160, pivotY: -1500, startDir: 1 },    // long/flat — between y=-1348/y=-1648
-      9: { width: 340, height: 220, pivotY: -1800, startDir: -1 },   // between y=-1648/y=-1948
-      10: { width: 420, height: 260, pivotY: -2100, startDir: 1 },   // biggest, roundest — between y=-1948/y=-2248
+      2: [{ width: 336, height: 204, pivotY: 200, startDir: 1 }],      // between y=352/y=52 (Level 2)
+      3: [{ width: 300, height: 190, pivotY: -100, startDir: -1 }],    // between y=52/y=-248 (Level 3)
+      4: [{ width: 460, height: 140, pivotY: -100, startDir: 1 }],     // long/flat — between y=52/y=-248 (Level 4)
+      5: [{ width: 320, height: 210, pivotY: -600, startDir: -1 }],    // between y=-448/y=-748 (shared tower)
+      6: [{ width: 520, height: 150, pivotY: -900, startDir: 1 }],     // long/flat — between y=-748/y=-1048
+      7: [{ width: 300, height: 230, pivotY: -1200, startDir: -1 }],   // between y=-1048/y=-1348
+      // Level 8 — 2 clouds, spread across platforms 3-9 (y=-148..-1948).
+      8: [
+        { width: 340, height: 210, pivotY: -600, startDir: 1 },
+        { width: 480, height: 150, pivotY: -1500, startDir: -1 },      // long/flat
+      ],
+      // Level 9 — 3 clouds, spread across platforms 3-10 (y=-148..-2248).
+      9: [
+        { width: 300, height: 190, pivotY: -450, startDir: -1 },
+        { width: 500, height: 140, pivotY: -1200, startDir: 1 },       // long/flat
+        { width: 360, height: 230, pivotY: -1950, startDir: -1 },
+      ],
+      // Level 10 — 4 clouds, spread across platforms 3-11 (y=-148..-2548).
+      10: [
+        { width: 320, height: 200, pivotY: -400, startDir: 1 },
+        { width: 460, height: 150, pivotY: -1000, startDir: -1 },      // long/flat
+        { width: 340, height: 220, pivotY: -1650, startDir: 1 },
+        { width: 420, height: 260, pivotY: -2250, startDir: -1 },      // biggest, roundest
+      ],
     };
-    const spec = specs[levelNum];
-    if (!spec) return [];
-    return [this._createDarkMatterCloud(spec.pivotY, {
-      skips: this._darkMatterSkipsForLevel(levelNum),
-      width: spec.width, height: spec.height, startDir: spec.startDir,
-    })];
+    const list = specs[levelNum];
+    if (!list) return [];
+    const skips = this._darkMatterSkipsForLevel(levelNum);
+    return list.map(spec => this._createDarkMatterCloud(spec.pivotY, {
+      skips, width: spec.width, height: spec.height, startDir: spec.startDir,
+    }));
   },
 
   // Levels 1-4 (Rob: "we need a new design for each level" instead of every
