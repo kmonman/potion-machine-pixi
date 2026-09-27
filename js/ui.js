@@ -529,9 +529,10 @@ const PlayScreen = {
 
   _buildDarkMatterClouds(levelNum) {
     if (levelNum === 2) {
-      // 168x102 = 30% of the original 560x340 test cloud (Rob).
+      // 336x204 — Rob's 30% pass read too small in play, doubled back up
+      // to 60% of the original 560x340 test cloud.
       return [this._createDarkMatterCloud(200, {
-        skips: this._darkMatterSkipsForLevel(levelNum), width: 168, height: 102,
+        skips: this._darkMatterSkipsForLevel(levelNum), width: 336, height: 204,
       })];
     }
     return [];
