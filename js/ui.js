@@ -1016,9 +1016,19 @@ const PlayScreen = {
         const isCurrentPlatform = p === Physics.currentPlatform;
         if (isCurrentPlatform) p.jetGraceRemaining = this.JET_GRACE_SECONDS;
         else if (p.jetGraceRemaining > 0) p.jetGraceRemaining -= dt;
+        const jetScale = p.length / (620 * p.visualScale);
         if (isCurrentPlatform || p.jetGraceRemaining > 0) {
-          p.jetSystem.update(dt, p.pivot, p.dir, p.length / (620 * p.visualScale));
+          p.jetSystem.update(dt, p.pivot, p.dir, jetScale);
         } else {
+          // Rob: "not all of the plasma jets are staying connected to the
+          // moving platforms" — mount position still needs to track this
+          // platform's real tilt every frame even once it's past the
+          // grace window and done making spawn/active-toggle decisions
+          // (see jetSystem.updatePositions' own comment), or the plasma
+          // jet visual (which, unlike the old particles, sits there
+          // continuously) reads as drifting off the bar as it keeps
+          // tilting under a stale frozen point.
+          p.jetSystem.updatePositions(p.pivot, p.dir, jetScale);
           // Past the grace window — no more spawning/active-toggle
           // decisions for this platform, but any particles already
           // mid-flight still need to keep moving and fading on their own,

@@ -160,10 +160,22 @@ function createJetSystem(opts = {}) {
     // defined for the base platform's full-size bar, so a smaller platform
     // needs its jets pulled in proportionally or they'd hang off past the end
     // of its (now shorter) bar.
-    update(dt, pivot, dir, scale = 1) {
-      if (this.levelConfig) this._updateCoordinated(dt);
-      else this._updateIndependent(dt);
-
+    // Split out from update() (Rob: "not all of the plasma jets are
+    // staying connected to the moving platforms") — the plasma-jet visual
+    // now runs on every platform in the tower (not just the current one),
+    // but update() below, and the mount x/y it used to compute, only ever
+    // ran for the current platform + a short grace window after the ball
+    // leaves (a real gameplay optimization: spawning/active-toggle
+    // decisions on a platform nowhere near the ball don't matter). Once
+    // that grace window ran out, jet.x/y just froze at wherever they last
+    // were — fine for the old system (nothing was ever drawn there
+    // anyway), but now that a real visual sits at that position
+    // continuously, it read as the jet drifting off the bar as the
+    // platform kept tilting underneath a frozen point. Position math is
+    // cheap, so this just always runs for every platform regardless (see
+    // ui.js's own per-platform loop), independent of the gameplay-only
+    // gating below.
+    updatePositions(pivot, dir, scale = 1) {
       for (let i = 0; i < this.jets.length; i++) {
         const jet = this.jets[i];
         const distance = jet.active ? JET_DEFS[i].activeDistance * scale : JET_PARKED_DISTANCE;
@@ -171,6 +183,13 @@ function createJetSystem(opts = {}) {
         jet.x = pivot.x + dir.x * distance;
         jet.y = pivot.y + dir.y * distance - 22;
       }
+    },
+
+    update(dt, pivot, dir, scale = 1) {
+      if (this.levelConfig) this._updateCoordinated(dt);
+      else this._updateIndependent(dt);
+
+      this.updatePositions(pivot, dir, scale);
 
       if (this.jetCooldown > 0) this.jetCooldown = Math.max(0, this.jetCooldown - dt);
 
