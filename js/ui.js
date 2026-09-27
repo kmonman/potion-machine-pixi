@@ -496,27 +496,17 @@ const PlayScreen = {
     }
   },
 
-  // Which levels get dark matter clouds, and where — empty for every level
-  // right now. Rob's asked for the hazard itself (drifting clouds that drop
-  // the ball through platforms on touch — see physics.js) but hasn't said
-  // yet which levels should actually have them ("not sure yet / decide
-  // later"), so this wires up the full mechanic end to end without turning
-  // it on anywhere. To add one once that's decided: push the result of
-  // _createDarkMatterCloud(minX, maxX, pivotY, opts) for that level's
-  // number below.
+  // Which levels get dark matter clouds, and where. Level 1 stays
+  // hazard-free (a clean intro climb for beginners); Levels 2-10 each get
+  // one, per Rob: "start adding them to other levels going different ways
+  // and different sizes across the screen. stretch some out as long as it
+  // doesn't warp the shape" — startDir alternates per level so they don't
+  // all drift the same way, sizes vary level to level, and a few are
+  // stretched into long/flat shapes rather than every one being roughly
+  // circular. Kept under ~4:1 width:height so NebulaCloud's own gas/ember
+  // layers (tuned around roughly-round shapes) don't visibly distort into
+  // something obviously wrong at extreme ratios.
   //
-  // Level 2 gets a single test cloud (moved off Level 1 — Rob: "it's too
-  // low on the first level" and "don't introduce it until level 2"; Level
-  // 1 stays hazard-free so total beginners get one clean climb first).
-  // Sized at 30% of the original 560x340 test cloud per Rob (168x102).
-  // pivotY 200 sits between Level 2's own two platforms (y=352 and y=52,
-  // see _buildLevel2) — Level 2 is a short 2-jump tower, so a pivot far
-  // above its top platform (like Level 1's old -100/-300 choices) would
-  // put the cloud above the goal with nothing real below it to land on
-  // after a skip (physics.js's darkMatterSkipsRemaining needs real
-  // platforms beneath it to actually catch — placing it too low/high for
-  // the specific tower it's on is exactly what made it "too low" on
-  // Level 1 originally).
   // Rob: "for the first five levels, only make it fall through one
   // level" — a level-based cap on cloud.skips (default already 1, see
   // _createDarkMatterCloud), applied explicitly here so it's a durable
@@ -527,15 +517,34 @@ const PlayScreen = {
     return levelNum <= 5 ? 1 : 2;
   },
 
+  // pivotY per level is hand-picked between two of that level's own real
+  // platforms (see each _buildLevelN/​_buildSharedTower for their actual
+  // pivots) so a drop always has real platforms below it to land on after
+  // skipping (physics.js's darkMatterSkipsRemaining) — same reasoning as
+  // Level 2's original placement, just repeated per level's own layout.
+  // Levels 5-10 all share one tower instance (_buildSharedTower) but climb
+  // to a different height each (see _levelThresholdY), so each level's
+  // pivot sits between the two platforms just below *that level's own*
+  // threshold rather than reusing one fixed spot.
   _buildDarkMatterClouds(levelNum) {
-    if (levelNum === 2) {
-      // 336x204 — Rob's 30% pass read too small in play, doubled back up
-      // to 60% of the original 560x340 test cloud.
-      return [this._createDarkMatterCloud(200, {
-        skips: this._darkMatterSkipsForLevel(levelNum), width: 336, height: 204,
-      })];
-    }
-    return [];
+    // width, height, pivotY, startDir (1 = left-to-right, -1 = right-to-left)
+    const specs = {
+      2: { width: 336, height: 204, pivotY: 200, startDir: 1 },      // between y=352/y=52 (Level 2)
+      3: { width: 300, height: 190, pivotY: -100, startDir: -1 },    // between y=52/y=-248 (Level 3)
+      4: { width: 460, height: 140, pivotY: -100, startDir: 1 },     // long/flat — between y=52/y=-248 (Level 4)
+      5: { width: 320, height: 210, pivotY: -600, startDir: -1 },    // between y=-448/y=-748 (shared tower)
+      6: { width: 520, height: 150, pivotY: -900, startDir: 1 },     // long/flat — between y=-748/y=-1048
+      7: { width: 300, height: 230, pivotY: -1200, startDir: -1 },   // between y=-1048/y=-1348
+      8: { width: 500, height: 160, pivotY: -1500, startDir: 1 },    // long/flat — between y=-1348/y=-1648
+      9: { width: 340, height: 220, pivotY: -1800, startDir: -1 },   // between y=-1648/y=-1948
+      10: { width: 420, height: 260, pivotY: -2100, startDir: 1 },   // biggest, roundest — between y=-1948/y=-2248
+    };
+    const spec = specs[levelNum];
+    if (!spec) return [];
+    return [this._createDarkMatterCloud(spec.pivotY, {
+      skips: this._darkMatterSkipsForLevel(levelNum),
+      width: spec.width, height: spec.height, startDir: spec.startDir,
+    })];
   },
 
   // Levels 1-4 (Rob: "we need a new design for each level" instead of every
