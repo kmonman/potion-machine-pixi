@@ -435,19 +435,16 @@ const PlayScreenPixi = {
     });
 
     // Plasma jets (handed off from another session — js/plasma_jet.js) —
-    // Rob: try it on one level first before it goes everywhere, so this is
-    // Level 1's own two non-base platforms only (the base's jets are
-    // shared across every level, so upgrading it would upgrade every
-    // level at once, not just this one). One PlasmaJet per mount (same 4
+    // tried on Level 1 first (Rob), then approved and rolled out to every
+    // platform/level ("ok the jets look good you can replace all of
+    // them"), base platform included. One PlasmaJet per mount (same 4
     // mounts as JET_DEFS), color set live from p.tubeColor in
     // _refreshPlasmaJets so it tracks the tube the same way the old
     // particle jets already did (Rob: "changing the colors to match the
     // tube"). Kept idle (power 0, no live particles) skips virtually all
-    // work per plasma_jet.js's own `idle` check, so the 6 unused mounts
-    // per platform cost is negligible.
-    const isLevel1Extra = PlayScreen.towers && PlayScreen.towers.level1
-      && PlayScreen.towers.level1.includes(p) && !p.hasPole && !p.isGoal;
-    if (isLevel1Extra) {
+    // work per plasma_jet.js's own `idle` check, so platforms whose jets
+    // aren't currently live cost almost nothing even across a full tower.
+    if (!p.isGoal) {
       v.plasmaJets = JET_DEFS.map(() => {
         // Rob's retuned settings (plasma_jet_demo.html) — shorter/thinner,
         // dimmer, less blur, the works. Was 380/22/0.85/0/60/8.5/0.85.

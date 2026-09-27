@@ -570,36 +570,50 @@ const PlayScreen = {
   _createPlasmaStorm(pivotY, opts = {}) {
     return {
       x: 360, y: pivotY,
-      // pivotY is the vertical center it slowly drifts around (Rob: "let's
-      // make it slowly move up and down rather than just being stationary
-      // at one horizontal level") — driftRange is how far above/below that
-      // center it travels, driftSpeed how fast it cycles up and down.
-      // driftT is its own running clock, separate from the appear/hold/
-      // fade timer below, so drifting continues smoothly through every
-      // phase rather than resetting each cycle.
+      // pivotY/360 are the center this drifts around. Rob's follow-up: "it
+      // doesn't move... it moves slightly up and down the screen, but it
+      // doesn't change direction in one viewing" — the old driftSpeed
+      // (0.25) took ~25s for one full up-down cycle, far longer than a
+      // single appearance (fadeIn+hold+fadeOut ≈ 10s back then), so it
+      // only ever swept in one direction before fading back out; there
+      // was also no horizontal drift at all, just the vertical bob. Now
+      // moves on BOTH axes together (cos/sin off the same clock, so it
+      // traces a slow loop rather than two independent wobbles) and fast
+      // enough to complete more than one full loop — and so visibly
+      // reverse direction — within a single appearance. driftT is its own
+      // running clock, separate from the appear/hold/fade timer below, so
+      // drifting continues smoothly through every phase rather than
+      // resetting each cycle.
       baseY: pivotY,
-      driftRange: opts.driftRange ?? 120,
-      driftSpeed: opts.driftSpeed ?? 0.25, // full up-down-up cycles per second-ish (see Math.sin below)
+      driftRangeY: opts.driftRangeY ?? 120,
+      driftRangeX: opts.driftRangeX ?? 160,
+      driftSpeed: opts.driftSpeed ?? 0.6, // ~10.5s per full loop — was 0.25 (~25s)
       driftT: 0,
       width: opts.width ?? 1150, height: opts.height ?? 440,
       dir: -1,                          // pushes/streams right → left
       push: opts.push ?? 150,           // px/s² at full strength — "small": ~15% of full tilt (280 slid a still stone off a platform in ~1.3s)
-      fadeIn: opts.fadeIn ?? 3, hold: opts.hold ?? 4, fadeOut: opts.fadeOut ?? 3,
-      offTime: opts.offTime ?? 5,
+      // Rob: "should show up and last for a while, not just go away" —
+      // hold roughly doubled (4 -> 9) and the gap between appearances
+      // shortened (5 -> 3) so it spends most of its time visible instead
+      // of mostly hidden. fadeIn/fadeOut left alone — those already read
+      // as "slowly appear... slowly disappear" per Rob's original ask.
+      fadeIn: opts.fadeIn ?? 3, hold: opts.hold ?? 9, fadeOut: opts.fadeOut ?? 3,
+      offTime: opts.offTime ?? 3,
       phase: 'off', t: opts.firstDelay ?? 3, // first appearance a few seconds into the run
       visibility: 0,
     };
   },
 
-  // Advances each storm's appear/hold/disappear cycle and its slow up/down
-  // drift. Fades use smoothstep so they ease in and out rather than
-  // ramping linearly; the drift is a plain sine wave — smooth and
-  // continuous, no phase to ease in/out of.
+  // Advances each storm's appear/hold/disappear cycle and its slow
+  // looping drift. Fades use smoothstep so they ease in and out rather
+  // than ramping linearly; the drift is a plain sine/cosine loop — smooth
+  // and continuous, no phase to ease in/out of.
   _updatePlasmaStorms(dt) {
     const ease = (x) => x * x * (3 - 2 * x);
     for (const s of this.plasmaStorms) {
       s.driftT += dt;
-      s.y = s.baseY + Math.sin(s.driftT * s.driftSpeed) * s.driftRange;
+      s.x = 360 + Math.cos(s.driftT * s.driftSpeed) * s.driftRangeX;
+      s.y = s.baseY + Math.sin(s.driftT * s.driftSpeed) * s.driftRangeY;
 
       s.t -= dt;
       if (s.t <= 0) {
