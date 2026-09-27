@@ -246,10 +246,20 @@ const PlayScreenPixi = {
     // matter clouds themselves so it draws in front of everything,
     // including the full-size cloud the ball just sank into. Own small
     // NebulaCloud rather than reusing a big one — see _updateDarkMatterWisp.
+    // Brighter/more saturated blue than the full cloud (Rob's follow-up:
+    // "it needs to be much more noticeable that the nebula is with it as
+    // it falls down, so maybe make it a brighter blue color") plus a
+    // straight brightness boost filter and denser gas/embers/lightning —
+    // this one needs to read clearly at a glance while the ball's actively
+    // falling, not blend into the background the way the big ambient cloud
+    // can.
     this._darkMatterWisp = new NebulaCloud({
-      width: 160, height: 160, density: 14, emberCount: 35,
-      color: 0x1a71ff, secondColor: null, lightningFrequency: 0.6, turbulence: 1.3,
+      width: 190, height: 190, density: 22, emberCount: 55,
+      color: 0x4fc3ff, secondColor: null, lightningFrequency: 1.4, turbulence: 1.5,
     });
+    const wispBrightness = new PIXI.ColorMatrixFilter();
+    wispBrightness.brightness(1.6, false);
+    this._darkMatterWisp.view.filters = [wispBrightness];
     this._darkMatterWisp.view.visible = false;
     this._darkMatterWisp.view.alpha = 0;
     this.worldContainer.addChild(this._darkMatterWisp.view);

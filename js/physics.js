@@ -184,12 +184,12 @@ const Physics = {
     for (const c of this.darkMatterClouds) {
       const halfW = c.width / 2 + this.displayRadius, halfH = c.height / 2 + this.displayRadius;
       if (Math.abs(this.x - c.x) < halfW && Math.abs(this.y - c.y) < halfH) {
-        // Rob: "one to two levels down" — 1 for now (see this field's own
-        // comment: a cloud placed without at least 2 real platforms
-        // beneath it can't survive a 2-skip drop at all, since there's
-        // nothing left to land on). Safe to raise back to 2 once clouds
-        // are only ever placed high enough in a tower for that to matter.
-        this.darkMatterSkipsRemaining = 1;
+        // Rob: "one to two levels down" — per-cloud (ui.js's
+        // _createDarkMatterCloud/_darkMatterSkipsForLevel), defaulting to
+        // 1. A cloud needs at least this many real platforms beneath it to
+        // land on, or the drop guarantees falling off the bottom of the
+        // tower entirely instead of landing.
+        this.darkMatterSkipsRemaining = c.skips;
         this._darkMatterOriginPlatform = this.currentPlatform;
         this.airborne = true;
         return;

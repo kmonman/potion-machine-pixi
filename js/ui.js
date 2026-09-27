@@ -474,7 +474,11 @@ const PlayScreen = {
     const margin = width / 2 + 80;
     const startX = dir > 0 ? -margin : 720 + margin;
     const endX = dir > 0 ? 720 + margin : -margin;
-    return { x: startX, y: pivotY, startX, endX, width, height, vx: speed * dir };
+    // How many real platforms a touch drops the ball through — see
+    // physics.js's darkMatterSkipsRemaining. Read by _checkDarkMatterClouds
+    // off this same cloud object.
+    const skips = opts.skips ?? 1;
+    return { x: startX, y: pivotY, startX, endX, width, height, vx: speed * dir, skips };
   },
 
   // Moves every active dark matter cloud straight across in its one
@@ -506,8 +510,20 @@ const PlayScreen = {
   // needs somewhere to actually catch after skipping — a cloud with fewer
   // real platforms below it than the skip count guarantees falling off the
   // bottom of the tower entirely instead of landing).
+  // Rob: "for the first five levels, only make it fall through one
+  // level" — a level-based cap on cloud.skips (default already 1, see
+  // _createDarkMatterCloud), applied explicitly here so it's a durable
+  // rule for whenever clouds get added to Levels 2-5 too, not something
+  // that has to be remembered per level. Raise past 1 for Level 6+ once
+  // there's actually a reason to.
+  _darkMatterSkipsForLevel(levelNum) {
+    return levelNum <= 5 ? 1 : 2;
+  },
+
   _buildDarkMatterClouds(levelNum) {
-    if (levelNum === 1) return [this._createDarkMatterCloud(-100)];
+    if (levelNum === 1) {
+      return [this._createDarkMatterCloud(-100, { skips: this._darkMatterSkipsForLevel(levelNum) })];
+    }
     return [];
   },
 
