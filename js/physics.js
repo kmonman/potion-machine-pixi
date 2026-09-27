@@ -44,32 +44,31 @@ const Physics = {
   airborne: false,
 
   // Dark matter cloud hazard (Rob: "floating across the screen... if the
-  // ball touches it, it automatically takes it, adds downward pressure,
-  // drops it through platforms one to two levels down"). ui.js owns the
-  // actual cloud objects (position/drift, same "set this array, physics
-  // just reads it" convention `platforms` already uses) and moves them each
-  // frame before calling Physics.update(); physics.js only needs to know
-  // where they currently are to test the ball against, and how to make the
-  // ball fall through solid ground once one's been touched.
+  // ball touches it, it automatically takes it, adds downward pressure").
+  // ui.js owns the actual cloud objects (position/drift, same "set this
+  // array, physics just reads it" convention `platforms` already uses) and
+  // moves them each frame before calling Physics.update(); physics.js only
+  // needs to know where they currently are to test the ball against, and
+  // how to make the ball fall through solid ground once one's been touched.
   darkMatterClouds: [],
-  // Counts down the number of real, otherwise-would-have-landed platforms
-  // the ball is allowed to fall straight through before the next one
-  // actually catches it — Rob's "one to two levels down", 2 here. Counting
-  // real catch opportunities (not a fixed pixel distance) means it always
-  // reliably skips exactly N platforms regardless of exactly where the
-  // cloud sits or how fast the ball is falling by the time it gets there —
-  // an earlier pixel-distance version could land the drop's end almost
-  // exactly on top of a real platform's own catch window, causing the ball
-  // to blow straight through it entirely and fall off the tower instead of
-  // landing, since the window it needed to be caught in and the window it
-  // was still forbidden from catching in could end up overlapping.
+  // Non-null while a drop is in progress — lands on the very first real
+  // platform reached below the origin platform (Rob: "let's just make the
+  // ball fall back down to whatever the next platform it hits first").
+  // Used to be a countdown of N platforms to skip ("one to two levels
+  // down"), but that could carry the ball down multiple real platforms —
+  // or, since a match still had to land inside a real catch window on a
+  // given frame, let a fast enough drop blow through every remaining
+  // platform's window and fall all the way to the bottom of the tower —
+  // both of which made the hazard feel far harsher than intended. Simpler
+  // now: it's just "is a drop active", cleared the moment any non-origin
+  // platform is actually reached (see _resolvePlatformCollision).
   // null = not currently dropping.
   darkMatterSkipsRemaining: null,
   // The platform the ball was actually resting on at the moment of touch —
-  // excluded from counting as a "skip" (see _resolvePlatformCollision):
+  // excluded from ever catching the drop (see _resolvePlatformCollision):
   // without this, the very first catch-eligible check right after the
   // touch would just match the platform the ball hasn't even left yet,
-  // burning through the skip count before it ever really falls anywhere.
+  // ending the drop before it ever really fell anywhere.
   _darkMatterOriginPlatform: null,
   // Extra downward acceleration (added on top of normal gravityY) applied
   // the whole time a drop is in progress — Rob's follow-up: an earlier
@@ -184,12 +183,9 @@ const Physics = {
     for (const c of this.darkMatterClouds) {
       const halfW = c.width / 2 + this.displayRadius, halfH = c.height / 2 + this.displayRadius;
       if (Math.abs(this.x - c.x) < halfW && Math.abs(this.y - c.y) < halfH) {
-        // Rob: "one to two levels down" — per-cloud (ui.js's
-        // _createDarkMatterCloud/_darkMatterSkipsForLevel), defaulting to
-        // 1. A cloud needs at least this many real platforms beneath it to
-        // land on, or the drop guarantees falling off the bottom of the
-        // tower entirely instead of landing.
-        this.darkMatterSkipsRemaining = c.skips;
+        // Any non-null value just marks "a drop is active" now (see this
+        // field's own comment) — true works as well as a count would.
+        this.darkMatterSkipsRemaining = true;
         this._darkMatterOriginPlatform = this.currentPlatform;
         this.airborne = true;
         return;
@@ -267,22 +263,22 @@ const Physics = {
       // the stopper instead.
       const alongLimit = p.isGoal ? halfLength + 40 : halfLength;
       if (vNormal >= 0 && Math.abs(along) <= alongLimit && perp > restPerp && perp < maxRestOverlap) {
-        // Dark matter drop in progress (see _checkDarkMatterClouds) — this
-        // would be a real landing, but it needs to be let through instead.
-        // The origin platform (whatever the ball was resting on at the
-        // moment of touch) never counts, or the very next check right
-        // after touching would just re-match it before the ball has gone
-        // anywhere. Once the count reaches 0 the NEXT real match (checked
-        // next time through this loop/frame) catches normally again.
+        // Dark matter drop in progress (see _checkDarkMatterClouds). Rob:
+        // "when the ball hits the moon cloud, let's just make the ball
+        // fall back down to whatever the next platform it hits first" —
+        // lands on the very first real platform reached below the origin,
+        // rather than the old skip-N-platforms count (which could carry
+        // the ball down multiple platforms — or, if a fast drop tunneled
+        // past a match on a given frame, all the way to the bottom of the
+        // tower). The origin platform (whatever the ball was resting on at
+        // the moment of touch) still never counts, or the very next check
+        // right after touching would just re-match it before the ball has
+        // gone anywhere — clearing the drop state here and falling through
+        // to the normal landing logic below is what actually catches it.
         if (this.darkMatterSkipsRemaining !== null) {
-          if (p !== this._darkMatterOriginPlatform) {
-            this.darkMatterSkipsRemaining--;
-            if (this.darkMatterSkipsRemaining <= 0) {
-              this.darkMatterSkipsRemaining = null;
-              this._darkMatterOriginPlatform = null;
-            }
-          }
-          continue;
+          if (p === this._darkMatterOriginPlatform) continue;
+          this.darkMatterSkipsRemaining = null;
+          this._darkMatterOriginPlatform = null;
         }
         // Push the ball back to rest on the surface.
         let clampedAlong = along;

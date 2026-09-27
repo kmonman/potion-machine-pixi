@@ -477,11 +477,7 @@ const PlayScreen = {
     const margin = width / 2 + 80;
     const startX = dir > 0 ? -margin : 720 + margin;
     const endX = dir > 0 ? 720 + margin : -margin;
-    // How many real platforms a touch drops the ball through — see
-    // physics.js's darkMatterSkipsRemaining. Read by _checkDarkMatterClouds
-    // off this same cloud object.
-    const skips = opts.skips ?? 1;
-    return { x: startX, y: pivotY, startX, endX, width, height, vx: speed * dir, skips };
+    return { x: startX, y: pivotY, startX, endX, width, height, vx: speed * dir };
   },
 
   // Moves every active dark matter cloud straight across in its one
@@ -507,25 +503,18 @@ const PlayScreen = {
   // layers (tuned around roughly-round shapes) don't visibly distort into
   // something obviously wrong at extreme ratios.
   //
-  // Rob: "for the first five levels, only make it fall through one
-  // level" — a level-based cap on cloud.skips (default already 1, see
-  // _createDarkMatterCloud), applied explicitly here so it's a durable
-  // rule for whenever clouds get added to Levels 2-5 too, not something
-  // that has to be remembered per level. Raise past 1 for Level 6+ once
-  // there's actually a reason to.
-  _darkMatterSkipsForLevel(levelNum) {
-    return levelNum <= 5 ? 1 : 2;
-  },
-
   // pivotY per level is hand-picked between two of that level's own real
   // platforms (see each _buildLevelN/​_buildSharedTower for their actual
-  // pivots) so a drop always has real platforms below it to land on after
-  // skipping (physics.js's darkMatterSkipsRemaining) — same reasoning as
-  // Level 2's original placement, just repeated per level's own layout.
-  // Levels 5-10 all share one tower instance (_buildSharedTower) but climb
-  // to a different height each (see _levelThresholdY), so each level's
-  // pivot sits between the two platforms just below *that level's own*
-  // threshold rather than reusing one fixed spot.
+  // pivots) so a drop always has a real platform right below it to land on
+  // (physics.js's darkMatterSkipsRemaining — a touch now always drops the
+  // ball onto the very next real platform it reaches, not further; see its
+  // own comment for why the old multi-platform skip was cut) — same
+  // reasoning as Level 2's original placement, just repeated per level's
+  // own layout. Levels 5-10 all share one tower instance
+  // (_buildSharedTower) but climb to a different height each (see
+  // _levelThresholdY), so each level's pivot sits between the two
+  // platforms just below *that level's own* threshold rather than reusing
+  // one fixed spot.
   _buildDarkMatterClouds(levelNum) {
     // Each entry: width, height, pivotY, startDir (1 = left-to-right,
     // -1 = right-to-left). Most levels get one cloud; Rob: "Levels eight,
@@ -562,9 +551,8 @@ const PlayScreen = {
     };
     const list = specs[levelNum];
     if (!list) return [];
-    const skips = this._darkMatterSkipsForLevel(levelNum);
     return list.map(spec => this._createDarkMatterCloud(spec.pivotY, {
-      skips, width: spec.width, height: spec.height, startDir: spec.startDir,
+      width: spec.width, height: spec.height, startDir: spec.startDir,
     }));
   },
 
