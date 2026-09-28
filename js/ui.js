@@ -588,9 +588,12 @@ const PlayScreen = {
       driftRangeY: opts.driftRangeY ?? 120,
       driftRangeX: opts.driftRangeX ?? 160,
       driftSpeed: opts.driftSpeed ?? 0.6, // ~10.5s per full loop — was 0.25 (~25s)
-      driftT: 0,
+      // Offsets each storm's own drift loop so multiple storms on one
+      // level (Rob: "more dark plasmas moving in opposite directions" on
+      // higher levels) don't trace the exact same path in lockstep.
+      driftT: opts.driftPhase ?? 0,
       width: opts.width ?? 1150, height: opts.height ?? 440,
-      dir: -1,                          // pushes/streams right → left
+      dir: opts.dir ?? -1,              // pushes/streams right → left (1 = left → right)
       push: opts.push ?? 150,           // px/s² at full strength — "small": ~15% of full tilt (280 slid a still stone off a platform in ~1.3s)
       // Rob: "should show up and last for a while, not just go away" —
       // hold roughly doubled (4 -> 9) and the gap between appearances
@@ -629,14 +632,37 @@ const PlayScreen = {
     }
   },
 
-  // Which levels get a plasma storm, and where. Level 4 only for now —
-  // centered between its platforms at y=352 and y=52 (see _buildLevel4),
-  // so the jump between them passes through it, and clear of Level 4's
-  // dark matter cloud at y=-100. 1150x440 is Rob's test-page size (wider
-  // than the 720 screen, so its soft ends sit off-screen).
+  // Which levels get a plasma storm, and where. Level 4's own original
+  // spot (centered between its platforms at y=352/y=52, see
+  // _buildLevel4) stays put. Rob's follow-up: "what levels is the plasma
+  // storm on?... we need to add that on levels, maybe six or seven
+  // plus... on the higher levels there should be more dark plasmas
+  // moving in opposite directions" — Levels 6-10 now get one on the
+  // shared tower (see _buildSharedTower's own pivots), escalating same
+  // spirit as the dark matter clouds' own 1/2/3/4 ramp on Levels 7-10:
+  // 1 storm on 6-7, 2 opposite-direction storms on 8-9, 3 on 10. Level 5
+  // stays clear (dark clouds already start there) so the early shared-
+  // tower levels aren't stacked with every hazard at once. 1150x440 is
+  // Rob's test-page size (wider than the 720 screen, so its soft ends
+  // sit off-screen).
   _buildPlasmaStorms(levelNum) {
     const specs = {
       4: [{ pivotY: 200 }],
+      6: [{ pivotY: -1200, dir: 1 }],
+      7: [{ pivotY: -1500, dir: -1 }],
+      8: [
+        { pivotY: -700, dir: 1, driftPhase: 0 },
+        { pivotY: -1600, dir: -1, driftPhase: 4 },
+      ],
+      9: [
+        { pivotY: -600, dir: -1, driftPhase: 1 },
+        { pivotY: -1700, dir: 1, driftPhase: 5 },
+      ],
+      10: [
+        { pivotY: -500, dir: 1, driftPhase: 0 },
+        { pivotY: -1400, dir: -1, driftPhase: 3 },
+        { pivotY: -2300, dir: 1, driftPhase: 6 },
+      ],
     };
     const list = specs[levelNum];
     if (!list) return [];
