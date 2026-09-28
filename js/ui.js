@@ -513,7 +513,6 @@ const PlayScreen = {
       }
     }
   },
-  },
 
   // Which levels get dark matter clouds, and where. Level 1 stays
   // hazard-free (a clean intro climb for beginners); Levels 2-10 each get
