@@ -479,16 +479,18 @@ const PlayScreen = {
     const startX = dir > 0 ? -margin : 720 + margin;
     const endX = dir > 0 ? 720 + margin : -margin;
     // Rob: "don't have the dark cloud going across over and over in the
-    // same spot. It should move around." baseY/yRange let each new pass
-    // (see _updateDarkMatterClouds) re-roll a slightly different height
-    // and direction instead of retracing the exact same line forever.
-    // Kept modest (±60px default) so it still stays between the two real
-    // platforms it was placed for — a cloud placed to guarantee a real
-    // platform below it after a drop (see _buildDarkMatterClouds) can't
-    // wander far enough to break that.
+    // same spot. It should move around" — and the follow-up: "it should
+    // come back somewhere else above or below where it was", not just a
+    // subtle wobble. baseY/yRange/yMin let each new pass (see
+    // _updateDarkMatterClouds) re-roll a clearly different height and
+    // direction instead of retracing the exact same line, or drifting
+    // only a few unnoticeable px. Kept within the ~300px gap between the
+    // two real platforms it was placed for — a cloud placed to guarantee
+    // a real platform below it after a drop (see _buildDarkMatterClouds)
+    // can't wander far enough to reach either neighbor.
     return {
       x: startX, y: pivotY, startX, endX, width, height, vx: speed * dir,
-      baseY: pivotY, yRange: opts.yRange ?? 60, speed,
+      baseY: pivotY, yMin: opts.yMin ?? 40, yRange: opts.yRange ?? 110, speed,
     };
   },
 
@@ -504,7 +506,17 @@ const PlayScreen = {
       const reachedEnd = c.vx > 0 ? c.x >= c.endX : c.x <= c.endX;
       if (reachedEnd) {
         c.x = c.startX;
-        c.y = c.baseY + (Math.random() * 2 - 1) * c.yRange;
+        // Rob's follow-up: "it should come back somewhere else above or
+        // below where it was" — a random sign each time could still pick
+        // the SAME side twice in a row with a similar magnitude (e.g. two
+        // "above baseY" draws close together), reading as barely moved
+        // even though yMin technically held. Alternating sides on every
+        // respawn instead (never the same side twice in a row) guarantees
+        // real separation from wherever it just was, not just from
+        // baseY - at least yMin above one time, yMin below the next.
+        c._highSide = !c._highSide;
+        const mag = c.yMin + Math.random() * (c.yRange - c.yMin);
+        c.y = c.baseY + mag * (c._highSide ? 1 : -1);
         const dir = Math.random() < 0.5 ? 1 : -1;
         c.vx = c.speed * dir;
         c.startX = dir > 0 ? -(c.width / 2 + 80) : 720 + c.width / 2 + 80;
