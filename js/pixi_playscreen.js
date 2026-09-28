@@ -553,7 +553,19 @@ const PlayScreenPixi = {
       // otherwise read as "not above the goal" and show it like any other
       // platform).
       if (p.isGoal) { this._setPlatformVisualVisible(p, false); continue; }
-      const aboveGoal = thresholdY !== null && p.pivot.y < thresholdY;
+      // Rob: "I saw a platform up where the PNG finish line is... there
+      // shouldn't be any platforms above the finish line or even close to
+      // it." Levels 5-10's goal line sits TOWER_SPACING (300) above the
+      // topmost climbable platform (see _levelThresholdY) - the exact
+      // same spacing every real platform in the shared tower already
+      // uses between each other, so the very NEXT real platform up always
+      // lands exactly at that same height, not above it. `<` let that one
+      // through as "not above the goal" (equal isn't less-than) and left
+      // it sitting visible right at the goal line's own position; `<=`
+      // catches it too. Levels 1-4's own appended goal platform sits
+      // further away than this (its own real geometry, not shared-tower
+      // math), so this never affects them.
+      const aboveGoal = thresholdY !== null && p.pivot.y <= thresholdY;
       this._setPlatformVisualVisible(p, !aboveGoal);
       if (!aboveGoal) this._refreshPlatform(p);
     }
