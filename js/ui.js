@@ -478,19 +478,41 @@ const PlayScreen = {
     const margin = width / 2 + 80;
     const startX = dir > 0 ? -margin : 720 + margin;
     const endX = dir > 0 ? 720 + margin : -margin;
-    return { x: startX, y: pivotY, startX, endX, width, height, vx: speed * dir };
+    // Rob: "don't have the dark cloud going across over and over in the
+    // same spot. It should move around." baseY/yRange let each new pass
+    // (see _updateDarkMatterClouds) re-roll a slightly different height
+    // and direction instead of retracing the exact same line forever.
+    // Kept modest (±60px default) so it still stays between the two real
+    // platforms it was placed for — a cloud placed to guarantee a real
+    // platform below it after a drop (see _buildDarkMatterClouds) can't
+    // wander far enough to break that.
+    return {
+      x: startX, y: pivotY, startX, endX, width, height, vx: speed * dir,
+      baseY: pivotY, yRange: opts.yRange ?? 60, speed,
+    };
   },
 
   // Moves every active dark matter cloud straight across in its one
   // direction, respawning at its own off-screen start the instant it
-  // fully exits the far side. Called every frame from update(), same as
-  // jets/platforms.
+  // fully exits the far side — re-rolling a new y (within yRange of its
+  // own baseY) and direction each time it respawns, so repeated passes
+  // don't all trace the identical line (Rob's "should move around").
+  // Called every frame from update(), same as jets/platforms.
   _updateDarkMatterClouds(dt) {
     for (const c of this.darkMatterClouds) {
       c.x += c.vx * dt;
       const reachedEnd = c.vx > 0 ? c.x >= c.endX : c.x <= c.endX;
-      if (reachedEnd) c.x = c.startX;
+      if (reachedEnd) {
+        c.x = c.startX;
+        c.y = c.baseY + (Math.random() * 2 - 1) * c.yRange;
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        c.vx = c.speed * dir;
+        c.startX = dir > 0 ? -(c.width / 2 + 80) : 720 + c.width / 2 + 80;
+        c.endX = dir > 0 ? 720 + c.width / 2 + 80 : -(c.width / 2 + 80);
+        c.x = c.startX;
+      }
     }
+  },
   },
 
   // Which levels get dark matter clouds, and where. Level 1 stays
