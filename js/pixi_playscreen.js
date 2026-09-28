@@ -455,7 +455,21 @@ const PlayScreenPixi = {
           color: 0xff40e0, secondColor: 0xb04dff,
         });
         jet.on = false;
-        wc.addChild(jet.view);
+        // Rob: "still visually detached." The gameplay jet.x/jet.y this
+        // used to be positioned from (see difficulty.js) were only ever a
+        // rough WORLD-space approximation — along the bar via its dir
+        // vector, then a flat "-22" nudge that's the same regardless of
+        // how far the platform is tilted, never actually projected onto
+        // the bar's own rotated surface via its normal. That slop was
+        // invisible on the old system's small, fast-flying particles, but
+        // a persistent glow sitting right at the nozzle shows it clearly.
+        // Added as a child of platformContainer instead — the same
+        // container liquidContainer already lives in, which rotates
+        // exactly with p.angleRad (_refreshPlatform) — so its LOCAL
+        // position is pixel-locked to the tilting bar automatically, no
+        // approximation possible. See _refreshPlasmaJets for the local
+        // coordinates.
+        v.platformContainer.addChild(jet.view);
         return jet;
       });
       // Old particle streams for these specific mounts are still spawned
@@ -974,7 +988,19 @@ const PlayScreenPixi = {
       visual.on = gameJet.active && wet;
       visual.color = rgbToHex(tr, tg, tb);
       visual.secondColor = accent;
-      visual.view.position.set(gameJet.x, gameJet.y);
+      // Local platform-space coordinates (view.position is relative to
+      // platformContainer, which already carries p.angleRad — see build's
+      // own comment) — mountX is the same along-the-bar offset the
+      // headspace check above just used, and -(thickness/2) sits right on
+      // the tube's own top surface regardless of tilt, no approximation.
+      visual.view.position.set(mountX, -(p.thickness / 2 + 2));
+      // The NOZZLE should track the tilting bar (just set above), but the
+      // BEAM itself still needs to shoot straight up in world space, same
+      // as the old particle jets and basic physics (buoyancy doesn't tilt
+      // with the platform) — counter-rotate the view by the platform's
+      // own angle so its local "up" always renders as true world-up
+      // regardless of tilt.
+      visual.view.rotation = -p.angleRad;
       if (gameJet.justFired) { visual.surge(); gameJet.justFired = false; }
       visual.update(this._dt);
     }
