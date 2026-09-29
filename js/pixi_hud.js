@@ -27,6 +27,24 @@ const HudPixi = {
     c.addChild(this._scoreSprite);
     this._scoreNumber = buildTabularNumber(c, { size: 34 * PlayScreen.PILL_SCALE, font: 'PotionTitle', color: 0x9b9b9b, baseline: 'top' });
     this._isLandscape = false;
+
+    // Moon-charge ring (Rob: "a new element in the top right that shows
+    // how close we are to charging the moon to full charge") — a ring
+    // that fills as score climbs toward the next Potion Blast charge
+    // (see PlayScreen's own blastThreshold/blastCharges accrual, one
+    // charge per 1000 points), with a small moon-like dot at its center.
+    // A more direct progress readout than the moon-glow-on-the-ball cue
+    // alone (Rob removed a literal 3-bottle version of this a while back
+    // for being visual clutter — this is a single ring, not icons, and
+    // explicitly asked for again now).
+    this._chargeRing = new PIXI.Graphics();
+    c.addChild(this._chargeRing);
+    this._chargeMoon = new PIXI.Sprite(textures.ball);
+    this._chargeMoon.anchor.set(0.5);
+    c.addChild(this._chargeMoon);
+    this._chargeRingCenter = { x: 640, y: 70 };
+    this._chargeRingRadius = 32;
+    this._chargeGlowT = 0;
   },
 
   // Landscape no longer has to move anything here — the old blast buttons
@@ -40,13 +58,50 @@ const HudPixi = {
     if (PlayScreen.isOver) {
       this._scoreSprite.visible = false;
       this._scoreNumber.setVisible(false);
+      this._chargeRing.visible = false;
+      this._chargeMoon.visible = false;
     } else {
       this._scoreSprite.visible = true;
       this._scoreNumber.setVisible(true);
 
       const sb = PlayScreen.scorePillBtn;
       this._scoreNumber.setText(PlayScreen._scoreText(), sb.x + 125 * PlayScreen.PILL_SCALE, sb.y + 35 * PlayScreen.PILL_SCALE);
+
+      this._refreshChargeRing();
     }
+  },
+
+  // Progress toward the next Potion Blast charge (see ui.js's
+  // blastThreshold/blastCharges — one charge banked per 1000 points),
+  // drawn as a ring that fills clockwise from the top. Once a charge is
+  // actually banked (blastCharges >= MAX_BLAST_CHARGES), the ring reads
+  // full and gently pulses to read as "ready", rather than continuing to
+  // visibly cycle even though scoring keeps quietly advancing
+  // blastThreshold underneath.
+  _refreshChargeRing() {
+    const ready = PlayScreen.blastCharges >= PlayScreen.MAX_BLAST_CHARGES;
+    const progress = ready ? 1 : Math.max(0, Math.min(1,
+      (PlayScreen.score - PlayScreen.blastThreshold) / 1000));
+
+    const { x, y } = this._chargeRingCenter;
+    const r = this._chargeRingRadius;
+    const g = this._chargeRing;
+    g.clear();
+    g.circle(x, y, r).stroke({ width: 6, color: 0x3a1a4a, alpha: 0.6 });
+    if (progress > 0.001) {
+      const start = -Math.PI / 2;
+      g.arc(x, y, r, start, start + progress * Math.PI * 2)
+        .stroke({ width: 6, color: ready ? 0xffe08a : 0xff4fb8, alpha: 1, cap: 'round' });
+    }
+    if (ready) {
+      this._chargeGlowT += 1 / 60;
+      const pulse = 0.75 + 0.25 * Math.sin(this._chargeGlowT * 4);
+      g.circle(x, y, r + 3).stroke({ width: 2, color: 0xffe08a, alpha: 0.5 * pulse });
+    }
+    this._chargeMoon.visible = true;
+    this._chargeMoon.position.set(x, y);
+    this._chargeMoon.width = this._chargeMoon.height = r * 1.05;
+    this._chargeMoon.tint = ready ? 0xffe08a : 0xffffff;
   },
 };
 
