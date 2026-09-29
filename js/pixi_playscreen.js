@@ -83,6 +83,19 @@ const PlayScreenPixi = {
     this._vignette.rect(0, 0, this.renderWidth, 1280).fill(grad);
     c.addChild(this._vignette);
 
+    // Background embers (Rob: "looks good except the background is a
+    // little boring") — slow-drifting warm motes, screen-fixed like the
+    // fog/vignette, only spawned on levels with their own color identity
+    // (see ui.js's levelAccentColor) so every other level's background
+    // stays exactly as plain as it's always been. Behind worldContainer
+    // (added right after this), so platforms/ball always read clearly on
+    // top of them.
+    this._emberContainer = new PIXI.Container();
+    this._emberContainer.blendMode = 'add';
+    c.addChild(this._emberContainer);
+    this._embers = [];
+    this._emberPool = [];
+
     // The panning world — every platform and the ball live in here. Built once
     // PlayScreen.platforms exists (PlayScreen.enter() runs before the first
     // build() call from game.js's main(), same ordering Phase 1 relied on for
@@ -565,6 +578,71 @@ const PlayScreenPixi = {
     this._vignette.clear();
     this._vignette.rect(0, 0, this.renderWidth, CONFIG.HEIGHT)
       .fill(this._vignetteGrad(this.renderWidth, CONFIG.HEIGHT, this._vignetteBase));
+    this._setupMysticalSky(accent);
+  },
+
+  // Rob: "the background is a little boring... need like a mystical sky."
+  // A field of small twinkling stars plus a handful of bigger, slower
+  // glowing wisps, scattered once per level entry across the full
+  // screen-fixed background (behind worldContainer, so platforms/ball
+  // always read on top). Tinted toward the level's own accent color when
+  // it has one (see levelAccentColor); a soft cool lavender-white by
+  // default so every level gets the mystical-sky treatment, not just the
+  // ones with a color identity — this is a general atmosphere upgrade,
+  // not tied to the color-identity experiment specifically.
+  _setupMysticalSky(accent) {
+    const base = accent ? accent : [200, 180, 255];
+    const tint = rgbToHex(
+      200 + (base[0] - 200) * 0.6, 180 + (base[1] - 180) * 0.6, 255 + (base[2] - 255) * 0.6,
+    );
+    const w = this.renderWidth;
+    this._embers = [];
+    for (let i = 0; i < 34; i++) {
+      const big = i < 6; // a handful of bigger, slower wisps among the small twinkling stars
+      this._embers.push({
+        x: Math.random() * w,
+        y: Math.random() * 1280,
+        size: big ? 18 + Math.random() * 16 : 2 + Math.random() * 3,
+        baseAlpha: big ? 0.10 + Math.random() * 0.10 : 0.35 + Math.random() * 0.45,
+        twinklePhase: Math.random() * Math.PI * 2,
+        twinkleSpeed: big ? 0.3 + Math.random() * 0.3 : 0.6 + Math.random() * 1.8,
+        driftY: big ? -(2 + Math.random() * 3) : -(0.4 + Math.random() * 0.8),
+        driftX: big ? (Math.random() * 2 - 1) * 2 : 0,
+        tint,
+      });
+    }
+  },
+
+  // Advances the mystical-sky twinkle/drift and keeps the sprite pool in
+  // sync — called every frame from refresh(), same spirit as the other
+  // background layers (fog/vignette) it sits alongside.
+  _updateMysticalSky(dt) {
+    const w = this.renderWidth;
+    while (this._emberPool.length < this._embers.length) {
+      const s = new PIXI.Sprite(textures.glowParticle);
+      s.anchor.set(0.5);
+      this._emberContainer.addChild(s);
+      this._emberPool.push(s);
+    }
+    while (this._emberPool.length > this._embers.length) {
+      this._emberContainer.removeChild(this._emberPool.pop());
+    }
+    for (let i = 0; i < this._embers.length; i++) {
+      const e = this._embers[i];
+      e.twinklePhase += e.twinkleSpeed * dt;
+      e.y += e.driftY * dt;
+      e.x += e.driftX * dt;
+      // Wrap around every edge so the field reads as endless, not a
+      // fixed set that eventually drifts off and vanishes.
+      if (e.y < -20) e.y = 1300;
+      if (e.x < -20) e.x = w + 20;
+      if (e.x > w + 20) e.x = -20;
+      const s = this._emberPool[i];
+      s.position.set(e.x, e.y);
+      s.width = s.height = e.size;
+      s.tint = e.tint;
+      s.alpha = e.baseAlpha * (0.55 + 0.45 * Math.sin(e.twinklePhase));
+    }
   },
 
   refresh() {
@@ -577,6 +655,7 @@ const PlayScreenPixi = {
       this._lastAccentColor = PlayScreen.levelAccentColor;
       this._applyBackgroundAccent(PlayScreen.levelAccentColor);
     }
+    this._updateMysticalSky(this._dt);
     for (const f of this._fogSprites) {
       const l = Fog.layers.find((x) => x.key === f.key);
       f.sprite.y = l.y1;
