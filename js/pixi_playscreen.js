@@ -96,6 +96,28 @@ const PlayScreenPixi = {
     this._embers = [];
     this._emberPool = [];
 
+    // Cliff silhouette layer (Rob sent a reference image of jagged
+    // cliffs + iridescent orbs: "adding something like this to the
+    // background... maybe making it like screen transparent... with the
+    // layer you already have"). A tall (369x2000) strip, scaled to the
+    // screen width and scrolled the same slow-upward/two-stacked-copies
+    // way the fog layers already do (see Fog.layers/refresh() below),
+    // just with its own real scaled height for the wrap math instead of
+    // fog's fixed 1280. Kept semi-transparent per Rob's "screen
+    // transparent" — this sits behind the fog/vignette conceptually but
+    // is added after them here since Pixi draws children in add order
+    // and this should read as a midground silhouette the fog drifts in
+    // front of, not a flat backdrop the fog sits on top of.
+    const cliffAspect = textures.bgCliffs.height / textures.bgCliffs.width;
+    this._cliffScaledHeight = this.renderWidth * cliffAspect;
+    this._cliffLayer = { y1: 0, y2: -this._cliffScaledHeight, speed: -10 };
+    this._cliffSprite = new PIXI.Sprite(textures.bgCliffs);
+    this._cliffSprite.width = this.renderWidth; this._cliffSprite.height = this._cliffScaledHeight;
+    this._cliffSpriteB = new PIXI.Sprite(textures.bgCliffs);
+    this._cliffSpriteB.width = this.renderWidth; this._cliffSpriteB.height = this._cliffScaledHeight;
+    this._cliffSprite.alpha = this._cliffSpriteB.alpha = 0.4;
+    c.addChild(this._cliffSprite, this._cliffSpriteB);
+
     // The panning world — every platform and the ball live in here. Built once
     // PlayScreen.platforms exists (PlayScreen.enter() runs before the first
     // build() call from game.js's main(), same ordering Phase 1 relied on for
@@ -578,6 +600,13 @@ const PlayScreenPixi = {
     this._vignette.clear();
     this._vignette.rect(0, 0, this.renderWidth, CONFIG.HEIGHT)
       .fill(this._vignetteGrad(this.renderWidth, CONFIG.HEIGHT, this._vignetteBase));
+    // Cliff layer tint, same 35%-toward-accent blend as the fog above —
+    // stays a fixed part of the same background system instead of a
+    // one-off unlinked layer.
+    if (this._cliffSprite) {
+      this._cliffSprite.tint = fogTint;
+      this._cliffSpriteB.tint = fogTint;
+    }
     this._setupMysticalSky(accent);
   },
 
@@ -673,6 +702,18 @@ const PlayScreenPixi = {
       const l = Fog.layers.find((x) => x.key === f.key);
       f.sprite.y = l.y1;
       f.spriteFlip.y = l.y2;
+    }
+    // Cliff layer scroll — same two-stacked-copies wrap the fog layers
+    // use, just against this layer's own real scaled height (a tall
+    // 369x2000 strip, not fog's fixed 1280).
+    {
+      const cl = this._cliffLayer;
+      cl.y1 += cl.speed * this._dt;
+      cl.y2 += cl.speed * this._dt;
+      if (cl.y1 < -this._cliffScaledHeight) cl.y1 = cl.y2 + this._cliffScaledHeight;
+      if (cl.y2 < -this._cliffScaledHeight) cl.y2 = cl.y1 + this._cliffScaledHeight;
+      this._cliffSprite.y = cl.y1;
+      this._cliffSpriteB.y = cl.y2;
     }
 
     // Every platform across every tower (Levels 1-4's own short ones, plus
@@ -1051,6 +1092,16 @@ const PlayScreenPixi = {
     for (const f of this._fogSprites) {
       f.sprite.width = width;
       f.spriteFlip.width = width;
+    }
+    // Cliff layer keeps its own aspect ratio (it's a tall 369x2000 strip,
+    // not a 720x1280 tile like the fog layers), so its height has to be
+    // recomputed from the new width rather than just re-set.
+    if (this._cliffSprite) {
+      const cliffAspect = this._cliffSprite.texture.height / this._cliffSprite.texture.width;
+      this._cliffScaledHeight = width * cliffAspect;
+      this._cliffSprite.width = this._cliffSpriteB.width = width;
+      this._cliffSprite.height = this._cliffSpriteB.height = this._cliffScaledHeight;
+      this._cliffLayer.y2 = this._cliffLayer.y1 - this._cliffScaledHeight;
     }
   },
 

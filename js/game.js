@@ -45,6 +45,9 @@ const ASSET_PATHS = {
   fogMidFlip: 'assets/FogMid3Flip.png',
   fogFront: 'assets/FogFront3.png',
   fogFrontFlip: 'assets/FogFront3Flip.png',
+  // Rob's reference image ("mystical sky" cliffs/orbs) for the gameplay
+  // background — see pixi_playscreen.js's _setupMysticalSky/cliff layer.
+  bgCliffs: 'assets/BgCliffs.webp',
   potionBlast: 'assets/Blast2.png',
   blastRing: 'assets/Blast.png',
   // Game Over's row of 3 round buttons — one combined pill image (icons + dividers
