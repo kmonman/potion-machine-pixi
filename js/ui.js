@@ -551,24 +551,13 @@ const PlayScreen = {
   // one fixed spot.
   _buildDarkMatterClouds(levelNum) {
     // Each entry: width, height, pivotY, startDir (1 = left-to-right,
-    // -1 = right-to-left). Most levels get one cloud; Rob: "Levels eight,
-    // nine, and ten should have increasing clouds" — those three now get
-    // 2, 3, and 4 respectively, each independently timed/directed and
-    // spread across that level's own available climb (shared tower
-    // pivots, see the per-level comments) so they don't all bunch at one
-    // height.
+    // -1 = right-to-left). Rob: "the cloud is tough, let's not have any
+    // until level 9" — pulled off Levels 2-8 entirely (were building up
+    // 1-2 per level); Levels 9-10 keep their existing escalation (3, then
+    // 4), each independently timed/directed and spread across that
+    // level's own available climb (shared tower pivots, see the per-level
+    // comments) so they don't all bunch at one height.
     const specs = {
-      2: [{ width: 336, height: 204, pivotY: 200, startDir: 1 }],      // between y=352/y=52 (Level 2)
-      3: [{ width: 300, height: 190, pivotY: -100, startDir: -1 }],    // between y=52/y=-248 (Level 3)
-      4: [{ width: 460, height: 140, pivotY: -100, startDir: 1 }],     // long/flat — between y=52/y=-248 (Level 4)
-      5: [{ width: 320, height: 210, pivotY: -600, startDir: -1 }],    // between y=-448/y=-748 (shared tower)
-      6: [{ width: 520, height: 150, pivotY: -900, startDir: 1 }],     // long/flat — between y=-748/y=-1048
-      7: [{ width: 300, height: 230, pivotY: -1200, startDir: -1 }],   // between y=-1048/y=-1348
-      // Level 8 — 2 clouds, spread across platforms 3-9 (y=-148..-1948).
-      8: [
-        { width: 340, height: 210, pivotY: -600, startDir: 1 },
-        { width: 480, height: 150, pivotY: -1500, startDir: -1 },      // long/flat
-      ],
       // Level 9 — 3 clouds, spread across platforms 3-10 (y=-148..-2248).
       9: [
         { width: 300, height: 190, pivotY: -450, startDir: -1 },
