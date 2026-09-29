@@ -334,6 +334,16 @@ const PlayScreenPixi = {
     v.platformSprite = new PIXI.Sprite(textures.platform);
     v.platformSprite.anchor.set(0.5);
     v.platformSprite.width = p.length; v.platformSprite.height = p.thickness;
+    // Rob: "the tubes for potion should be more transparent when not
+    // filled with liquid" — this sprite is the tube's own glass casing,
+    // drawn under the liquid fill (added below) and under the
+    // shadow/highlight glass shading on top. Wherever there's no liquid,
+    // this alone is what's on screen, and at full alpha it read as
+    // solid/opaque rather than glass. Wherever there IS liquid, the fill's
+    // own opaque graphics sit on top of it either way, so dimming this
+    // only actually affects the empty portion's look, not the potion
+    // itself.
+    v.platformSprite.alpha = 0.55;
     v.platformContainer.addChild(v.platformSprite);
 
     // Liquid — rebuilt from scratch every frame in refresh() (column levels
