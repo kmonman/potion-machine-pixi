@@ -581,15 +581,18 @@ const PlayScreenPixi = {
     this._setupMysticalSky(accent);
   },
 
-  // Rob: "the background is a little boring... need like a mystical sky."
-  // A field of small twinkling stars plus a handful of bigger, slower
-  // glowing wisps, scattered once per level entry across the full
-  // screen-fixed background (behind worldContainer, so platforms/ball
-  // always read on top). Tinted toward the level's own accent color when
-  // it has one (see levelAccentColor); a soft cool lavender-white by
-  // default so every level gets the mystical-sky treatment, not just the
-  // ones with a color identity — this is a general atmosphere upgrade,
-  // not tied to the color-identity experiment specifically.
+  // Rob: "the background is a little boring... need like a mystical sky"
+  // -> "could use... more smaller dots to look like it's more 3d space.
+  // it looks really flat." One size/speed of star read flat regardless of
+  // count — real depth needs distinct layers: tiny/dim/slow stars far
+  // away, a mid layer, and a handful of bigger/brighter/faster wisps up
+  // close, the classic multi-layer parallax depth cue (near = bigger,
+  // brighter, faster; far = smaller, dimmer, slower). Scattered once per
+  // level entry across the full screen-fixed background (behind
+  // worldContainer, so platforms/ball always read on top). Tinted toward
+  // the level's own accent color when it has one (see levelAccentColor);
+  // a soft cool lavender-white by default so every level gets the
+  // mystical-sky treatment, not just the ones with a color identity.
   _setupMysticalSky(accent) {
     const base = accent ? accent : [200, 180, 255];
     const tint = rgbToHex(
@@ -597,19 +600,29 @@ const PlayScreenPixi = {
     );
     const w = this.renderWidth;
     this._embers = [];
-    for (let i = 0; i < 34; i++) {
-      const big = i < 6; // a handful of bigger, slower wisps among the small twinkling stars
-      this._embers.push({
-        x: Math.random() * w,
-        y: Math.random() * 1280,
-        size: big ? 18 + Math.random() * 16 : 2 + Math.random() * 3,
-        baseAlpha: big ? 0.10 + Math.random() * 0.10 : 0.35 + Math.random() * 0.45,
-        twinklePhase: Math.random() * Math.PI * 2,
-        twinkleSpeed: big ? 0.3 + Math.random() * 0.3 : 0.6 + Math.random() * 1.8,
-        driftY: big ? -(2 + Math.random() * 3) : -(0.4 + Math.random() * 0.8),
-        driftX: big ? (Math.random() * 2 - 1) * 2 : 0,
-        tint,
-      });
+    // Three depth bands, far to near. Counts weighted toward the far
+    // layer (Rob: "more smaller dots") since a real starfield reads as
+    // mostly tiny distant points with only a few things big and close.
+    const bands = [
+      { count: 55, size: [0.8, 1.8], alpha: [0.2, 0.4], twinkle: [0.4, 1.2], drift: [-0.15, -0.35] }, // far
+      { count: 24, size: [1.8, 3.2], alpha: [0.35, 0.6], twinkle: [0.6, 1.8], drift: [-0.4, -0.8] },  // mid
+      { count: 6, size: [18, 34], alpha: [0.10, 0.20], twinkle: [0.3, 0.6], drift: [-2, -5] },        // near wisps
+    ];
+    for (const band of bands) {
+      for (let i = 0; i < band.count; i++) {
+        const near = band === bands[2];
+        this._embers.push({
+          x: Math.random() * w,
+          y: Math.random() * 1280,
+          size: band.size[0] + Math.random() * (band.size[1] - band.size[0]),
+          baseAlpha: band.alpha[0] + Math.random() * (band.alpha[1] - band.alpha[0]),
+          twinklePhase: Math.random() * Math.PI * 2,
+          twinkleSpeed: band.twinkle[0] + Math.random() * (band.twinkle[1] - band.twinkle[0]),
+          driftY: band.drift[0] + Math.random() * (band.drift[1] - band.drift[0]),
+          driftX: near ? (Math.random() * 2 - 1) * 2 : 0,
+          tint,
+        });
+      }
     }
   },
 
