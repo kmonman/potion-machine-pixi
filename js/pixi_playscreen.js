@@ -511,7 +511,62 @@ const PlayScreenPixi = {
     this._dt = dt;
   },
 
+  // Vignette base color, normally the game's own dark purple-black
+  // (10,4,16). Extracted so build()/setRenderWidth()/_applyBackgroundAccent
+  // all build the exact same gradient shape from whatever base color is
+  // current, instead of three copies of the same color stops to keep in
+  // sync by hand.
+  _vignetteGrad(width, height, base) {
+    const rgb = base.join(',');
+    return new PIXI.FillGradient({
+      type: 'linear', x0: 0, y0: 0, x1: 0, y1: height,
+      colorStops: [
+        { offset: 0, color: `rgba(${rgb},1)` },
+        { offset: 0.55, color: `rgba(${rgb},1)` },
+        { offset: 0.68, color: `rgba(${rgb},0.78)` },
+        { offset: 0.82, color: `rgba(${rgb},0.6)` },
+        { offset: 1, color: `rgba(${rgb},0.45)` },
+      ],
+      textureSpace: 'local',
+    });
+  },
+
+  // Background accent (Rob: "are you thinking we make some adjustments in
+  // the background too?") — warms the fog layers and the vignette's own
+  // base color to match the current level's identity color (see ui.js's
+  // levelAccentColor); null on every level without one restores exactly
+  // how it's always looked. Kept subtle (fog tinted only 35% toward the
+  // accent, vignette base only 25%) — this is atmosphere behind the real
+  // action, not a full recolor.
+  _applyBackgroundAccent(accent) {
+    const mix = (base, t) => accent
+      ? [0, 1, 2].map((i) => Math.round(base[i] + (accent[i] - base[i]) * t))
+      : base;
+    const fogTint = accent ? rgbToHex(...mix([255, 255, 255], 0.35)) : 0xffffff;
+    for (const f of this._fogSprites) {
+      f.sprite.tint = fogTint;
+      f.spriteFlip.tint = fogTint;
+    }
+    // Stored (not just applied) so setRenderWidth() — called on every
+    // landscape/orientation resize — can rebuild the vignette at its new
+    // width using the CURRENT accent's base color instead of silently
+    // reverting to the default purple until the next level switch.
+    this._vignetteBase = mix([10, 4, 16], 0.25);
+    this._vignette.clear();
+    this._vignette.rect(0, 0, this.renderWidth, CONFIG.HEIGHT)
+      .fill(this._vignetteGrad(this.renderWidth, CONFIG.HEIGHT, this._vignetteBase));
+  },
+
   refresh() {
+    // See _applyBackgroundAccent's own comment — only rebuilt when the
+    // accent actually changes (level switch), not every frame; the
+    // vignette is a real GPU gradient texture, and rebuilding that every
+    // frame is the same kind of leak that once crashed a phone (see
+    // _refreshLiquid's own comment on that).
+    if (PlayScreen.levelAccentColor !== this._lastAccentColor) {
+      this._lastAccentColor = PlayScreen.levelAccentColor;
+      this._applyBackgroundAccent(PlayScreen.levelAccentColor);
+    }
     for (const f of this._fogSprites) {
       const l = Fog.layers.find((x) => x.key === f.key);
       f.sprite.y = l.y1;
@@ -885,18 +940,12 @@ const PlayScreenPixi = {
     this.renderWidth = width;
     this._bg.clear().rect(0, 0, width, CONFIG.HEIGHT).fill(0x0a0410);
     this._vignette.clear();
-    const grad = new PIXI.FillGradient({
-      type: 'linear', x0: 0, y0: 0, x1: 0, y1: CONFIG.HEIGHT,
-      colorStops: [
-        { offset: 0, color: 'rgba(10,4,16,1)' },
-        { offset: 0.55, color: 'rgba(10,4,16,1)' },
-        { offset: 0.68, color: 'rgba(10,4,16,0.78)' },
-        { offset: 0.82, color: 'rgba(10,4,16,0.6)' },
-        { offset: 1, color: 'rgba(10,4,16,0.45)' },
-      ],
-      textureSpace: 'local',
-    });
-    this._vignette.rect(0, 0, width, CONFIG.HEIGHT).fill(grad);
+    // Rebuilds at the CURRENT accent's base color (see
+    // _applyBackgroundAccent), not a hardcoded default — a resize mid-
+    // level (e.g. rotating to landscape) shouldn't silently drop Level 1's
+    // warmed vignette back to plain purple.
+    this._vignette.rect(0, 0, width, CONFIG.HEIGHT)
+      .fill(this._vignetteGrad(width, CONFIG.HEIGHT, this._vignetteBase || [10, 4, 16]));
     for (const f of this._fogSprites) {
       f.sprite.width = width;
       f.spriteFlip.width = width;

@@ -895,6 +895,12 @@ const PlayScreen = {
     // cycles back to Cool; null for every other level leaves them exactly
     // as they've always looked.
     const coolColorOverride = levelNum === 1 ? [255, 176, 59] : null; // #ffb03b
+    // Same identity color, read by pixi_playscreen.js to warm the
+    // background fog/vignette too (Rob: "are you thinking we make some
+    // adjustments in the background too?") — kept as its own field rather
+    // than reusing coolColorOverride directly since the background isn't
+    // per-platform.
+    this.levelAccentColor = coolColorOverride;
     for (const p of this.platforms) {
       // Set before reset() (not after) — reset() immediately rolls a fresh
       // targetAngle using this platform's current maxTiltAngle, so setting
