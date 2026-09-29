@@ -895,12 +895,19 @@ const PlayScreen = {
     const speedMul = this._tubeSpeedMultiplier();
     const maxTiltAngle = this._maxTiltAngleForLevel();
     const jetTier = this._jetTierForLevel();
+    // Per-level color identity test (Rob: "can we try one?") — Level 1
+    // only for now, a warm amber instead of the usual magenta. Read by
+    // platform.js's reset()/_applyTubeStage whenever this run's tube
+    // cycles back to Cool; null for every other level leaves them exactly
+    // as they've always looked.
+    const coolColorOverride = levelNum === 1 ? [255, 176, 59] : null; // #ffb03b
     for (const p of this.platforms) {
       // Set before reset() (not after) — reset() immediately rolls a fresh
       // targetAngle using this platform's current maxTiltAngle, so setting
       // it late would still leave this run's very first tween using
       // whatever level's cap happened to be set last.
       p.maxTiltAngle = maxTiltAngle;
+      p.coolColorOverride = coolColorOverride;
       p.reset();
       // p.reset() doesn't touch tubeSpeed (only angle/hinge/tube-stage), so
       // this scaling sticks for the whole run without being clobbered, and

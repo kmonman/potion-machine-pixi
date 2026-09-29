@@ -1111,10 +1111,18 @@ const PlayScreenPixi = {
     ];
     const rgb = `rgb(${c.join(',')})`;
 
+    // Rob: "when you change the potion color you should also change the
+    // bubble color" — these used to be a fixed pink→blue gradient
+    // regardless of what the tube actually is right now (Level 1's amber
+    // test still showed plain pink bubbles here). Blends from this
+    // platform's own live tubeColor (near the hinge) toward white (as
+    // they rise and fade), same spirit as the in-liquid bubbles already
+    // do, so every level/color identity carries all the way through.
+    const [htr, htg, htb] = p.tubeColor;
     this._syncParticlePool(v.hingeBubblePool, v.hingeBubbleContainer, p.hingeBubbles.bubbles, textures.hingeBubbleParticle, (bp, t) => ({
       x: bp.x + Math.sin(bp.wobblePhase) * bp.wobbleAmp, y: bp.y,
       size: bp.maxSize * (1 - t), alpha: 1 - t,
-      tint: rgbToHex(254 + (63 - 254) * t, 19 + (203 - 19) * t, 117 + (255 - 117) * t),
+      tint: rgbToHex(htr + (255 - htr) * t, htg + (255 - htg) * t, htb + (255 - htb) * t),
       additive: false,
     }));
 

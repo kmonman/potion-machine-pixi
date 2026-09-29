@@ -47,6 +47,9 @@ const FREE_PLAY_PHASES = [
 // which is the separate global moon-phase system and unaffected by this —
 // Rob's ask was about the tube specifically).
 const TUBE_STAGE_PARAMS = {
+  // Rob tried a lighter pink here ("too much pink on the screen") but
+  // called it "pretty dull" once seen live — reverted to the original
+  // vivid magenta. See feedback thread for what's being tried instead.
   Cool: { grip: 0.90, tiltForce: 1, color: [255, 0, 195] }, // #ff00c3
   Warm: { grip: 0.78, tiltForce: 0.85, color: [126, 190, 252] }, // #7ebefc — light blue
   Fire: { grip: 0.40, tiltForce: 0.6, color: [0, 104, 255] }, // #0068ff — dark blue

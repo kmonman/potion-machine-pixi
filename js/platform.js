@@ -115,6 +115,14 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     tiltForce: TUBE_STAGE_PARAMS.Cool.tiltForce,
     tubeColor: TUBE_STAGE_PARAMS.Cool.color.slice(),
     tubeColorTarget: TUBE_STAGE_PARAMS.Cool.color.slice(),
+    // Per-level color identity test (Rob: "what would a different per
+    // level color identity look like, can we try one?") — an optional
+    // [r,g,b] swapped in for the Cool stage's own color specifically, set
+    // by ui.js's enter() before reset() each run. null = default magenta,
+    // same as every level before this. Only Cool is overridden; Warm/Fire
+    // still progress exactly as before, so a level's identity color is
+    // what it "starts" as, not a whole new heat palette.
+    coolColorOverride: null,
 
     angle: 0, // degrees; positive = right end tilts down
     startAngle: 0,
@@ -204,7 +212,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       this.tubePhaseIndex = 0;
       this.tubePhaseTimer = 0;
       this._applyTubeStage(TUBE_STAGE_SCHEDULE[0].stage);
-      this.tubeColor = TUBE_STAGE_PARAMS[this.tubeStage].color.slice();
+      this.tubeColor = this.tubeColorTarget.slice();
       this._initLiquid();
       this.liquidBubbles = [];
       this.liquidBubbleTimer = 0.3 + Math.random() * 0.5;
@@ -216,7 +224,11 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       const params = TUBE_STAGE_PARAMS[stage];
       this.grip = params.grip;
       this.tiltForce = params.tiltForce;
-      this.tubeColorTarget = params.color.slice();
+      // Cool-stage color identity override (see coolColorOverride's own
+      // comment) — Warm/Fire always use their normal params.color.
+      this.tubeColorTarget = (stage === 'Cool' && this.coolColorOverride)
+        ? this.coolColorOverride.slice()
+        : params.color.slice();
     },
 
     // This platform's own tube-heat schedule (see TUBE_STAGE_SCHEDULE in
