@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leaderboard</title>
+<!-- Wix pop-up page. Embed with ?game=potion or ?game=monster.
+     Shows This Week (top 10), Last Week's Top 3, and Monthly Winners.
+     Styled to match mytrickortreat.com's glowing neon card buttons. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
+<style>
+  /* Each game has its own theme (set on <body> by the script below).
+     c1/c2/c3 = the three tab colors (This Week / Last Week / Monthly), as R,G,B. */
+  body.game-monster {            /* Monster Smash: site blues/purples + slime-green title */
+    --title-rgb: 166, 255, 77;
+    --c1-rgb: 110, 231, 249;  --c2-rgb: 199, 125, 255;  --c3-rgb: 255, 122, 217;
+    --frame-rgb: 199, 125, 255; --frame-width: 0px;   /* no outer stroke */
+    --panel-top: #340d5d; --panel-bot: #260c47; --panel-haze: 90, 30, 150;   /* the game's purple backdrop */
+    --section-bg: linear-gradient(to bottom, #211d5e, #151045);               /* the game's bluer side panels */
+    --dim: #a99fd6; --lilac: #e9dcff;
+  }
+  body.game-potion {             /* Potion Machine: hot pinks/magentas on near-black purple */
+    --title-rgb: 255, 95, 168;
+    --c1-rgb: 255, 95, 168;   --c2-rgb: 189, 16, 224;   --c3-rgb: 119, 163, 252;
+    --frame-rgb: 255, 95, 168; --frame-width: 0px;   /* no outer stroke */
+    --panel-top: #26092f; --panel-bot: #0a0410; --panel-haze: 189, 16, 224;
+    --section-bg: rgba(18, 5, 24, .85);
+    --dim: #c4a3c9; --lilac: #ffd6ec;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body { font-family: 'Nunito', system-ui, sans-serif; color: #f7eefc; padding: 16px; }
+
+  .panel {
+    position: relative; max-width: 400px; margin: 0 auto; padding: 22px 18px 18px;
+    border-radius: 26px; overflow: hidden;
+    background:
+      radial-gradient(120% 60% at 50% 0%, rgba(var(--panel-haze), .35), transparent 70%),
+      linear-gradient(to bottom, var(--panel-top), var(--panel-bot));
+    border: var(--frame-width, 3px) solid rgb(var(--frame-rgb));
+    box-shadow: 0 0 14px rgba(var(--frame-rgb), .55), 0 0 40px rgba(var(--frame-rgb), .3),
+                inset 0 0 22px rgba(var(--frame-rgb), .22);
+  }
+  /* A few twinkling stars behind everything */
+  .panel::before {
+    content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .7;
+    background-image:
+      radial-gradient(1.5px 1.5px at 12% 18%, #fff, transparent),
+      radial-gradient(1px 1px at 78% 9%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 88% 46%, #cfe9ff, transparent),
+      radial-gradient(1px 1px at 22% 64%, #fff, transparent),
+      radial-gradient(1px 1px at 58% 82%, #e9dcff, transparent),
+      radial-gradient(1.5px 1.5px at 40% 30%, #fff, transparent);
+    animation: twinkle 4s ease-in-out infinite alternate;
+  }
+  @keyframes twinkle { from { opacity: .35; } to { opacity: .85; } }
+  .panel > * { position: relative; }
+
+  h1 {
+    margin: 0; text-align: center; font-family: 'Luckiest Guy', cursive; font-weight: 400;
+    font-size: 30px; letter-spacing: 1px; line-height: 1.05;
+    color: rgb(var(--title-rgb));
+    text-shadow: 0 0 8px rgba(var(--title-rgb), .7), 0 0 22px rgba(var(--title-rgb), .45);
+  }
+  .icon { display: block; text-align: center; font-size: 34px; line-height: 1; margin-bottom: 4px;
+          filter: drop-shadow(0 0 10px rgba(var(--frame-rgb), .6)); }
+  .reset { text-align: center; font-size: 12px; font-weight: 800; color: var(--dim); margin: 8px 0 16px; }
+  .reset b { color: rgb(var(--c1-rgb)); }
+
+  .section { --c: var(--c1-rgb); border-radius: 26px; padding: 14px 14px 10px; margin-bottom: 18px;
+             background: var(--section-bg);
+             /* No outline — just a soft colored glow behind each tab */
+             box-shadow: 0 0 22px rgba(var(--c), .42), 0 0 6px rgba(var(--c), .3); }
+  .section:last-child { margin-bottom: 0; }
+  .s-last  { --c: var(--c2-rgb); }
+  .s-month { --c: var(--c3-rgb); }
+  h2 { margin: 0 0 10px; font-family: 'Luckiest Guy', cursive; font-weight: 400; font-size: 18px; letter-spacing: 1px;
+       -webkit-background-clip: text; background-clip: text; color: transparent;
+       background-image: linear-gradient(to bottom, #fff, rgb(var(--c)));
+       filter: drop-shadow(0 0 6px rgba(var(--c), .55)); }
+
+  .row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 6px;
+         border-radius: 12px; background: rgba(255, 255, 255, .06); font-size: 14px; font-weight: 800; }
+  .rank { width: 28px; flex: none; text-align: center; font-family: 'Luckiest Guy', cursive; font-weight: 400;
+          font-size: 16px; color: var(--lilac); }
+  .r1 .rank, .r2 .rank, .r3 .rank { font-family: inherit; font-size: 18px; }
+  .r1 { background: linear-gradient(90deg, rgba(var(--c), .22), rgba(255,255,255,.05)); }
+  .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .score { flex: none; font-variant-numeric: tabular-nums; color: rgb(var(--c)); text-shadow: 0 0 8px rgba(var(--c), .55); }
+  .month { flex: none; white-space: nowrap; color: var(--dim); font-size: 13px; }
+  .row.me { outline: 2px solid rgb(var(--c)); box-shadow: 0 0 12px rgba(var(--c), .55); }
+  .row.me .name::after { content: '  ← you'; color: rgb(var(--c)); font-size: 12px; }
+  .empty, .loading { color: var(--dim); font-size: 13px; font-weight: 700; text-align: center; padding: 6px 0 10px; margin: 0; }
+  .note { color: var(--dim); font-size: 11px; font-weight: 700; text-align: center; margin: 2px 0 4px; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <span class="icon" id="icon">🏆</span>
+  <h1 id="title">Leaderboard</h1>
+  <div class="reset" id="reset">&nbsp;</div>
+
+  <div class="section s-week">
+    <h2>This Week</h2>
+    <div id="thisWeek"><p class="loading">Loading…</p></div>
+  </div>
+  <div class="section s-last">
+    <h2>Last Week's Top 3</h2>
+    <div id="lastWeek"><p class="loading">Loading…</p></div>
+  </div>
+  <div class="section s-month">
+    <h2>Monthly Winners</h2>
+    <div id="monthly"><p class="loading">Loading…</p></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="lb-kit.js"></script>
+<script>
+(function () {
+  'use strict';
+  const GAMES = {
+    potion:  { icon: '🧪', title: 'Top Potion Brewers' },
+    monster: { icon: '👹', title: 'Top Monster Smashers' },
+  };
+  const game = new URLSearchParams(location.search).get('game') === 'monster' ? 'monster' : 'potion';
+  document.body.classList.add('game-' + game);
+  document.getElementById('icon').textContent = GAMES[game].icon;
+  document.getElementById('title').textContent = GAMES[game].title;
+  document.title = GAMES[game].title;
+  LB.init(game);
+
+  const MEDALS = ['🥇', '🥈', '🥉'];
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const fmt = (n) => Number(n).toLocaleString('en-US');
+  let myUid = null;
+
+  function rows(list, emptyText) {
+    if (!list.length) return '<p class="empty">' + emptyText + '</p>';
+    return list.map((r, i) =>
+      '<div class="row r' + (i + 1) + (r.uid === myUid ? ' me' : '') + '"><span class="rank">' + (MEDALS[i] || i + 1) +
+      '</span><span class="name">' + esc(r.name) + '</span><span class="score">' + fmt(r.score) + '</span></div>'
+    ).join('');
+  }
+  function monthRows(list) {
+    if (!list.length) return '<p class="empty">No winners yet.</p>';
+    return list.map((r) =>
+      '<div class="row' + (r.uid === myUid ? ' me' : '') + '"><span class="month">' + (r.current ? '👑 ' : '') +
+      esc(r.label.split(' ')[0]) + '</span><span class="name">' + esc(r.name) + '</span><span class="score">' + fmt(r.score) + '</span></div>'
+    ).join('') + (list.some((r) => r.current) ? '<p class="note">👑 = leading so far this month</p>' : '');
+  }
+  function resetText(ms) {
+    const mins = Math.floor(ms / 60000), h = Math.floor(mins / 60), d = Math.floor(h / 24);
+    const left = d >= 1 ? d + 'd ' + (h % 24) + 'h' : h >= 1 ? h + 'h ' + (mins % 60) + 'm' : Math.max(1, mins) + 'm';
+    return 'New week in <b>' + left + '</b> · resets Sunday midnight (Pacific)';
+  }
+
+  async function render() {
+    try {
+      if (!myUid) myUid = await LB.peekUid(); // highlights your own row; never signs anyone in
+      const b = await LB.getBoards();
+      document.getElementById('thisWeek').innerHTML = rows(b.thisWeek, 'No scores yet this week. Be the first!');
+      document.getElementById('lastWeek').innerHTML = rows(b.lastWeek, 'No scores last week.');
+      document.getElementById('monthly').innerHTML = monthRows(b.monthly);
+      document.getElementById('reset').innerHTML = resetText(b.resetsIn);
+    } catch (e) {
+      console.error(e);
+      document.getElementById('thisWeek').innerHTML = '<p class="empty">Couldn’t load the leaderboard.</p>';
+      document.getElementById('lastWeek').innerHTML = document.getElementById('monthly').innerHTML = '';
+    }
+  }
+  render();
+  setInterval(render, 45000);
+})();
+</script>
+</body>
+</html>

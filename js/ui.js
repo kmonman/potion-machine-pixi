@@ -71,7 +71,6 @@ const HomeScreen = {
     levelModeBtn: { x: 390, y: 721, w: 285, h: 285 },
     instrFreePlay: { x: 81, y: 970, w: 209, h: 135 },
     instrLevels: { x: 390, y: 970, w: 283, h: 135 },
-    nameWarning: { x: 133, y: 1132, w: 454, h: 60 },
     muteHit: { x: 631, y: 1184, w: 64, h: 64 },
     muteBtn: { x: 637, y: 1186, w: 57, h: 68 },
     motionOverlay: { x: -21, y: 504, w: 756, h: 237 },
@@ -91,11 +90,6 @@ const HomeScreen = {
       { size: 22, font: 'PotionBody', color: COLOR.instructions });
     drawCenteredText(ctx, 'Make potion to advance LEVELS', L.instrLevels.x, L.instrLevels.y, L.instrLevels.w,
       { size: 22, font: 'PotionBody', color: COLOR.instructions });
-
-    if (state.showNameWarning) {
-      drawCenteredText(ctx, 'Enter name before starting game', L.nameWarning.x, L.nameWarning.y, L.nameWarning.w,
-        { size: 24, font: 'PotionBody', color: COLOR.warn });
-    }
 
     const muteImg = state.muted ? images.muteMuted : images.muteUnmuted;
     drawImg(ctx, muteImg, L.muteBtn.x, L.muteBtn.y, L.muteBtn.w, L.muteBtn.h);
@@ -947,6 +941,7 @@ const PlayScreen = {
     this._levelCompleteTimer = 0;
     this.gameOverT = 0;
     this.leaderboardMsgT = 0;
+    this._scoreSubmitted = false;
     this.goBubbles = [];
     this.goBubbleTimer = 0;
     this.blastCharges = 0;
@@ -1160,6 +1155,11 @@ const PlayScreen = {
         }
       }
     } else {
+      // Send a finished Free Play run to the online leaderboard, exactly once per run.
+      if (!this._scoreSubmitted) {
+        this._scoreSubmitted = true;
+        if (this.mode === 'freeplay') Leaderboard.submitFreePlayScore(Math.floor(this.score));
+      }
       for (const p of this.platforms) p.hingeBubbles.update(dt, false, p.pivot.x, p.pivot.y);
       this.gameOverT = Math.min(1, this.gameOverT + dt / 0.35);
       if (this.leaderboardMsgT > 0) this.leaderboardMsgT = Math.max(0, this.leaderboardMsgT - dt);

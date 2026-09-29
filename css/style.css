@@ -101,15 +101,16 @@ body {
   background: transparent;
   border: none;
   outline: none;
-  caret-color: rgb(144, 19, 254);
+  caret-color: transparent;
+  cursor: pointer;
   /* html/body sets touch-action:none and user-select:none game-wide so the canvas
      doesn't scroll/zoom under touch — but that inherits down onto this input too,
      and on real touchscreens touch-action:none can suppress the tap-to-focus
      gesture entirely, silently preventing the on-screen keyboard from ever
      appearing. Explicitly restore normal behavior for just this field. */
   touch-action: manipulation;
-  -webkit-user-select: text;
-  user-select: text;
+  -webkit-user-select: none;
+  user-select: none;
 }
 #nameInput::placeholder {
   color: rgba(144, 19, 254, 0.55);

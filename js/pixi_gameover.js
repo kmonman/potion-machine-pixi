@@ -248,7 +248,7 @@ const GameOverPixi = {
         if (target === 'home') goHome();
         else if (target === 'retry') PlayScreen.enter(state.screen);
         else if (PlayScreen.mode !== 'freeplay') state.screen = 'levels';
-        else PlayScreen.showLeaderboardComingSoon();
+        else if (!Leaderboard.showBoard()) PlayScreen.showLeaderboardComingSoon(); // fallback if offline
       });
       this._bottomBar.addChild(zone);
     });

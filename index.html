@@ -11,7 +11,9 @@
 <div id="viewport">
   <div id="gameWrap">
     <canvas id="gameCanvas" width="720" height="1280"></canvas>
-    <input id="nameInput" type="text" placeholder="Enter Name" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false">
+    <!-- Shows the player's spooky leaderboard name (read-only — tapping it opens
+         the name picker; see leaderboard.js). Not required to play. -->
+    <input id="nameInput" type="text" placeholder="Tap to pick your name" readonly tabindex="-1" autocomplete="off" spellcheck="false">
   </div>
 </div>
 
@@ -44,6 +46,17 @@
      the rest of this project — exposes a global `PIXI` object. Must load before
      every other script below, since they all use it. -->
 <script src="js/vendor/pixi.min.js"></script>
+
+<!-- Online leaderboard: Firebase (loaded from Google's CDN) + the shared
+     leaderboard kit (leaderboard/ — also serves leaderboard.html, the page the
+     Wix pop-ups embed). If these fail to load, js/leaderboard.js just switches
+     the leaderboard off and the game plays normally. -->
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="leaderboard/lb-kit.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="leaderboard/lb-kit.js"></script>
 
 <!-- Load order matters: each later file uses globals defined by the ones before it.
      Cache-busted with a timestamp query during dev (see below) so editor/browser

@@ -20,7 +20,6 @@ const HOME_GAMEOVER_REFERENCE_WIDTH = 1100;
 
 const HomeScreenPixi = {
   container: null,
-  _nameWarningText: null,
   _motionOverlay: null,
   _motionText: null,
   _motionDeniedText: null,
@@ -98,11 +97,6 @@ const HomeScreenPixi = {
     this._levelsCaption = this._centeredText('Make potion to\nadvance LEVELS', 390, 970, 283, 22, 'PotionBody', 0x77a3fc);
     this._levelsGroup.addChild(this._levelsCaption);
     this._levelsCenter = { x: 390 + 285 / 2, y: 721 + 285 / 2 };
-
-    this._nameWarningText = this._centeredText('Enter name before starting game', 133, 1132, 454, 24, 'PotionBody', 0xbd10e0);
-    this._nameWarningText.visible = false;
-    c.addChild(this._nameWarningText);
-    this._nameWarningY = 1132;
 
     this._motionOverlay = new PIXI.Container();
     this._motionOverlay.visible = false;
@@ -211,7 +205,6 @@ const HomeScreenPixi = {
       nameInput.style.width = `${nameW}px`;
       nameInput.style.height = `${nameH}px`;
       nameInput.style.fontSize = `${42 * 0.8 * sizeScale}px`;
-      this._nameWarningText.position.set(centerX, visibleBottomY - nameH - 45);
     } else {
       this._bg.clear().rect(0, 0, 720, 1280).fill(0x0a0410);
       this._sky.position.x = -19;
@@ -225,14 +218,12 @@ const HomeScreenPixi = {
       nameInput.style.width = '540px';
       nameInput.style.height = '72px';
       nameInput.style.fontSize = '42px';
-      this._nameWarningText.position.set(360, this._nameWarningY);
     }
   },
 
   // Called every frame (cheap — just visibility/texture swaps, no rebuilding)
   // to reflect state changes, replacing the old draw()'s state-dependent bits.
   refresh(textures, state) {
-    this._nameWarningText.visible = state.showNameWarning;
     this._motionOverlay.visible = state.requestingMotion;
     this._motionDeniedText.visible = state.motionDenied;
   },

@@ -68,6 +68,9 @@ const ASSET_PATHS = {
 const canvas = document.getElementById('gameCanvas');
 const gameWrap = document.getElementById('gameWrap');
 const nameInput = document.getElementById('nameInput');
+// The Home name box just displays the player's spooky leaderboard name;
+// tapping it opens the name picker (to pick one, or change it).
+nameInput.addEventListener('click', () => Leaderboard.pickName());
 
 // Fullscreen toggle (Rob: playing through a browser tab means dealing with
 // the address bar/chrome eating into the screen — "Add to Home Screen"
@@ -155,11 +158,10 @@ function isPlayScreenName(screen) {
 
 const state = {
   screen: 'home', // 'home' | 'levels' | 'level<N>' | 'freeplay'
-  playerName: Storage.getPlayerName(),
+  playerName: '', // spooky leaderboard name, filled in by leaderboard.js
   gameMode: '',
   highestLevelUnlocked: Storage.getHighestLevelUnlocked(),
   muted: Storage.getMuted(),
-  showNameWarning: false,
   requestingMotion: false,
   motionDenied: false,
 };
@@ -254,21 +256,14 @@ function goHome() {
   state.screen = 'home';
   nameInput.style.display = '';
   nameInput.value = state.playerName;
-  state.showNameWarning = false;
   state.requestingMotion = false;
   state.motionDenied = false;
 }
 
 async function tryEnterGame(mode) {
-  const name = nameInput.value.trim();
-  if (!name) {
-    state.showNameWarning = true;
-    return;
-  }
-  state.playerName = name;
-  Storage.setPlayerName(name);
+  // No name needed to play — the spooky leaderboard name is optional (picked
+  // on first visit or at the end of a Free Play run; see leaderboard.js).
   state.gameMode = mode;
-  state.showNameWarning = false;
   state.requestingMotion = true;
   nameInput.style.display = 'none';
 
@@ -530,6 +525,7 @@ function tick(ticker) {
 async function main() {
   fitGameWrap();
   nameInput.value = state.playerName;
+  Leaderboard.loadName(); // fills the Home name box; first-timers get the picker
   updateMuteBtn(); // reflect the muted state already loaded from Storage
   updateTiltInvertBtn(); // reflect the tilt-inverted state already loaded from Storage
 

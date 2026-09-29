@@ -21,16 +21,6 @@ const Storage = {
     }
   },
 
-  getPlayerName() {
-    return this._read().playerName || '';
-  },
-
-  setPlayerName(name) {
-    const data = this._read();
-    data.playerName = name;
-    this._write(data);
-  },
-
   getHighestLevelUnlocked() {
     return this._read().highestLevelUnlocked || 1;
   },
