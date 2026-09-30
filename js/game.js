@@ -39,6 +39,7 @@ const ASSET_PATHS = {
   potionFilled: 'assets/Pink Potion Final_1.png',
   potionEmpty: 'assets/Pink Potion Empty.png',
   bubbleScore: 'assets/bubblescore3.png',
+  scoreBoard: 'assets/ScoreBoard.png',
   fogBack: 'assets/FogBack3.png',
   fogBackFlip: 'assets/FogBack3Flip.png',
   fogMid: 'assets/FogMid3.png',

@@ -202,8 +202,14 @@ const PlayScreen = {
   muteBtn: { x: 637, y: 1186, w: 57, h: 68 },
   // Whole pill structure (sprite + digit together, not just the digit font)
   // scaled 15% bigger (Rob), anchored at the same top-left corner as before.
+  // Height used to match the old bubbleScore PNG's own oval — since
+  // pixi_hud.js draws this as a plain rounded rect now (no image), Rob:
+  // "the pill is way too wide from top to bottom" — slimmed down to a
+  // normal pill proportion instead of that image's old tall shape.
   PILL_SCALE: 1.15,
-  scorePillBtn: { x: 20, y: 20, w: 238 * 1.15, h: 104 * 1.15 },
+  // Rob: "make the pill around the score more narrow from top to bottom" —
+  // slimmed again, 62 -> 44.
+  scorePillBtn: { x: 20, y: 20, w: 238 * 1.15, h: 44 },
   // Sized/positioned so the *ovals themselves* match — not the raw image
   // rects, and not the images' full opaque content either (my first attempt
   // used alpha>200 bounds, which wrongly included the bottle icon towering
@@ -353,12 +359,12 @@ const PlayScreen = {
   // five, just to get people playing... give a little more force to the
   // ball. I don't want to move the platforms any closer." Every jump tier
   // (normal/charged/on-jet/combo — see fireBlast) gets scaled up together
-  // on Levels 1-5 so a normal, uncharged tap comfortably clears the
-  // regular TOWER_SPACING gaps; Level 1's own deliberately bigger
-  // BIG_TOWER_SPACING gap (its "one big jump," see _buildLevel1) stays
-  // comparatively harder since it scales right along with everything
-  // else instead of being singled out. Height scales with force squared,
-  // so 18% more force is roughly 39% more reach — a real difference
+  // on Levels 1-5 so a normal, uncharged tap comfortably clears every
+  // plain 'S' gap in that level's own gap plan (see _buildTieredTower);
+  // the deliberate BIG_TOWER_SPACING 'D'/'L' gaps stay comparatively
+  // harder since they scale right along with everything else instead of
+  // being singled out. Height scales with force squared, so 18% more
+  // force is roughly 39% more reach — a real difference
   // without turning every level trivial. Levels 6-10 and Free Play
   // unchanged.
   _blastForceMultiplier() {
@@ -667,8 +673,8 @@ const PlayScreen = {
   },
 
   // Which levels get a plasma storm, and where. Level 4's own original
-  // spot (centered between its platforms at y=352/y=52, see
-  // _buildLevel4) stays put. Rob's follow-up: "what levels is the plasma
+  // spot (centered between its old platforms at y=352/y=52, back when
+  // Level 4 was its own hand-placed tower) stays put. Rob's follow-up: "what levels is the plasma
   // storm on?... we need to add that on levels, maybe six or seven
   // plus... on the higher levels there should be more dark plasmas
   // moving in opposite directions" — Levels 6-10 now get one on the
@@ -708,94 +714,9 @@ const PlayScreen = {
     return list.map(spec => this._createPlasmaStorm(spec.pivotY, spec));
   },
 
-  // Levels 1-4 (Rob: "we need a new design for each level" instead of every
-  // level just being a shorter/taller slice of one shared tower — "keep the
-  // first 5 levels pretty short so beginners can power through them and get
-  // the hang of the game... more of a variation of how they're placed rather
-  // than an increase"). Each is its own short, independent, hand-placed
-  // climb rather than an index range into a bigger structure — varying only
-  // the left/right pattern between levels for now, same TOWER_SPACING-scale
-  // vertical gaps as always, and every tube held at the same 0.7 lengthScale
-  // every other platform already uses (Rob: don't shrink tubes smaller than
-  // what we've already had — that's for later, higher levels to introduce).
-  // Real bigger gaps are also reserved for Level 5 and up. First pass, built
-  // to react to, same as the original single tower was.
-
-  // Level 1 — doubled from its original 3 jumps to 6 (Rob: "make the first
-  // level twice as big and then build it from there" — too little climb to
-  // read as real action once the every-jump blast is free). Keeps the
-  // original first two platforms' exact placement (already played and
-  // tuned) and continues their same right/left zigzag upward. One
-  // BIG_TOWER_SPACING gap (p3->p4) is the level's one required big jump —
-  // Rob: "starting with maybe only one big jump on the first three levels" —
-  // everything else stays a normal free jump.
-  _buildLevel1(base) {
-    const platforms = [
-      base,
-      createPlatform(490, 352, { lengthScale: 0.7, tubeSpeed: 0.75 }),
-      createPlatform(230, 52, { lengthScale: 0.7, tubeSpeed: 1.3 }),
-      createPlatform(490, -248, { lengthScale: 0.7, tubeSpeed: 0.9 }),
-      createPlatform(230, -248 - this.BIG_TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 1.1 }),
-      createPlatform(490, -248 - this.BIG_TOWER_SPACING - this.TOWER_SPACING, { lengthScale: 0.7, tubeSpeed: 0.85 }),
-    ];
-    for (let i = 1; i < platforms.length; i++) {
-      platforms[i].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    }
-    return this._finishTower(this._appendGoalPlatform(platforms));
-  },
-
-  // Level 2 — same length (2 jumps) as Level 1, but drifts left twice in a
-  // row instead of alternating sides. Tube length held at the same 0.7
-  // every other platform already uses (Rob: don't go smaller than what
-  // we've already had — that's for later, higher levels to introduce, not
-  // these early ones) — the variety here is purely the left/left placement,
-  // not the tube size.
-  _buildLevel2(base) {
-    const platforms = [
-      base,
-      createPlatform(230, 352, { lengthScale: 0.7, tubeSpeed: 0.9 }),
-      createPlatform(170, 52, { lengthScale: 0.7, tubeSpeed: 1.1 }),
-    ];
-    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    platforms[2].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
-    return this._finishTower(this._appendGoalPlatform(platforms));
-  },
-
-  // Level 3 — one jump longer (3), a quicker right-left-right zigzag. Same
-  // 0.7 tube length as everything else so far (see Level 2's comment).
-  _buildLevel3(base) {
-    const platforms = [
-      base,
-      createPlatform(490, 352, { lengthScale: 0.7, tubeSpeed: 0.8 }),
-      createPlatform(230, 52, { lengthScale: 0.7, tubeSpeed: 1.2 }),
-      createPlatform(470, -248, { lengthScale: 0.7, tubeSpeed: 1.0 }),
-    ];
-    platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    platforms[2].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
-    platforms[3].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    return this._finishTower(this._appendGoalPlatform(platforms));
-  },
-
-  // Level 4 — also 3 jumps, left-left-right this time (a different pattern
-  // from both Level 2's left-left and Level 3's right-left-right). Same 0.7
-  // tube length again.
-  _buildLevel4(base) {
-    const platforms = [
-      base,
-      createPlatform(230, 352, { lengthScale: 0.7, tubeSpeed: 0.85 }),
-      createPlatform(160, 52, { lengthScale: 0.7, tubeSpeed: 1.15 }),
-      createPlatform(410, -248, { lengthScale: 0.7, tubeSpeed: 1.0 }),
-    ];
-    platforms[1].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
-    platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] });
-    return this._finishTower(this._appendGoalPlatform(platforms));
-  },
-
   // The original single hand-placed tower — now Free Play only (Levels
-  // 5-10 got their own real per-level towers below, see
-  // _buildGrowingTower). `base` is the same shared instance every other
-  // tower uses, not a fresh one.
+  // 1-10 all build through _buildTieredTower below now). `base` is the
+  // same shared instance every other tower uses, not a fresh one.
   _buildSharedTower(base) {
     const baseX = 360, baseY = 652;
     const platforms = [
@@ -852,27 +773,31 @@ const PlayScreen = {
     return this._finishTower(platforms);
   },
 
-  // Rob: "it should slowly grow... starting with level five with seven
-  // platforms and then gets to twelve at the higher levels like nine...
-  // they should not be in the same position, some of them should move off
-  // further to the right or left... there should be a new platform because
-  // I reach a new level" — Levels 5-10 used to all climb the exact same
-  // shared tower object (identical platform positions every level, just a
-  // different height cutoff), which is exactly what read as "the same."
-  // Each level here gets its own real platform count (7 at Level 5, up to
-  // the full 12 by Level 10) AND its own x-offset sequence (see
-  // OFFSET_SEQUENCES below) so no two levels' climbs line up — and, like
-  // Levels 1-4, a real appended goal platform at the top instead of an
-  // arbitrary height cutoff partway up a shared tower.
-  _buildGrowingTower(base, levelNum) {
+  // Rob's single/double-jump spec: "a single jump means you don't need
+  // plasma or power up. A double jump means you need one or the other.
+  // 1 double jump on levels 2 and 3. 2 double jumps on levels 4 and 5. On
+  // 5 and higher there should be one double jump where the platform is
+  // off to the side. Variations of this up to 10." Levels 1-10 all build
+  // through this one generator now instead of Levels 1-4 being separate
+  // hand-placed methods — each level is just its own gap plan (one letter
+  // per jump: S = normal TOWER_SPACING gap, clearable with a plain tap;
+  // D = BIG_TOWER_SPACING gap, needs the on-jet OR charged boost tier;
+  // L = the same BIG_TOWER_SPACING rise but pushed much further left/right
+  // too, so the extra horizontal distance is what demands the boost) plus
+  // its own x-offset sequence (deliberately different magnitudes level to
+  // level so no two climbs line up — Level 5-10's own offsets are
+  // unchanged from before this rewrite). Counts of D/L per level match
+  // Rob's spec exactly for Levels 2-5; 6-10 are my own smooth continuation
+  // of that escalation (2, 2, 3, 3, 4, 4 double jumps) since he only said
+  // "variations... up to 10" without exact numbers there — easy to retune,
+  // it's just the GAP_PLANS string per level below.
+  _buildTieredTower(base, levelNum) {
     const baseX = 360, baseY = 652;
-    // 5 -> 7 platforms ... 10 -> 12 platforms (one more each level).
-    const targetCount = Math.min(12, 7 + (levelNum - 5));
-    // One own sequence per level, length = targetCount - 1 (platform 0 is
-    // the shared base, always at baseX). Magnitudes/signs deliberately
-    // don't repeat the same pattern level to level — some reach further
-    // left or right than others, not just an alternating ±130 every time.
     const OFFSET_SEQUENCES = {
+      1: [100, -90, 110, -95],
+      2: [-105, 115, -100, 120, -110],
+      3: [115, -120, 105, -130, 120],
+      4: [-125, 135, -115, 140, -130, 145],
       5: [130, -130, 150, -110, 170, -140],
       6: [-140, 160, -120, 180, -150, 130, -170],
       7: [150, -170, 130, -200, 160, -180, 140, -210],
@@ -880,13 +805,33 @@ const PlayScreen = {
       9: [170, -200, 150, -230, 180, -160, 240, -190, 210, -170],
       10: [-180, 210, -160, 240, -190, 170, -250, 200, -220, 160, 230],
     };
+    // One letter per jump — length must match OFFSET_SEQUENCES[level]'s own
+    // length (both are "how many jumps this level has").
+    const GAP_PLANS = {
+      1: 'SSSS',        // 0 double jumps — every jump plain, "just to get people playing"
+      2: 'SSDSS',        // 1 double
+      3: 'SDSSS',        // 1 double
+      4: 'SDSDSS',       // 2 double
+      5: 'SDSSLS',       // 2 double (1 of them sideways)
+      6: 'SDSSSLS',      // 2 double (1 sideways)
+      7: 'SDSDSSLS',     // 3 double (1 sideways)
+      8: 'SDSSDSSLS',    // 3 double (1 sideways)
+      9: 'SDSDSDSSLS',   // 4 double (1 sideways)
+      10: 'SDSSDSDSSLS', // 4 double (1 sideways)
+    };
     const offsets = OFFSET_SEQUENCES[levelNum];
+    const gapPlan = GAP_PLANS[levelNum];
     const tubeSpeeds = [0.75, 1.3, 1.1, 0.9, 0.85, 1.2, 0.95, 1.25, 0.8, 1.15, 1.35];
     const platforms = [base];
-    for (let i = 1; i < targetCount; i++) {
-      const x = baseX + offsets[i - 1];
-      const y = baseY - this.TOWER_SPACING * i;
-      const p = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: tubeSpeeds[(i - 1) % tubeSpeeds.length] });
+    let y = baseY;
+    for (let i = 0; i < gapPlan.length; i++) {
+      const gap = gapPlan[i];
+      y -= gap === 'S' ? this.TOWER_SPACING : this.BIG_TOWER_SPACING;
+      // A sideways ('L') gap leans on its offset much harder than a normal
+      // jump would — the extra horizontal distance (not the rise, same as
+      // any other double) is what makes it need the boost.
+      const x = baseX + offsets[i] * (gap === 'L' ? 1.8 : 1);
+      const p = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: tubeSpeeds[i % tubeSpeeds.length] });
       p.jetSystem = createJetSystem({ allowedIndices: i % 2 === 0 ? [0, 1] : [2, 3] });
       platforms.push(p);
     }
@@ -900,16 +845,16 @@ const PlayScreen = {
   _buildTowers() {
     const base = this._buildBasePlatform();
     return {
-      level1: this._buildLevel1(base),
-      level2: this._buildLevel2(base),
-      level3: this._buildLevel3(base),
-      level4: this._buildLevel4(base),
-      level5: this._buildGrowingTower(base, 5),
-      level6: this._buildGrowingTower(base, 6),
-      level7: this._buildGrowingTower(base, 7),
-      level8: this._buildGrowingTower(base, 8),
-      level9: this._buildGrowingTower(base, 9),
-      level10: this._buildGrowingTower(base, 10),
+      level1: this._buildTieredTower(base, 1),
+      level2: this._buildTieredTower(base, 2),
+      level3: this._buildTieredTower(base, 3),
+      level4: this._buildTieredTower(base, 4),
+      level5: this._buildTieredTower(base, 5),
+      level6: this._buildTieredTower(base, 6),
+      level7: this._buildTieredTower(base, 7),
+      level8: this._buildTieredTower(base, 8),
+      level9: this._buildTieredTower(base, 9),
+      level10: this._buildTieredTower(base, 10),
       shared: this._buildSharedTower(base),
     };
   },
@@ -1065,9 +1010,9 @@ const PlayScreen = {
   // resting surface (its pivot, lifted by the same thickness/2 +
   // displayRadius offset Physics uses to rest a ball on any platform), not
   // an eyeballed margin above thin air the way it was before that existed.
-  // Levels 5-10 now also each get their own real appended goal platform
-  // (see _buildGrowingTower), same as Levels 1-4 — no more special-cased
-  // height cutoff partway up a shared tower. Rob (Level 8, back when it
+  // Every level 1-10 gets its own real appended goal platform now (see
+  // _buildTieredTower) — no more special-cased height cutoff partway up a
+  // shared tower. Rob (Level 8, back when it
   // was): "one of the levels is overlapping the PNG at the top. It
   // shouldn't get that close. You should have to jump to the top." The old
   // -60 gap was way tighter than the real jump distance between any two
