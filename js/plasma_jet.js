@@ -515,9 +515,21 @@
 
       // Blobs — emission rate swells and dips with a slow pulse so the
       // stream comes out in clumps (the segmented look in Rob's reference).
+      // Rob: "when the jets stop, they still send out an extra couple of
+      // puffs" — `power` only EASES down over ~0.35s after `on` flips
+      // false (so an already-live blob/spark doesn't just vanish), but
+      // spawning new ones was scaled by that same fading power instead of
+      // gated on `on` itself, so a few new puffs kept sneaking out during
+      // that whole tail. Gated on `this._on` now — nothing new spawns the
+      // instant it's told to stop; whatever's already in flight still
+      // finishes fading on its own exactly as before.
       const clump = 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(t * TAU * o.pulseRate), 2);
-      this._blobCarry += o.blobRate * clump * power * dt;
-      while (this._blobCarry >= 1) { this._blobCarry -= 1; this._spawnBlob(false); }
+      if (this._on) {
+        this._blobCarry += o.blobRate * clump * power * dt;
+        while (this._blobCarry >= 1) { this._blobCarry -= 1; this._spawnBlob(false); }
+      } else {
+        this._blobCarry = 0;
+      }
       for (let i = this.blobs.live.length - 1; i >= 0; i--) {
         const b = this.blobs.live[i];
         b.life += dt;
@@ -539,7 +551,7 @@
 
       // Pulses — bright packets racing up the beam.
       this._pulseTimer -= dt;
-      if (this._pulseTimer <= 0 && power > 0.5) { this._spawnPulse(); this._pulseTimer = rand(0.5, 1.4); }
+      if (this._on && this._pulseTimer <= 0 && power > 0.5) { this._spawnPulse(); this._pulseTimer = rand(0.5, 1.4); }
       for (let i = this.pulses.live.length - 1; i >= 0; i--) {
         const p = this.pulses.live[i];
         p.s += (o.speed * p.speed / Math.max(1, len)) * dt;
@@ -555,8 +567,12 @@
       // Sparks.
       this._applySparkBlur(W, H);
       const sparkBoost = 1 + o.sparkBlur / 6;   // blur spreads a spark thin — brighten to compensate
-      this._sparkCarry += (o.sparkCount / 0.55) * power * dt;
-      while (this._sparkCarry >= 1) { this._sparkCarry -= 1; this._spawnSpark(false); }
+      if (this._on) {
+        this._sparkCarry += (o.sparkCount / 0.55) * power * dt;
+        while (this._sparkCarry >= 1) { this._sparkCarry -= 1; this._spawnSpark(false); }
+      } else {
+        this._sparkCarry = 0;
+      }
       for (let i = this.sparks.live.length - 1; i >= 0; i--) {
         const p = this.sparks.live[i];
         p.life += dt;
