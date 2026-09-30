@@ -320,7 +320,12 @@
 
     update(dt, t, power, len) {
       const o = this.jet.options, pal = this.jet.palette, W = o.width;
-      if (power > 0.3) {
+      // Gated on this.jet._on now, not just `power > 0.3` — power only
+      // EASES down after on=false (so it doesn't just vanish), and stays
+      // above 0.3 for a chunk of that ease, so this kept spawning fresh
+      // arcs during the same power-down tail the blob/spark/pulse fix
+      // already covers. Same "no new ones once told to stop" rule.
+      if (this.jet._on && power > 0.3) {
         this._timer -= dt;
         if (this._timer <= 0) { this.spawn(); this._timer = this._next(); }
       }

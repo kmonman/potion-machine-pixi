@@ -1308,7 +1308,15 @@ const PlayScreenPixi = {
       // own angle so its local "up" always renders as true world-up
       // regardless of tilt.
       visual.view.rotation = -p.angleRad;
-      if (gameJet.justFired) { visual.surge(); gameJet.justFired = false; }
+      // Rob: "when it turns off, it continues to let out a couple of
+      // extra pops" — a real ball catch (justFired, from the actual
+      // gameplay bump — untouched here) used to always flare the visual
+      // with surge(), even on a mount that's currently OFF (not wet/not
+      // its turn), so a catch landing right as/after the ambient stream
+      // goes quiet still popped off its own separate burst. Only surging
+      // when the jet is actually on now — the ball's bump itself always
+      // still happens either way, this is purely the visual flare.
+      if (gameJet.justFired) { if (visual.on) visual.surge(); gameJet.justFired = false; }
       visual.update(this._dt);
     }
   },
