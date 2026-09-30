@@ -201,28 +201,12 @@ function createJetSystem(opts = {}) {
 
       for (const jet of this.jets) {
         if (jet.active) {
-          const dx = Math.abs(Physics.x - jet.x), dy = Math.abs(Physics.y - jet.y);
-          const inRange = dx < JET_CATCH_RADIUS && dy < JET_CATCH_RADIUS_Y;
-          // Rob: "one of the jets will send out three puffs rather than
-          // just being either on or off" — a ball resting right at the
-          // catch zone's edge (e.g. rocking gently on a platform whose jet
-          // mount sits close by) can drift back and forth across that
-          // boundary several times a second. wasInRange used to reset the
-          // instant it stepped back OUTSIDE the same tight radius it fired
-          // from, so each little re-entry read as a brand new arrival and
-          // fired again — a real "three puffs" from what felt like one
-          // continuous moment near the jet, not three separate visits.
-          // Exiting now needs a clearly wider radius than entering
-          // (classic hysteresis band) — right at the edge just holds
-          // whatever state it already had, so a small jitter can't flip it
-          // back and forth on its own; it only re-arms once the ball has
-          // genuinely moved away.
-          const outOfRange = dx > JET_CATCH_RADIUS * 2.5 || dy > JET_CATCH_RADIUS_Y * 2.5;
-          if (outOfRange) jet.wasInRange = false;
+          const inRange = Math.abs(Physics.x - jet.x) < JET_CATCH_RADIUS && Math.abs(Physics.y - jet.y) < JET_CATCH_RADIUS_Y;
+          // Fire only on the moment it *enters* the zone — a ball resting in the
+          // zone for multiple frames only gets one puff, not one every cooldown tick.
           if (inRange && !jet.wasInRange && this.jetCooldown === 0) {
             Physics.vy = JET_IMPULSE_VY;
             this.jetCooldown = JET_COOLDOWN;
-            jet.wasInRange = true;
             // Marker for pixi_playscreen.js's plasma-jet visual (Rob: flare
             // the jet the instant it actually launches the stone) — same
             // "leave a marker, let the renderer notice" pattern as
@@ -231,6 +215,7 @@ function createJetSystem(opts = {}) {
             // opted into the plasma-jet visual; harmless if left unread.
             jet.justFired = true;
           }
+          jet.wasInRange = inRange;
 
           // Real params, straight from the source project's own "Plasma1" particle
           // emitter: flow 100/s, force 300-600, life fixed 0.5s, size 80→20
