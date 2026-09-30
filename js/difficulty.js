@@ -191,6 +191,23 @@ function createJetSystem(opts = {}) {
       }
     },
 
+    // Rob: "a jump while on the jet should give you about the same boost
+    // as when you are on the bubbles" — ui.js's fireBlast reads this at
+    // tap time to decide which force tier to use. Same catch geometry the
+    // actual auto-launch above uses, plus active+wet so a merely-nearby
+    // dry/off mount doesn't count (same "no false pumps" reasoning as
+    // jet.wet itself).
+    isBallOnJet() {
+      for (const jet of this.jets) {
+        if (jet.active && jet.wet
+          && Math.abs(Physics.x - jet.x) < JET_CATCH_RADIUS
+          && Math.abs(Physics.y - jet.y) < JET_CATCH_RADIUS_Y) {
+          return true;
+        }
+      }
+      return false;
+    },
+
     // `isWet(mountX)` is optional (Free Play/any caller that doesn't pass
     // one just skips the check, same as always) — see ui.js's own call
     // site for what it actually checks and why.
@@ -296,9 +313,9 @@ function createJetSystem(opts = {}) {
       }
     },
 
-    // Original behavior, untouched (Free Play only — see levelConfig
-    // above): each allowed mount independently rolls its own on/off on its
-    // own timer, no coordination or cap between them.
+    // Original behavior (Free Play only — see levelConfig above): each
+    // allowed mount independently rolls its own on/off on its own timer,
+    // no coordination or cap between them.
     _updateIndependent(dt) {
       for (let i = 0; i < this.jets.length; i++) {
         const jet = this.jets[i];
@@ -311,6 +328,21 @@ function createJetSystem(opts = {}) {
         } else {
           jet.active = false; // this platform never uses this mount point
         }
+      }
+      // Rob: "I waited a very long time and there was no jet. There should
+      // almost always be a jet going on either one side or the other" —
+      // fully independent per-mount coin flips can legitimately land all
+      // off at once (about a 9% chance each reroll with 4 mounts at 45%),
+      // and since each mount's own timer isn't synced with the others, a
+      // long enough wait eventually hits one of those gaps. The level-mode
+      // path (_updateCoordinated) never has this problem — its active set
+      // is always picked as a group, never empty. Same guarantee here:
+      // if independent rolling happens to leave every allowed mount off,
+      // force one back on rather than leaving a real silent gap.
+      if (allowedIndices.length && !allowedIndices.some((i) => this.jets[i].active)) {
+        const idx = allowedIndices[Math.floor(Math.random() * allowedIndices.length)];
+        this.jets[idx].active = true;
+        this.jets[idx].toggleTimer = 1.5 + Math.random() * 3.5;
       }
     },
 

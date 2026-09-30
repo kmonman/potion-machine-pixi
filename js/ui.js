@@ -348,6 +348,24 @@ const PlayScreen = {
     return Math.min(25, 12.5 + (n - 1) * 3.125);
   },
 
+  // Rob: "you can jump at least on the lowest levels without needing the
+  // plasma or the bubbles... for all except for one or two on the first
+  // five, just to get people playing... give a little more force to the
+  // ball. I don't want to move the platforms any closer." Every jump tier
+  // (normal/charged/on-jet/combo — see fireBlast) gets scaled up together
+  // on Levels 1-5 so a normal, uncharged tap comfortably clears the
+  // regular TOWER_SPACING gaps; Level 1's own deliberately bigger
+  // BIG_TOWER_SPACING gap (its "one big jump," see _buildLevel1) stays
+  // comparatively harder since it scales right along with everything
+  // else instead of being singled out. Height scales with force squared,
+  // so 18% more force is roughly 39% more reach — a real difference
+  // without turning every level trivial. Levels 6-10 and Free Play
+  // unchanged.
+  _blastForceMultiplier() {
+    const n = this._levelNumber();
+    return n !== null && n <= 5 ? 1.18 : 1;
+  },
+
   // How many of a platform's jets can be on at once, and whether the choice
   // of which one(s) is biased toward the mount closest to the next platform
   // up (see _buildTower's preferredIndex precomputation) — Rob: "no more
@@ -662,6 +680,11 @@ const PlayScreen = {
   // Rob's test-page size (wider than the 720 screen, so its soft ends
   // sit off-screen).
   _buildPlasmaStorms(levelNum) {
+    // Rob: "let's remove the plasma storm cloud for now on the first ten
+    // levels. It's pretty hard." — specs kept below (untouched) so this is
+    // a one-line flip back once it's ready to return, not a rebuild.
+    return [];
+    // eslint-disable-next-line no-unreachable
     const specs = {
       4: [{ pivotY: 200 }],
       6: [{ pivotY: -1200, dir: 1 }],
@@ -945,7 +968,7 @@ const PlayScreen = {
     // (levelNum null) also stays null — unaffected. Read by platform.js's
     // reset()/_applyTubeStage whenever a run's tube changes stage.
     const STAGE_THEMES = {
-      6: { Cool: [56, 255, 0], Warm: [0, 255, 218], Fire: [0, 183, 255] }, // #38ff00 / #00ffda / #00b7ff
+      6: { Cool: [6, 128, 249], Warm: [3, 89, 214], Fire: [5, 24, 206] }, // #0680f9 / #0359d6 / #0518ce
     };
     const stageColorOverride = levelNum !== null && levelNum > 5 ? STAGE_THEMES[6] : null;
     // Background accent dropped (Rob: "just drop the accent, back to plain
@@ -1313,6 +1336,17 @@ const PlayScreen = {
   // constant gravity scales with force squared, so a 50%-higher jump needs
   // force scaled by sqrt(1.5), not 1.5x outright — 950 * sqrt(1.5) ≈ 1163.
   BIG_BLAST_FORCE: 1163,
+  // Rob: "there should be three different boosts... a jump while on the
+  // jet should give you about the same boost as when you are on the
+  // bubbles. And then the biggest jump would be a jump plus jet plus
+  // you're on the bubble charge" — tapping while the ball is actually on
+  // an active, flowing jet mount (see jetSystem's own isBallOnJet) now
+  // gets its own tier, same force as a charged jump; stacking both (on a
+  // jet AND a charge banked) goes one tier higher still, same "another
+  // 50%-higher jump needs force × sqrt(1.5)" math BIG_BLAST_FORCE's own
+  // comment uses, applied a second time on top of it.
+  JET_BLAST_FORCE: 1163,
+  JET_BIG_BLAST_FORCE: 1424,
   // Rob: "when the ball hits the plasma... I try to manually bump it, and
   // it doesn't register" — the storm's own sideways push only ever touches
   // the ball mid-air between platforms, which is exactly when the normal
@@ -1379,7 +1413,18 @@ const PlayScreen = {
     }
     this.blastLaunchCount++;
     this.lastBlastWasBig = big;
-    let force = big ? this.BIG_BLAST_FORCE : this.BLAST_FORCE;
+    // Rob's four-tier spec: normal < charged-only ≈ on-jet-only < both
+    // charged AND on a jet at once (see JET_BLAST_FORCE/JET_BIG_BLAST_FORCE's
+    // own comment). currentPlatform is whatever the ball last actually
+    // rested on (stays set through a mid-air tap, see physics.js), so this
+    // still reads correctly the instant after a jet's own auto-launch.
+    const onJet = !!(Physics.currentPlatform && Physics.currentPlatform.jetSystem.isBallOnJet());
+    let force;
+    if (big && onJet) force = this.JET_BIG_BLAST_FORCE;
+    else if (onJet) force = this.JET_BLAST_FORCE;
+    else if (big) force = this.BIG_BLAST_FORCE;
+    else force = this.BLAST_FORCE;
+    force *= this._blastForceMultiplier();
     if (insideStorm) force *= this.PLASMA_STORM_BLAST_MULTIPLIER;
     Physics.applyBlast(force);
   },

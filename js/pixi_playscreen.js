@@ -514,6 +514,13 @@ const PlayScreenPixi = {
           color: 0xff40e0, secondColor: 0xb04dff,
         });
         jet.on = false;
+        // Explicitly hidden — its own update() (which normally sets this
+        // every frame off idle/live-particle state) isn't being called
+        // right now (see refresh()'s own comment on trying the old jets
+        // instead), so nothing would otherwise ever set this and it'd sit
+        // at PIXI's default (visible) showing whatever blank initial state
+        // its sprites start at.
+        jet.view.visible = false;
         // Rob: "still visually detached." The gameplay jet.x/jet.y this
         // used to be positioned from (see difficulty.js) were only ever a
         // rough WORLD-space approximation — along the bar via its dir
@@ -531,10 +538,12 @@ const PlayScreenPixi = {
         v.platformContainer.addChild(jet.view);
         return jet;
       });
-      // Old particle streams for these specific mounts are still spawned
-      // by difficulty.js (untouched gameplay code) but never drawn —
-      // hidden once here rather than skipped every frame.
-      for (const jc of v.jetContainers) jc.particleContainer.visible = false;
+      // Rob: "let's try the old jets and see if that fixes the problem" —
+      // switched back to showing the old particle streams instead of the
+      // new PlasmaJet visuals (see refresh()'s own comment, right below
+      // where _refreshPlasmaJets is skipped now) to compare feel. Plasma
+      // jets are still built/wired above so flipping back is just as easy
+      // — nothing here is torn down, only which one actually draws.
     }
   },
 
@@ -557,10 +566,10 @@ const PlayScreenPixi = {
     v.hingeGlowSolid.visible = visible;
     v.hingeMagicContainer.visible = visible;
     v.hingeSparkContainer.visible = visible;
-    // Old particle jetContainers are permanently hidden now (build() —
-    // replaced everywhere by the new PlasmaJet beams), so this used to
-    // fight that every time a platform's visibility toggled, flipping
-    // them back on. Left alone here on purpose.
+    // Back to toggling with everything else now that the old particle
+    // jets are the ones actually drawing again (see build()/refresh()'s
+    // own comments on trying them instead of the new PlasmaJet beams).
+    for (const jc of v.jetContainers) jc.particleContainer.visible = visible;
   },
 
   // Delegates to the OLD ui.js's PlayScreen.update() — the real single entry
@@ -1241,7 +1250,12 @@ const PlayScreenPixi = {
     v.tubeHighlight.x = -p.angle * 3;
     this._refreshHinge(p);
     this._refreshJets(p);
-    if (p._visual.plasmaJets) this._refreshPlasmaJets(p);
+    // Rob: "let's try the old jets and see if that fixes the problem" —
+    // _refreshPlasmaJets skipped for now so the new PlasmaJet visuals stay
+    // idle/invisible (their own `idle` check keeps this basically free)
+    // while _refreshJets above (always run, never touched) draws the old
+    // particle streams instead. One-line flip back once there's a verdict.
+    // if (p._visual.plasmaJets) this._refreshPlasmaJets(p);
   },
 
   // Drives this platform's plasma-jet mounts (see build()'s isLevel1Extra
@@ -1501,8 +1515,9 @@ const PlayScreenPixi = {
         // that's the problem" — capped below fully opaque (was a flat
         // 1 - t) so overlapping particles read as translucent streams
         // with real depth instead of solid, opaque blobs stacking on
-        // top of each other.
-        alpha: (1 - t) * 0.8,
+        // top of each other. Rob's follow-up: "make these jets a little
+        // transparent" — pulled back further, 0.8 -> 0.55.
+        alpha: (1 - t) * 0.55,
         tint: rgbToHex(
           highlight[0] + (shadow[0] - highlight[0]) * t,
           highlight[1] + (shadow[1] - highlight[1]) * t,
