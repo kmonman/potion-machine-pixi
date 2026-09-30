@@ -131,7 +131,7 @@ const JET_CATCH_RADIUS_Y = 70;
 function createJetSystem(opts = {}) {
   const allowedIndices = opts.allowedIndices || [0, 1, 2, 3];
   return {
-    jets: JET_DEFS.map(() => ({ x: 0, y: 0, active: false, wasInRange: false, particles: [], spawnTimer: 0, toggleTimer: 0 })),
+    jets: JET_DEFS.map(() => ({ x: 0, y: 0, active: false, wasInRange: false, particles: [], spawnTimer: 0, toggleTimer: 0, wet: false, wetHoldT: 0 })),
     jetCooldown: 0,
     // Exposed so code outside this closure (ui.js's tower-building, when
     // precomputing each platform's preferredIndex) can see which mounts
@@ -154,7 +154,7 @@ function createJetSystem(opts = {}) {
     reset() {
       this.jets = JET_DEFS.map(() => ({
         x: 0, y: 0, active: false, wasInRange: false, particles: [], spawnTimer: 0,
-        toggleTimer: 1 + Math.random() * 3,
+        toggleTimer: 1 + Math.random() * 3, wet: false, wetHoldT: 0,
       }));
       this.jetCooldown = 0;
       this.groupToggleTimer = 1 + Math.random() * 3;
@@ -191,7 +191,10 @@ function createJetSystem(opts = {}) {
       }
     },
 
-    update(dt, pivot, dir, scale = 1) {
+    // `isWet(mountX)` is optional (Free Play/any caller that doesn't pass
+    // one just skips the check, same as always) — see ui.js's own call
+    // site for what it actually checks and why.
+    update(dt, pivot, dir, scale = 1, isWet = null) {
       if (this.levelConfig) this._updateCoordinated(dt);
       else this._updateIndependent(dt);
 
@@ -199,12 +202,30 @@ function createJetSystem(opts = {}) {
 
       if (this.jetCooldown > 0) this.jetCooldown = Math.max(0, this.jetCooldown - dt);
 
-      for (const jet of this.jets) {
+      for (let i = 0; i < this.jets.length; i++) {
+        const jet = this.jets[i];
+        // Rob: "let's change it so the jets are on between 2 and 4
+        // seconds, .7 is too short" — the liquid itself only sloshes past
+        // a given mount's exact x for a brief moment as the tube rocks, so
+        // gating directly on that instant reading (old behavior) meant a
+        // mount barely ever stayed "wet" long. The rising edge (raw wet
+        // going false -> true) now locks in one random 2-4s on-window
+        // instead — held for that whole span regardless of the liquid
+        // sloshing back off that exact spot in the meantime, then genuinely
+        // off again until the next rising edge. `jet.wet` is the single
+        // source of truth both the launch check right below AND
+        // pixi_playscreen.js's visual read — same "false pump"/visual
+        // mismatch reasoning as before, just centralized here instead of
+        // computed twice in two places that could disagree.
+        const rawWet = isWet ? isWet(JET_DEFS[i].activeDistance * scale) : true;
+        if (rawWet && jet.wetHoldT <= 0) jet.wetHoldT = 2 + Math.random() * 2;
+        jet.wet = jet.wetHoldT > 0;
+        jet.wetHoldT = Math.max(0, jet.wetHoldT - dt);
         if (jet.active) {
           const inRange = Math.abs(Physics.x - jet.x) < JET_CATCH_RADIUS && Math.abs(Physics.y - jet.y) < JET_CATCH_RADIUS_Y;
           // Fire only on the moment it *enters* the zone — a ball resting in the
           // zone for multiple frames only gets one puff, not one every cooldown tick.
-          if (inRange && !jet.wasInRange && this.jetCooldown === 0) {
+          if (inRange && jet.wet && !jet.wasInRange && this.jetCooldown === 0) {
             Physics.vy = JET_IMPULSE_VY;
             this.jetCooldown = JET_COOLDOWN;
             // Marker for pixi_playscreen.js's plasma-jet visual (Rob: flare

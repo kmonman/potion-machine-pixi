@@ -1256,7 +1256,6 @@ const PlayScreenPixi = {
   // pooled that way yet just stays dark even while the game logic itself
   // has it armed.
   _refreshPlasmaJets(p) {
-    const halfT = p._liquidHalfThickness();
     const scale = p.length / (620 * p.visualScale);
     // Rob: "there's too much color that is the same... rotate the jets one
     // step forward" — a Cool tube's jets now flare in the Warm color, a
@@ -1277,28 +1276,19 @@ const PlayScreenPixi = {
       const gameJet = p.jetSystem.jets[i];
       const visual = p._visual.plasmaJets[i];
       const mountX = JET_DEFS[i].activeDistance * scale;
-      const headspace = p._liquidLevelAt(mountX) - (-halfT);
-      const rawWet = headspace < halfT * 0.85;
-      // Rob: "some of them will only go on for half a second... it doesn't
-      // even send out a full jet, it just sends out a couple of puffs" —
-      // the liquid surface at a mount's exact x sloshes as the tube rocks,
-      // so `rawWet` above can flick true then false again well inside a
-      // second. The beam eases in over 0.35s (plasma_jet.js), so a wet
-      // window that short cuts it off before it ever ramps up — reading as
-      // a couple of weak puffs instead of a real jet. Held a bit past the
-      // instant it goes dry (doesn't affect a mount that stays wet or dry
-      // for a real stretch, only smooths out these short flickers) so once
-      // a jet actually starts, it gets to finish a real burst.
-      if (rawWet) visual._wetHoldT = 0.45;
-      else visual._wetHoldT = Math.max(0, (visual._wetHoldT || 0) - this._dt);
-      const wet = rawWet || visual._wetHoldT > 0;
-      visual.on = gameJet.active && wet;
+      // Rob: "let's change it so the jets are on between 2 and 4 seconds"
+      // — gameJet.wet is difficulty.js's own 2-4s held wetness window (see
+      // its own comment), computed once there and read here so the visual
+      // and the actual launch-eligibility check always agree, instead of
+      // each recomputing their own separate reading of the liquid that
+      // could drift out of sync with each other.
+      visual.on = gameJet.active && gameJet.wet;
       visual.color = rgbToHex(tr, tg, tb);
       visual.secondColor = accent;
       // Local platform-space coordinates (view.position is relative to
       // platformContainer, which already carries p.angleRad — see build's
-      // own comment) — mountX is the same along-the-bar offset the
-      // headspace check above just used, and -(thickness/2) sits right on
+      // own comment) — mountX is the same along-the-bar offset difficulty.js
+      // keys this mount's own wetness off, and -(thickness/2) sits right on
       // the tube's own top surface regardless of tilt, no approximation.
       visual.view.position.set(mountX, -(p.thickness / 2 + 2));
       // The NOZZLE should track the tilting bar (just set above), but the

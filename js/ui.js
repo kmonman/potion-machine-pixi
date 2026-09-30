@@ -1119,7 +1119,22 @@ const PlayScreen = {
         else if (p.jetGraceRemaining > 0) p.jetGraceRemaining -= dt;
         const jetScale = p.length / (620 * p.visualScale);
         if (isCurrentPlatform || p.jetGraceRemaining > 0) {
-          p.jetSystem.update(dt, p.pivot, p.dir, jetScale);
+          // Rob: "I'm getting some false pumps... the ball bumps with no
+          // visible jet" — the actual launch impulse below only ever
+          // checked gameJet.active + catch geometry, completely ignoring
+          // the same "is the liquid actually flowing to this mount"
+          // wetness check pixi_playscreen.js's visual already gates on
+          // (Rob's own original spec: "only have the jets going on when
+          // the liquid has flowed to that side of the jet"). That let the
+          // ball get bumped by a mount that wasn't visibly wet/flaring at
+          // all. Same formula the visual uses, so a bump can now only ever
+          // happen while that mount would actually be shown flowing.
+          const halfT = p._liquidHalfThickness();
+          const isWet = (mountX) => {
+            const headspace = p._liquidLevelAt(mountX) - (-halfT);
+            return headspace < halfT * 0.85;
+          };
+          p.jetSystem.update(dt, p.pivot, p.dir, jetScale, isWet);
         } else {
           // Rob: "not all of the plasma jets are staying connected to the
           // moving platforms" — mount position still needs to track this
