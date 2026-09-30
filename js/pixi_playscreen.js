@@ -116,7 +116,14 @@ const PlayScreenPixi = {
     this._cliffSpriteB = new PIXI.Sprite(textures.bgCliffs);
     this._cliffSpriteB.width = this.renderWidth; this._cliffSpriteB.height = this._cliffScaledHeight;
     this._cliffSprite.alpha = this._cliffSpriteB.alpha = 0.4;
-    c.addChild(this._cliffSprite, this._cliffSpriteB);
+    // Rob: "too much green in the background. let's remove the stones
+    // from all of them for now. I'm going to find some new images" —
+    // pulled off screen (not added to the display list) rather than
+    // deleting the whole layer, so swapping in new art later is just
+    // pointing textures.bgCliffs at a new file plus re-adding these two
+    // lines. Position/tint/scroll logic below still runs harmlessly on
+    // them either way (they're just never actually drawn).
+    // c.addChild(this._cliffSprite, this._cliffSpriteB);
 
     // The panning world — every platform and the ball live in here. Built once
     // PlayScreen.platforms exists (PlayScreen.enter() runs before the first
@@ -584,19 +591,41 @@ const PlayScreenPixi = {
   // accent, vignette base only 25%) — this is atmosphere behind the real
   // action, not a full recolor.
   _applyBackgroundAccent(accent) {
-    const mix = (base, t) => accent
-      ? [0, 1, 2].map((i) => Math.round(base[i] + (accent[i] - base[i]) * t))
+    const mix = (base, target, t) => target
+      ? [0, 1, 2].map((i) => Math.round(base[i] + (target[i] - base[i]) * t))
       : base;
-    const fogTint = accent ? rgbToHex(...mix([255, 255, 255], 0.35)) : 0xffffff;
+    // Rob: "I still want that dark feel in the background. It's too much
+    // warm green in the back" — mixing white toward a saturated accent
+    // whose own green channel is already maxed (Level 6's [56,255,0])
+    // never actually dims that channel no matter how small the mix
+    // percentage — R/B drop but G stays pinned at 255, so the fog stayed
+    // bright/green-heavy regardless. Mixing toward a pre-DARKENED copy of
+    // the accent instead (scaled to 55% brightness first) means every
+    // channel, including a maxed one, genuinely comes down.
+    const dimAccent = accent ? accent.map((c) => c * 0.55) : null;
+    const fogTint = accent ? rgbToHex(...mix([255, 255, 255], dimAccent, 0.3)) : 0xffffff;
+    // The fog art itself is a bright, painted nebula texture — tinting it
+    // alone still reads as lit up no matter the hue, since it's the fog's
+    // own brightness carrying the scene, not the tint color. Dimming its
+    // opacity too (only when a level has its own accent; every other
+    // level's fog stays exactly as bright as it's always been) lets the
+    // vignette's real darkness actually come through underneath it.
+    const fogAlpha = accent ? 0.55 : 1;
     for (const f of this._fogSprites) {
       f.sprite.tint = fogTint;
       f.spriteFlip.tint = fogTint;
+      f.sprite.alpha = fogAlpha;
+      f.spriteFlip.alpha = fogAlpha;
     }
+    const base = [10, 4, 16];
+    const darkAccent = accent ? accent.map((c) => c * 0.35) : null;
     // Stored (not just applied) so setRenderWidth() — called on every
     // landscape/orientation resize — can rebuild the vignette at its new
     // width using the CURRENT accent's base color instead of silently
     // reverting to the default purple until the next level switch.
-    this._vignetteBase = mix([10, 4, 16], 0.25);
+    this._vignetteBase = darkAccent
+      ? [0, 1, 2].map((i) => Math.round(base[i] + (darkAccent[i] - base[i]) * 0.35))
+      : base;
     this._vignette.clear();
     this._vignette.rect(0, 0, this.renderWidth, CONFIG.HEIGHT)
       .fill(this._vignetteGrad(this.renderWidth, CONFIG.HEIGHT, this._vignetteBase));
