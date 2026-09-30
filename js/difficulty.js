@@ -49,10 +49,13 @@ const FREE_PLAY_PHASES = [
 const TUBE_STAGE_PARAMS = {
   // Rob tried a lighter pink here ("too much pink on the screen") but
   // called it "pretty dull" once seen live — reverted to the original
-  // vivid magenta. See feedback thread for what's being tried instead.
+  // vivid magenta, keeping it as-is per Rob's own "let's keep the pink
+  // for the first color." Warm/Fire's old light-blue/dark-blue swapped
+  // for two new purples Rob picked directly (ad06ba / 5a06bc) — same
+  // grip/tiltForce difficulty curve underneath, this is only the color.
   Cool: { grip: 0.90, tiltForce: 1, color: [255, 0, 195] }, // #ff00c3
-  Warm: { grip: 0.78, tiltForce: 0.85, color: [126, 190, 252] }, // #7ebefc — light blue
-  Fire: { grip: 0.40, tiltForce: 0.6, color: [0, 104, 255] }, // #0068ff — dark blue
+  Warm: { grip: 0.78, tiltForce: 0.85, color: [173, 6, 186] }, // #ad06ba
+  Fire: { grip: 0.40, tiltForce: 0.6, color: [90, 6, 188] }, // #5a06bc
 };
 
 // Each platform's tube runs its own copy of this schedule (see platform.js's

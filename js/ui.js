@@ -889,34 +889,32 @@ const PlayScreen = {
     const speedMul = this._tubeSpeedMultiplier();
     const maxTiltAngle = this._maxTiltAngleForLevel();
     const jetTier = this._jetTierForLevel();
-    // Per-level color identity, banded 5 levels at a time (Rob: "we need
-    // to have a background for the different levels... maybe we go five
+    // Per-level color theme, banded 5 levels at a time (Rob: "we need to
+    // have a background for the different levels... maybe we go five
     // levels at a time with the same color and then switch to a new
-    // color every five levels"). Rob's follow-up: "I don't love the
-    // amber, so let's go back to the pink for that" — Levels 1-5 use
-    // null (no override = the default magenta Cool color, unchanged from
-    // how the game always looked); Levels 6-10 switch to a jewel-toned
-    // emerald, a deliberately different hue family from the default
-    // pink→light-blue→dark-blue heat progression, so climbing into the
-    // back half of the game reads as a distinct "zone". Free Play
+    // color every five levels"). Started as just a Cool-stage swap, then
+    // Rob asked to theme the whole Cool/Warm/Fire progression per band
+    // (his own hex picks): Levels 1-5 keep the game's original default
+    // (null override, pink → ad06ba → 5a06bc, unchanged); Levels 6-10 get
+    // a fully different bright green → teal → blue progression. Free Play
     // (levelNum null) also stays null — unaffected. Read by platform.js's
-    // reset()/_applyTubeStage whenever a run's tube cycles back to Cool.
-    const coolColorOverride = levelNum !== null && levelNum > 5
-      ? [56, 224, 168] // Levels 6-10 — #38e0a8, jewel emerald
-      : null;
-    // Same identity color, read by pixi_playscreen.js to warm the
-    // background fog/vignette too (Rob: "are you thinking we make some
-    // adjustments in the background too?") — kept as its own field rather
-    // than reusing coolColorOverride directly since the background isn't
-    // per-platform.
-    this.levelAccentColor = coolColorOverride;
+    // reset()/_applyTubeStage whenever a run's tube changes stage.
+    const STAGE_THEMES = {
+      6: { Cool: [56, 255, 0], Warm: [0, 255, 218], Fire: [0, 183, 255] }, // #38ff00 / #00ffda / #00b7ff
+    };
+    const stageColorOverride = levelNum !== null && levelNum > 5 ? STAGE_THEMES[6] : null;
+    // Representative identity color, read by pixi_playscreen.js to warm
+    // the background fog/vignette too (Rob: "are you thinking we make
+    // some adjustments in the background too?") — the theme's own Cool
+    // color, since that's what a level visually opens on.
+    this.levelAccentColor = stageColorOverride ? stageColorOverride.Cool : null;
     for (const p of this.platforms) {
       // Set before reset() (not after) — reset() immediately rolls a fresh
       // targetAngle using this platform's current maxTiltAngle, so setting
       // it late would still leave this run's very first tween using
       // whatever level's cap happened to be set last.
       p.maxTiltAngle = maxTiltAngle;
-      p.coolColorOverride = coolColorOverride;
+      p.stageColorOverride = stageColorOverride;
       p.reset();
       // p.reset() doesn't touch tubeSpeed (only angle/hinge/tube-stage), so
       // this scaling sticks for the whole run without being clobbered, and

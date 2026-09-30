@@ -115,14 +115,16 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     tiltForce: TUBE_STAGE_PARAMS.Cool.tiltForce,
     tubeColor: TUBE_STAGE_PARAMS.Cool.color.slice(),
     tubeColorTarget: TUBE_STAGE_PARAMS.Cool.color.slice(),
-    // Per-level color identity test (Rob: "what would a different per
-    // level color identity look like, can we try one?") — an optional
-    // [r,g,b] swapped in for the Cool stage's own color specifically, set
-    // by ui.js's enter() before reset() each run. null = default magenta,
-    // same as every level before this. Only Cool is overridden; Warm/Fire
-    // still progress exactly as before, so a level's identity color is
-    // what it "starts" as, not a whole new heat palette.
-    coolColorOverride: null,
+    // Per-level color theme (Rob: "what would a different per level
+    // color identity look like, can we try one?" — started as just the
+    // Cool stage, then "let's see how the next five will look with the
+    // next theme" asked for the whole Cool/Warm/Fire progression to be
+    // swappable per level band). An optional { Cool, Warm, Fire } map of
+    // [r,g,b]s, set by ui.js's enter() before reset() each run — any
+    // stage missing from the map (or the map itself being null) falls
+    // back to TUBE_STAGE_PARAMS' own default for that stage, so a level
+    // can theme all three stages or just leave them alone.
+    stageColorOverride: null,
 
     angle: 0, // degrees; positive = right end tilts down
     startAngle: 0,
@@ -224,11 +226,11 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       const params = TUBE_STAGE_PARAMS[stage];
       this.grip = params.grip;
       this.tiltForce = params.tiltForce;
-      // Cool-stage color identity override (see coolColorOverride's own
-      // comment) — Warm/Fire always use their normal params.color.
-      this.tubeColorTarget = (stage === 'Cool' && this.coolColorOverride)
-        ? this.coolColorOverride.slice()
-        : params.color.slice();
+      // Per-level theme override (see stageColorOverride's own comment) —
+      // falls back to this stage's normal params.color when there's no
+      // override at all, or this particular stage isn't in it.
+      const override = this.stageColorOverride && this.stageColorOverride[stage];
+      this.tubeColorTarget = override ? override.slice() : params.color.slice();
     },
 
     // This platform's own tube-heat schedule (see TUBE_STAGE_SCHEDULE in
