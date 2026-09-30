@@ -889,12 +889,21 @@ const PlayScreen = {
     const speedMul = this._tubeSpeedMultiplier();
     const maxTiltAngle = this._maxTiltAngleForLevel();
     const jetTier = this._jetTierForLevel();
-    // Per-level color identity test (Rob: "can we try one?") — Level 1
-    // only for now, a warm amber instead of the usual magenta. Read by
-    // platform.js's reset()/_applyTubeStage whenever this run's tube
-    // cycles back to Cool; null for every other level leaves them exactly
-    // as they've always looked.
-    const coolColorOverride = levelNum === 1 ? [255, 176, 59] : null; // #ffb03b
+    // Per-level color identity, banded 5 levels at a time (Rob: "we need
+    // to have a background for the different levels... maybe we go five
+    // levels at a time with the same color and then switch to a new
+    // color every five levels"). Rob's follow-up: "I don't love the
+    // amber, so let's go back to the pink for that" — Levels 1-5 use
+    // null (no override = the default magenta Cool color, unchanged from
+    // how the game always looked); Levels 6-10 switch to a jewel-toned
+    // emerald, a deliberately different hue family from the default
+    // pink→light-blue→dark-blue heat progression, so climbing into the
+    // back half of the game reads as a distinct "zone". Free Play
+    // (levelNum null) also stays null — unaffected. Read by platform.js's
+    // reset()/_applyTubeStage whenever a run's tube cycles back to Cool.
+    const coolColorOverride = levelNum !== null && levelNum > 5
+      ? [56, 224, 168] // Levels 6-10 — #38e0a8, jewel emerald
+      : null;
     // Same identity color, read by pixi_playscreen.js to warm the
     // background fog/vignette too (Rob: "are you thinking we make some
     // adjustments in the background too?") — kept as its own field rather
