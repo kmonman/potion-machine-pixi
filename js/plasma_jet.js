@@ -592,6 +592,24 @@
       }
     }
 
+    // Instantly kills everything in flight and snaps fully off — no ease,
+    // no fade, nothing left to finish animating. For a hard state reset
+    // (e.g. a fresh run starting) where any leftover blobs/sparks/pulses
+    // from before would otherwise keep drifting/fading on their own, same
+    // as surge()'s burst does, and read as stray activity that shouldn't
+    // be there. `on`/`surge()` on their own only ease or add to what's
+    // already live — this clears it outright.
+    hardReset() {
+      this._power = 0;
+      this._on = false;
+      this._surge = 0;
+      for (let i = this.blobs.live.length - 1; i >= 0; i--) this.blobs.kill(i);
+      for (let i = this.sparks.live.length - 1; i >= 0; i--) this.sparks.kill(i);
+      for (let i = this.pulses.live.length - 1; i >= 0; i--) this.pulses.kill(i);
+      this.arcs.bolts.length = 0;
+      this.view.visible = false;
+    }
+
     // Flare the whole jet right now.
     surge() {
       this._surge = 1;

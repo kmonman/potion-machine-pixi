@@ -496,13 +496,20 @@ const PlayScreenPixi = {
     // tube"). Kept idle (power 0, no live particles) skips virtually all
     // work per plasma_jet.js's own `idle` check, so platforms whose jets
     // aren't currently live cost almost nothing even across a full tower.
-    if (!p.isGoal) {
+    {
       v.plasmaJets = JET_DEFS.map(() => {
         // Rob's retuned settings (plasma_jet_demo.html) — shorter/thinner,
         // dimmer, less blur, the works. Was 380/22/0.85/0/60/8.5/0.85.
+        // Rob: "not sending out a steady stream like they used to" — the
+        // library's blob emission swells/dips on a slow pulse by design
+        // (a "segmented" look), which at pulseRate 0.5 (2s cycle) reads as
+        // flickering rather than flowing once every jet on every platform
+        // is doing it non-stop in actual play. Pushed blobRate up and
+        // pulseRate way up so the pulse cycles fast enough (5/sec) that it
+        // blends into a continuous stream instead of visible on/off waves.
         const jet = new PlasmaJet({
           height: 170, width: 16, speed: 470, intensity: 0.65,
-          blobRate: 50, pulseRate: 0.5, sparkCount: 45, sparkBlur: 3.5,
+          blobRate: 85, pulseRate: 5, sparkCount: 45, sparkBlur: 3.5,
           arcFrequency: 0, wobble: 2.1, blur: 7, beamOpacity: 0.45,
           color: 0xff40e0, secondColor: 0xb04dff,
         });
@@ -550,7 +557,10 @@ const PlayScreenPixi = {
     v.hingeGlowSolid.visible = visible;
     v.hingeMagicContainer.visible = visible;
     v.hingeSparkContainer.visible = visible;
-    for (const jc of v.jetContainers) jc.particleContainer.visible = visible;
+    // Old particle jetContainers are permanently hidden now (build() —
+    // replaced everywhere by the new PlasmaJet beams), so this used to
+    // fight that every time a platform's visibility toggled, flipping
+    // them back on. Left alone here on purpose.
   },
 
   // Delegates to the OLD ui.js's PlayScreen.update() — the real single entry
@@ -717,6 +727,23 @@ const PlayScreenPixi = {
   },
 
   refresh() {
+    // Rob: "before the game starts... some puffs come out of the jet"
+    // during the "Ready... Go!" pause — PlayScreenPixi.build() makes one
+    // real PlasmaJet per mount ONCE at boot for every platform across
+    // every tower (not rebuilt on each run/level entry — see build()'s own
+    // comment on why), so any blobs/sparks/pulses still mid-flight from
+    // the PREVIOUS run just kept drifting and fading on their own right
+    // through the new run's frozen intro (refresh() runs every frame
+    // regardless of PlayScreen.introT). Hard-clears every platform's
+    // plasma jets the instant a new run starts, same runStartCount marker
+    // _updateMoonOrb already watches for the same "leftover from last run"
+    // problem on the moon orb.
+    if (PlayScreen.runStartCount !== this._plasmaRunStartSeen) {
+      this._plasmaRunStartSeen = PlayScreen.runStartCount;
+      for (const p of PlayScreen.allPlatforms) {
+        if (p._visual.plasmaJets) for (const jet of p._visual.plasmaJets) jet.hardReset();
+      }
+    }
     // See _applyBackgroundAccent's own comment — only rebuilt when the
     // accent actually changes (level switch), not every frame; the
     // vignette is a real GPU gradient texture, and rebuilding that every
@@ -950,12 +977,27 @@ const PlayScreenPixi = {
       this._moonOrbAlpha = 0;
       this._moonDischargeGraceT = 0;
       this._moonDischargeSeen = PlayScreen.moonDischargeCount;
+      this._blastLaunchSeen = PlayScreen.blastLaunchCount;
     }
     orb.view.position.set(Physics.x, Physics.y);
     if (PlayScreen.moonDischargeCount !== this._moonDischargeSeen) {
       this._moonDischargeSeen = PlayScreen.moonDischargeCount;
       this._moonDischargeGraceT = 0.6;
       orb.discharge(3);
+    }
+    // Rob: "the potion blast will let out just like one pop randomly...
+    // one or two puffs rather than a regular blast" — every ORDINARY
+    // (uncharged) jump used to get no launch effect at all, only the rare
+    // charged ones did (above), which read as random misfires rather than
+    // a real effect. Every accepted tap now gets its own small burst here
+    // — the charged case already got its bigger one above, so this only
+    // fires the small version when this launch wasn't that one.
+    if (PlayScreen.blastLaunchCount !== this._blastLaunchSeen) {
+      this._blastLaunchSeen = PlayScreen.blastLaunchCount;
+      if (!PlayScreen.lastBlastWasBig) {
+        this._moonDischargeGraceT = Math.max(this._moonDischargeGraceT, 0.35);
+        orb.discharge(1);
+      }
     }
     if (this._moonDischargeGraceT > 0) this._moonDischargeGraceT -= this._dt;
     const target = (PlayScreen.blastCharges > 0 || this._moonDischargeGraceT > 0) ? 1 : 0;
@@ -1216,7 +1258,16 @@ const PlayScreenPixi = {
   _refreshPlasmaJets(p) {
     const halfT = p._liquidHalfThickness();
     const scale = p.length / (620 * p.visualScale);
-    const [tr, tg, tb] = p.tubeColor;
+    // Rob: "there's too much color that is the same... rotate the jets one
+    // step forward" — a Cool tube's jets now flare in the Warm color, a
+    // Warm tube's jets flare Fire, and a Fire tube's jets wrap back to
+    // Cool, instead of always matching the tube they're mounted on. Reads
+    // whatever override this run's stageColorOverride set (same source
+    // _applyTubeStage uses), falling back to the stage's own default.
+    const STAGE_ORDER = ['Cool', 'Warm', 'Fire'];
+    const nextStage = STAGE_ORDER[(STAGE_ORDER.indexOf(p.tubeStage) + 1) % STAGE_ORDER.length];
+    const nextOverride = p.stageColorOverride && p.stageColorOverride[nextStage];
+    const [tr, tg, tb] = nextOverride || TUBE_STAGE_PARAMS[nextStage].color;
     const accent = rgbToHex(
       tr + (255 - tr) * 0.35,
       tg + (255 - tg) * 0.35,
@@ -1227,7 +1278,20 @@ const PlayScreenPixi = {
       const visual = p._visual.plasmaJets[i];
       const mountX = JET_DEFS[i].activeDistance * scale;
       const headspace = p._liquidLevelAt(mountX) - (-halfT);
-      const wet = headspace < halfT * 0.85;
+      const rawWet = headspace < halfT * 0.85;
+      // Rob: "some of them will only go on for half a second... it doesn't
+      // even send out a full jet, it just sends out a couple of puffs" —
+      // the liquid surface at a mount's exact x sloshes as the tube rocks,
+      // so `rawWet` above can flick true then false again well inside a
+      // second. The beam eases in over 0.35s (plasma_jet.js), so a wet
+      // window that short cuts it off before it ever ramps up — reading as
+      // a couple of weak puffs instead of a real jet. Held a bit past the
+      // instant it goes dry (doesn't affect a mount that stays wet or dry
+      // for a real stretch, only smooths out these short flickers) so once
+      // a jet actually starts, it gets to finish a real burst.
+      if (rawWet) visual._wetHoldT = 0.45;
+      else visual._wetHoldT = Math.max(0, (visual._wetHoldT || 0) - this._dt);
+      const wet = rawWet || visual._wetHoldT > 0;
       visual.on = gameJet.active && wet;
       visual.color = rgbToHex(tr, tg, tb);
       visual.secondColor = accent;

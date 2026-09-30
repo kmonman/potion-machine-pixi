@@ -199,6 +199,25 @@ const Physics = {
     return ax;
   },
 
+  // Rob: "when the ball hits the plasma... I try to manually bump it, and
+  // it doesn't register" — a tap normally does nothing while airborne (see
+  // ui.js's fireBlast, "you shouldn't be able to jump again until it lands
+  // on something"), but that same rule was silently eating every attempt
+  // to fight the storm's sideways push mid-flight, since the storm only
+  // ever touches the ball while it's already airborne between platforms.
+  // ui.js's fireBlast reads this to let a tap through as a special,
+  // bigger-than-normal jump specifically while inside a storm, instead of
+  // being blocked outright.
+  insidePlasmaStorm() {
+    for (const s of this.plasmaStorms) {
+      if (s.visibility <= 0) continue;
+      const u = Math.abs(this.x - s.x) / (s.width / 2);
+      const v = Math.abs(this.y - s.y) / (s.height / 2);
+      if (u < 1 && v < 1) return true;
+    }
+    return false;
+  },
+
   // Simple AABB touch test against each drifting cloud (each one's own
   // {x, y, width, height} in world space, moved by ui.js every frame before
   // Physics.update runs). Only arms a fresh drop if one isn't already in

@@ -769,10 +769,10 @@ const PlayScreen = {
     return this._finishTower(this._appendGoalPlatform(platforms));
   },
 
-  // The original single hand-placed tower, now serving only Level 5-10 and
-  // Free Play (Rob: these haven't been redesigned yet — leave them exactly
-  // as they were rather than guess at 6 more layouts blind). `base` is the
-  // same shared instance every other tower uses, not a fresh one.
+  // The original single hand-placed tower — now Free Play only (Levels
+  // 5-10 got their own real per-level towers below, see
+  // _buildGrowingTower). `base` is the same shared instance every other
+  // tower uses, not a fresh one.
   _buildSharedTower(base) {
     const baseX = 360, baseY = 652;
     const platforms = [
@@ -829,10 +829,51 @@ const PlayScreen = {
     return this._finishTower(platforms);
   },
 
+  // Rob: "it should slowly grow... starting with level five with seven
+  // platforms and then gets to twelve at the higher levels like nine...
+  // they should not be in the same position, some of them should move off
+  // further to the right or left... there should be a new platform because
+  // I reach a new level" — Levels 5-10 used to all climb the exact same
+  // shared tower object (identical platform positions every level, just a
+  // different height cutoff), which is exactly what read as "the same."
+  // Each level here gets its own real platform count (7 at Level 5, up to
+  // the full 12 by Level 10) AND its own x-offset sequence (see
+  // OFFSET_SEQUENCES below) so no two levels' climbs line up — and, like
+  // Levels 1-4, a real appended goal platform at the top instead of an
+  // arbitrary height cutoff partway up a shared tower.
+  _buildGrowingTower(base, levelNum) {
+    const baseX = 360, baseY = 652;
+    // 5 -> 7 platforms ... 10 -> 12 platforms (one more each level).
+    const targetCount = Math.min(12, 7 + (levelNum - 5));
+    // One own sequence per level, length = targetCount - 1 (platform 0 is
+    // the shared base, always at baseX). Magnitudes/signs deliberately
+    // don't repeat the same pattern level to level — some reach further
+    // left or right than others, not just an alternating ±130 every time.
+    const OFFSET_SEQUENCES = {
+      5: [130, -130, 150, -110, 170, -140],
+      6: [-140, 160, -120, 180, -150, 130, -170],
+      7: [150, -170, 130, -200, 160, -180, 140, -210],
+      8: [-160, 190, -140, 220, -170, 150, -230, 180, -200],
+      9: [170, -200, 150, -230, 180, -160, 240, -190, 210, -170],
+      10: [-180, 210, -160, 240, -190, 170, -250, 200, -220, 160, 230],
+    };
+    const offsets = OFFSET_SEQUENCES[levelNum];
+    const tubeSpeeds = [0.75, 1.3, 1.1, 0.9, 0.85, 1.2, 0.95, 1.25, 0.8, 1.15, 1.35];
+    const platforms = [base];
+    for (let i = 1; i < targetCount; i++) {
+      const x = baseX + offsets[i - 1];
+      const y = baseY - this.TOWER_SPACING * i;
+      const p = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: tubeSpeeds[(i - 1) % tubeSpeeds.length] });
+      p.jetSystem = createJetSystem({ allowedIndices: i % 2 === 0 ? [0, 1] : [2, 3] });
+      platforms.push(p);
+    }
+    return this._finishTower(this._appendGoalPlatform(platforms));
+  },
+
   // Builds every tower up front (Rob: hand-designed layouts, not procedural)
-  // — one per Level 1-4, plus the original generic one for Level 5-10/Free
-  // Play — keyed by PlayScreen.mode string so enter() can just look its own
-  // up. All share the same base platform instance (see _buildBasePlatform).
+  // — one per Level 1-10, plus the original generic one for Free Play —
+  // keyed by PlayScreen.mode string so enter() can just look its own up.
+  // All share the same base platform instance (see _buildBasePlatform).
   _buildTowers() {
     const base = this._buildBasePlatform();
     return {
@@ -840,6 +881,12 @@ const PlayScreen = {
       level2: this._buildLevel2(base),
       level3: this._buildLevel3(base),
       level4: this._buildLevel4(base),
+      level5: this._buildGrowingTower(base, 5),
+      level6: this._buildGrowingTower(base, 6),
+      level7: this._buildGrowingTower(base, 7),
+      level8: this._buildGrowingTower(base, 8),
+      level9: this._buildGrowingTower(base, 9),
+      level10: this._buildGrowingTower(base, 10),
       shared: this._buildSharedTower(base),
     };
   },
@@ -873,12 +920,10 @@ const PlayScreen = {
     // reset their state in place instead, same as the old singleton
     // Platform.reset() always did.
     if (!this.towers) this.towers = this._buildTowers();
-    // Levels 1-4 each get their own short, hand-placed tower now (see
-    // _buildTowers) instead of sharing one big one sliced at different
-    // heights; Level 5-10 and Free Play still use that original shared one
-    // until they get their own real designs too.
+    // Every level 1-10 now gets its own real tower (see _buildTowers) —
+    // only Free Play still falls back to the original shared one.
     const levelNum = this._levelNumber();
-    const towerKey = levelNum !== null && levelNum <= 4 ? 'level' + levelNum : 'shared';
+    const towerKey = levelNum !== null && levelNum <= 10 ? 'level' + levelNum : 'shared';
     this.platforms = this.towers[towerKey];
     // Every platform in every tower still needs its jets/hinge-bubbles/goal-
     // line visibility kept current even while its tower isn't the active
@@ -903,11 +948,10 @@ const PlayScreen = {
       6: { Cool: [56, 255, 0], Warm: [0, 255, 218], Fire: [0, 183, 255] }, // #38ff00 / #00ffda / #00b7ff
     };
     const stageColorOverride = levelNum !== null && levelNum > 5 ? STAGE_THEMES[6] : null;
-    // Representative identity color, read by pixi_playscreen.js to warm
-    // the background fog/vignette too (Rob: "are you thinking we make
-    // some adjustments in the background too?") — the theme's own Cool
-    // color, since that's what a level visually opens on.
-    this.levelAccentColor = stageColorOverride ? stageColorOverride.Cool : null;
+    // Background accent dropped (Rob: "just drop the accent, back to plain
+    // dark background") — tube colors above still theme per level, but the
+    // fog/vignette/starfield always stay the plain dark purple-black now.
+    this.levelAccentColor = null;
     for (const p of this.platforms) {
       // Set before reset() (not after) — reset() immediately rolls a fresh
       // targetAngle using this platform's current maxTiltAngle, so setting
@@ -998,26 +1042,20 @@ const PlayScreen = {
   // resting surface (its pivot, lifted by the same thickness/2 +
   // displayRadius offset Physics uses to rest a ball on any platform), not
   // an eyeballed margin above thin air the way it was before that existed.
-  // Levels 5-10 still climb the original shared tower (platforms 5-11 of
-  // it), goal just above each one in turn — a first pass to react to and
-  // retune once there's been real play on each (Rob: "do all 10, we can
-  // evaluate from there"), not a final balance pass. Clamped at 10
-  // (platform 11) since that's as tall as that shared tower currently goes.
-  // Rob (Level 8): "one of the levels is overlapping the PNG at the top.
-  // It shouldn't get that close. You should have to jump to the top." The
-  // old -60 gap was way tighter than the real jump distance between any
-  // two platforms (TOWER_SPACING, 300) — barely more than the ball's own
+  // Levels 5-10 now also each get their own real appended goal platform
+  // (see _buildGrowingTower), same as Levels 1-4 — no more special-cased
+  // height cutoff partway up a shared tower. Rob (Level 8, back when it
+  // was): "one of the levels is overlapping the PNG at the top. It
+  // shouldn't get that close. You should have to jump to the top." The old
+  // -60 gap was way tighter than the real jump distance between any two
+  // platforms (TOWER_SPACING, 300) — barely more than the ball's own
   // radius — so the goal line's art sat almost on top of the last real
-  // platform instead of requiring an actual jump up to it, the same real
-  // gap Levels 1-4's own appended goal platform already uses.
-  _levelThresholdY(levelNum) {
-    const p = this.platforms;
-    if (levelNum <= 4) {
-      const goal = p[p.length - 1];
-      return goal.pivot.y - (goal.thickness / 2 + Physics.displayRadius);
-    }
-    const n = Math.min(levelNum, 10);
-    return p[n + 1].pivot.y - this.TOWER_SPACING;
+  // platform instead of requiring an actual jump up to it; every tower's
+  // goal platform (_appendGoalPlatform) already sits a real TOWER_SPACING
+  // above its topmost climbing platform, so this works the same for all 10.
+  _levelThresholdY() {
+    const goal = this.platforms[this.platforms.length - 1];
+    return goal.pivot.y - (goal.thickness / 2 + Physics.displayRadius);
   },
 
   update(dt, tiltX) {
@@ -1260,6 +1298,14 @@ const PlayScreen = {
   // constant gravity scales with force squared, so a 50%-higher jump needs
   // force scaled by sqrt(1.5), not 1.5x outright — 950 * sqrt(1.5) ≈ 1163.
   BIG_BLAST_FORCE: 1163,
+  // Rob: "when the ball hits the plasma... I try to manually bump it, and
+  // it doesn't register" — the storm's own sideways push only ever touches
+  // the ball mid-air between platforms, which is exactly when the normal
+  // "one jump until you land" rule (see fireBlast) silently swallows every
+  // tap. A bump while actively fighting a storm is deliberate, not a
+  // second casual jump, so it's let through as its own bigger boost
+  // instead — 30% over whatever jump it would've been (free or charged).
+  PLASMA_STORM_BLAST_MULTIPLIER: 1.3,
 
   // Bumped by the same monotonically each time a charge is actually spent on
   // a big jump — pixi_playscreen.js's refresh() watches this (not a boolean)
@@ -1270,6 +1316,19 @@ const PlayScreen = {
   // let the renderer notice and animate it" pattern pixi_gameover.js's own
   // win-particle burst already uses.
   moonDischargeCount: 0,
+
+  // Rob: "the potion blast will let out just like one pop randomly... one
+  // or two puffs rather than a regular blast" — the orb's spark-burst
+  // above only ever fires on a CHARGED jump (moonDischargeCount only bumps
+  // inside the `if (big)` branch below), so most taps — every ordinary,
+  // uncharged jump — had no launch effect at all. From the player's side
+  // that reads as "sometimes I get a pop, most of the time nothing," not a
+  // broken effect. This bumps on every accepted tap, charged or not, so
+  // pixi_playscreen.js's _updateMoonOrb can give every real jump its own
+  // small burst (a bigger one when `lastBlastWasBig` is true) instead of
+  // only the rare charged ones.
+  blastLaunchCount: 0,
+  lastBlastWasBig: false,
 
   _lastBlastAt: 0, // Date.now() of the last accepted tap — see the debounce below
   fireBlast() {
@@ -1282,7 +1341,11 @@ const PlayScreen = {
     // until it lands on something" — Physics.airborne is set true the
     // instant a blast fires and only cleared back to false on landing (see
     // physics.js), so it's exactly "still mid-jump from the last tap."
-    if (Physics.airborne) return;
+    // Exception: a storm's own push only ever reaches the ball mid-air, so
+    // this rule was blocking every attempt to fight it (see
+    // Physics.insidePlasmaStorm's own comment) — let a tap through there.
+    const insideStorm = Physics.insidePlasmaStorm();
+    if (Physics.airborne && !insideStorm) return;
     // iOS Safari can fire two separate tap events for what the player felt
     // as one single tap (Rob: "you can double tap and add multiple jumps on
     // iOS... versus just one jump" — Android doesn't do this). A real
@@ -1299,7 +1362,11 @@ const PlayScreen = {
       this.blastCharges--;
       this.moonDischargeCount++;
     }
-    Physics.applyBlast(big ? this.BIG_BLAST_FORCE : this.BLAST_FORCE);
+    this.blastLaunchCount++;
+    this.lastBlastWasBig = big;
+    let force = big ? this.BIG_BLAST_FORCE : this.BLAST_FORCE;
+    if (insideStorm) force *= this.PLASMA_STORM_BLAST_MULTIPLIER;
+    Physics.applyBlast(force);
   },
 
   _timeText() {
