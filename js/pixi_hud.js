@@ -104,6 +104,17 @@ const HudPixi = {
       swirlSpeed: 2.2, arcFrequency: 0, energyColor: 0xffe08a,
     });
 
+    // Rob: "we need something showing you which level you're on while
+    // you're playing" — a small label sitting just above the score panel.
+    // Level mode only (_levelNumber() is null in Free Play, which has no
+    // levels to label).
+    this._levelLabel = new PIXI.Text({
+      text: '', style: { fontFamily: 'PotionTitle', fontSize: 22, fill: HUD_COLOR.coolWhite, align: 'left' },
+    });
+    this._levelLabel.anchor.set(0, 0);
+    this._levelLabel.position.set(margin + 4, board.y - 26);
+    c.addChild(this._levelLabel);
+
     this._isLandscape = false;
     this._t = Math.random() * 10;
     this._meterWasReady = false;
@@ -124,6 +135,9 @@ const HudPixi = {
     this._barFill.visible = visible;
     this._barSweep.visible = visible;
     this._barSparkContainer.visible = visible;
+    const levelNum = PlayScreen._levelNumber();
+    this._levelLabel.visible = visible && levelNum !== null;
+    if (this._levelLabel.visible) this._levelLabel.text = `LEVEL ${levelNum}`;
     if (!visible) return;
 
     this._t += this._dt || 1 / 60;

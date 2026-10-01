@@ -116,6 +116,16 @@ const JET_CATCH_RADIUS = 25; // px, how close the ball's x needs to be to the je
 // share an x coordinate while the ball is mid-flight past it. Added once platforms
 // became instanced (Phase 2) — not needed back when only one platform existed.
 const JET_CATCH_RADIUS_Y = 70;
+// Rob: "the plasma might be giving my ball a little bit of a bump right
+// before I'm hitting the jump button... I'm still only getting the single
+// jump" — the auto-launch impulse above flings the ball out of
+// JET_CATCH_RADIUS_Y within a frame or two, so by the time a human's tap
+// actually lands, isBallOnJet() has often already gone false again even
+// though the player clearly jumped right as/after the bump. This window
+// keeps a jet "catchable" for a beat after it actually fires, so a tap
+// that lands shortly after the auto-bump still reads as on-jet for
+// fireBlast's own tier check instead of silently falling back to normal.
+const JET_BOOST_GRACE = 0.35;
 
 // Each platform in the tower runs its own independent jets (Rob: platforms should
 // "function independently", not share one global set) — flow/spawn/particle math
@@ -131,7 +141,7 @@ const JET_CATCH_RADIUS_Y = 70;
 function createJetSystem(opts = {}) {
   const allowedIndices = opts.allowedIndices || [0, 1, 2, 3];
   return {
-    jets: JET_DEFS.map(() => ({ x: 0, y: 0, active: false, wasInRange: false, particles: [], spawnTimer: 0, toggleTimer: 0, wet: false, wetHoldT: 0 })),
+    jets: JET_DEFS.map(() => ({ x: 0, y: 0, active: false, wasInRange: false, particles: [], spawnTimer: 0, toggleTimer: 0, wet: false, wetHoldT: 0, boostGraceT: 0 })),
     jetCooldown: 0,
     // Exposed so code outside this closure (ui.js's tower-building, when
     // precomputing each platform's preferredIndex) can see which mounts
@@ -154,7 +164,7 @@ function createJetSystem(opts = {}) {
     reset() {
       this.jets = JET_DEFS.map(() => ({
         x: 0, y: 0, active: false, wasInRange: false, particles: [], spawnTimer: 0,
-        toggleTimer: 1 + Math.random() * 3, wet: false, wetHoldT: 0,
+        toggleTimer: 1 + Math.random() * 3, wet: false, wetHoldT: 0, boostGraceT: 0,
       }));
       this.jetCooldown = 0;
       this.groupToggleTimer = 1 + Math.random() * 3;
@@ -199,6 +209,7 @@ function createJetSystem(opts = {}) {
     // jet.wet itself).
     isBallOnJet() {
       for (const jet of this.jets) {
+        if (jet.boostGraceT > 0) return true;
         if (jet.active && jet.wet
           && Math.abs(Physics.x - jet.x) < JET_CATCH_RADIUS
           && Math.abs(Physics.y - jet.y) < JET_CATCH_RADIUS_Y) {
@@ -221,6 +232,7 @@ function createJetSystem(opts = {}) {
 
       for (let i = 0; i < this.jets.length; i++) {
         const jet = this.jets[i];
+        if (jet.boostGraceT > 0) jet.boostGraceT = Math.max(0, jet.boostGraceT - dt);
         // Rob: "let's change it so the jets are on between 2 and 4
         // seconds, .7 is too short" — the liquid itself only sloshes past
         // a given mount's exact x for a brief moment as the tube rocks, so
@@ -245,6 +257,7 @@ function createJetSystem(opts = {}) {
           if (inRange && jet.wet && !jet.wasInRange && this.jetCooldown === 0) {
             Physics.vy = JET_IMPULSE_VY;
             this.jetCooldown = JET_COOLDOWN;
+            jet.boostGraceT = JET_BOOST_GRACE;
             // Marker for pixi_playscreen.js's plasma-jet visual (Rob: flare
             // the jet the instant it actually launches the stone) — same
             // "leave a marker, let the renderer notice" pattern as

@@ -1375,10 +1375,13 @@ const PlayScreen = {
     this.lastBlastWasBig = big;
     // Rob's four-tier spec: normal < charged-only ≈ on-jet-only < both
     // charged AND on a jet at once (see JET_BLAST_FORCE/JET_BIG_BLAST_FORCE's
-    // own comment). currentPlatform is whatever the ball last actually
-    // rested on (stays set through a mid-air tap, see physics.js), so this
-    // still reads correctly the instant after a jet's own auto-launch.
-    const onJet = !!(Physics.currentPlatform && Physics.currentPlatform.jetSystem.isBallOnJet());
+    // own comment). Checked across every platform's jetSystem, not just
+    // currentPlatform's — a jet stream reaches past its own plank, so the
+    // ball can be physically touching a jet belonging to a different
+    // platform than the one it last landed on (Rob: "it should give me the
+    // extra jet boost even if I'm not touching the plank... anytime I'm
+    // touching the jet I should get the extra boost").
+    const onJet = this.platforms.some(p => p.jetSystem.isBallOnJet());
     let force;
     if (big && onJet) force = this.JET_BIG_BLAST_FORCE;
     else if (onJet) force = this.JET_BLAST_FORCE;

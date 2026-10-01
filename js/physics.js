@@ -142,7 +142,15 @@ const Physics = {
     // platform).
     const tiltForce = (this.currentPlatform || this.platforms[0]).tiltForce;
     const difficultyMultiplier = tiltForce * Difficulty.moonTiltMultiplier;
-    const gx = tiltX * this.tiltAccel * difficultyMultiplier;
+    // Rob: "when it flies in the air, I'm able to control it too much" — tilt
+    // steering is cut in half for the whole flight, up or down, once a jump's
+    // airborne; full strength only while actually resting on a platform.
+    // Rob's follow-up: "reduce the force of the ball when on a platform by
+    // 20%... it's hard to control" — grounded steering itself also eased off
+    // a notch, independent of the airborne cut above (0.5 airborne is half of
+    // this new 0.8 grounded baseline, not half of the old full strength).
+    const airborneTiltMultiplier = this.airborne ? 0.5 : 0.8;
+    const gx = tiltX * this.tiltAccel * difficultyMultiplier * airborneTiltMultiplier;
     // Extra pull while a dark matter drop is in progress — see
     // DARK_MATTER_EXTRA_GRAVITY's own comment for why this is a continuous
     // accel rather than a one-time velocity snap.
