@@ -1086,7 +1086,9 @@ const PlayScreen = {
         if (isCurrentPlatform) p.jetGraceRemaining = this.JET_GRACE_SECONDS;
         else if (p.jetGraceRemaining > 0) p.jetGraceRemaining -= dt;
         const jetScale = p.length / (620 * p.visualScale);
-        if (isCurrentPlatform || p.jetGraceRemaining > 0) {
+        // "Stops producing" also covers jets — a spent platform never
+        // spawns/toggles jets again, same as its hinge bubbles above.
+        if ((isCurrentPlatform || p.jetGraceRemaining > 0) && !p.chargeSpent) {
           // Rob: "I'm getting some false pumps... the ball bumps with no
           // visible jet" — the actual launch impulse below only ever
           // checked gameJet.active + catch geometry, completely ignoring
@@ -1129,7 +1131,10 @@ const PlayScreen = {
       this._updatePlasmaStorms(dt);
       Physics.update(dt, tiltX);
       for (const p of this.platforms) {
-        p.hingeBubbles.update(dt, p.touching, p.pivot.x, p.pivot.y);
+        // "Stops producing" — the hinge bubble stream itself (the one
+        // visually standing in for "releasing bubbles to charge the
+        // ball") never emits again once this platform's spent.
+        p.hingeBubbles.update(dt, p.touching && !p.chargeSpent, p.pivot.x, p.pivot.y);
       }
       // Back to 6,000 points/minute (100/s) — the earlier 1,000/min slowdown was
       // to make the live-updating digits readable, which is now handled by the
@@ -1147,6 +1152,12 @@ const PlayScreen = {
       if (this.score >= this.blastThreshold + 1000) {
         this.blastCharges = Math.min(this.MAX_BLAST_CHARGES, this.blastCharges + 1);
         this.blastThreshold += 1000;
+        // Rob: "once a platform releases enough bubbles to charge a ball,
+        // it stops moving... and can no longer charge the ball" — whatever
+        // platform the ball is actually resting on the instant a charge
+        // completes is the one that "gave" it, and goes quiet for the rest
+        // of the run (see platform.js's own chargeSpent checks).
+        if (Physics.currentPlatform) Physics.currentPlatform.chargeSpent = true;
       }
 
       // Level win condition — Physics.y counts down as the ball climbs, so
@@ -1325,7 +1336,15 @@ const PlayScreen = {
   lastBlastWasBig: false,
 
   _lastBlastAt: 0, // Date.now() of the last accepted tap — see the debounce below
-  fireBlast() {
+  // Rob: "tap to jump... swipe up to jump charged" — a tap is always the
+  // free normal-weight jump now, no matter how big a charge you're
+  // sitting on; spending a banked charge for the bigger jump takes a
+  // deliberate swipe-up (see pixi_playscreen.js's pointerdown/pointerup
+  // gesture split). `allowChargeSpend` is that gesture's own call —
+  // true from a swipe, false from a plain tap (or the spacebar shortcut,
+  // which has no gesture to read). A swipe with no charge banked still
+  // jumps, just at normal weight — swipe never does nothing.
+  fireBlast(allowChargeSpend) {
     // introT > 0 shouldn't be reachable via the HUD button (it stays
     // invisible/non-hit-testable until blastButtonsT eases in, which only
     // starts after the intro pause) but belt-and-suspenders against firing
@@ -1349,9 +1368,9 @@ const PlayScreen = {
     const now = Date.now();
     if (now - this._lastBlastAt < 200) return;
     this._lastBlastAt = now;
-    // Same single tap either way — spends a charge for the bigger jump only
-    // when one's actually banked, otherwise it's just the free normal jump.
-    const big = this.blastCharges > 0;
+    // Only a swipe is allowed to actually spend a banked charge — a plain
+    // tap stays the free normal jump even with one sitting there ready.
+    const big = !!allowChargeSpend && this.blastCharges > 0;
     if (big) {
       this.blastCharges--;
       this.moonDischargeCount++;

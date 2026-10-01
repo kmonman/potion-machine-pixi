@@ -40,6 +40,7 @@ const ASSET_PATHS = {
   potionEmpty: 'assets/Pink Potion Empty.png',
   bubbleScore: 'assets/bubblescore3.png',
   scoreBoard: 'assets/ScoreBoard.png',
+  scoreBoard2: 'assets/ScoreBoard2.png',
   fogBack: 'assets/FogBack3.png',
   fogBackFlip: 'assets/FogBack3Flip.png',
   fogMid: 'assets/FogMid3.png',
@@ -200,7 +201,7 @@ window.addEventListener('keydown', () => Music.tryStart());
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && isPlayScreenName(state.screen)) {
     e.preventDefault(); // stop the page itself from scrolling on spacebar
-    PlayScreen.fireBlast();
+    PlayScreen.fireBlast(false); // a key press has no swipe gesture — treat it as a tap
   }
 });
 

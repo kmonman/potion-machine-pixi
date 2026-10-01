@@ -32,48 +32,77 @@ const HudPixi = {
     this.container = c;
 
     const margin = 18;
-    const panel = { x: margin, y: 16, w: CONFIG.WIDTH - margin * 2, h: 72 };
-    this._panel = panel;
+    // Rob's own revised scoreboard art (assets/ScoreBoard2.png) — bubbles,
+    // panel, AND an empty narrow pill slot near the bottom all baked into
+    // one image now; only the dynamic fill still gets drawn here.
+    this._scoreBoard = new PIXI.Sprite(textures.scoreBoard2);
+    c.addChild(this._scoreBoard);
+    const boardAR = textures.scoreBoard2.width / textures.scoreBoard2.height;
+    const boardH = 148; // display height
+    this._scoreBoard.height = boardH;
+    this._scoreBoard.width = boardH * boardAR;
+    this._scoreBoard.position.set(margin, 14);
+    const board = this._scoreBoard;
 
-    this._panelGfx = new PIXI.Graphics();
-    c.addChild(this._panelGfx);
+    // Big, dominant number sitting in the upper portion of the pill. Rob:
+    // "use my old version to see how big the font needs to be" — measured
+    // his earlier baked-in "1,640" off that reference image with the same
+    // Python/Pillow scan (glyph bbox height 69px of a 269px-tall image,
+    // ~25.6% of the board's own height; PotionTitle's cap-height runs
+    // roughly 70% of its nominal font-size, so size ≈ boardH*0.2565/0.7).
+    this._scoreNumber = buildTabularNumber(c, { size: boardH * 0.2565 / 0.7, font: 'PotionTitle', color: 0xe9e2f5, baseline: 'middle' });
+    // Rob: "move the score numbers up two pixels to make room" (for the
+    // bar-top sparks riding just below it).
+    this._numberPos = { x: board.x + board.width * 0.509, y: board.y + board.height * 0.463 - 2 };
 
-    // Bubble cluster, overhanging the panel's top-left corner.
-    this._bubbles = new PIXI.Sprite(textures.bubblesFinal);
-    const bubblesAR = textures.bubblesFinal.width / textures.bubblesFinal.height;
-    this._bubbles.height = panel.h * 1.3;
-    this._bubbles.width = this._bubbles.height * bubblesAR;
-    this._bubbles.anchor.set(0.32, 0.62);
-    this._bubbles.position.set(panel.x + 14, panel.y + panel.h * 0.58);
-    c.addChild(this._bubbles);
-
-    this._scoreNumber = buildTabularNumber(c, { size: 32, font: 'PotionTitle', color: 0xe9e2f5, baseline: 'middle' });
-
-    // Charge bar — track + fill, stacked under the score number instead of
-    // a separate module.
-    this._barRect = { x: panel.x + 150, y: panel.y + panel.h * 0.66, w: panel.w - 150 - 110, h: 16 };
-    this._barTrack = new PIXI.Graphics();
-    c.addChild(this._barTrack);
+    // Empty pill slot bounds, measured directly off the source PNG
+    // (assets/ScoreBoard2.png, 612x269 native) with a Python/Pillow pixel
+    // scan — Rob: "take time to measure so it fits exactly, don't stop
+    // working until you take a screenshot and see that it fits." Stored
+    // as fractions of the image so they scale correctly at any display
+    // size instead of hardcoded pixels.
+    const slotFrac = { left: 0.2214, right: 0.7696, top: 0.6766, bottom: 0.7751 };
+    this._barRect = {
+      x: board.x + board.width * slotFrac.left,
+      y: board.y + board.height * slotFrac.top,
+      w: board.width * (slotFrac.right - slotFrac.left),
+      h: board.height * (slotFrac.bottom - slotFrac.top),
+    };
     this._barFill = new PIXI.Graphics();
     c.addChild(this._barFill);
+    this._barSweep = new PIXI.Graphics();
+    c.addChild(this._barSweep);
 
-    // Moon emblem, overhanging the panel's right edge, with its own
-    // glow + charge ring around it (Rob: "the white circle on the right
-    // should be a mini moon with the charge around it" — and made bigger
-    // this time so the ring actually reads, not the earlier too-small one).
-    this._moonCenter = { x: panel.x + panel.w - 4, y: panel.y + panel.h / 2 };
-    this._moonRadius = 36;
-    this._moonGlow = new PIXI.Sprite(textures.glowParticle);
-    this._moonGlow.anchor.set(0.5);
-    this._moonGlow.blendMode = 'add';
-    c.addChild(this._moonGlow);
-    this._moonRing = new PIXI.Graphics();
-    c.addChild(this._moonRing);
-    this._moon = new PIXI.Sprite(textures.ball);
-    this._moon.anchor.set(0.5);
-    c.addChild(this._moon);
-    this._moonSweep = new PIXI.Graphics();
-    c.addChild(this._moonSweep);
+    // Full-power indicator, take 2 — Rob: "we don't need an orb. We just
+    // need the top of the long pink pill to show some energy... match the
+    // energy of our normal moonstone when it has energy." A thin strip of
+    // sparking particles riding the bar's own top edge instead of a
+    // separate circular effect — same pink/blue energy palette the real
+    // charged-moon orb uses (pixi_playscreen.js's _moonOrb: 0xff4fb8 /
+    // 0x3aa8ff), not gold.
+    this._barSparkContainer = new PIXI.Container();
+    c.addChild(this._barSparkContainer);
+    // A second container, softly blurred, for a portion of the sparks —
+    // Rob: "add a slight blur to some of the bubbles... so it looks more
+    // like our moon stone when charged" (the real orb mixes sharp and
+    // soft particles — see plasma_orb.js). One shared BlurFilter on the
+    // whole container rather than one filter per sprite (same "don't
+    // allocate a filter per particle" lesson the jet nozzle leak taught).
+    this._barSparkBlurContainer = new PIXI.Container();
+    this._barSparkBlurContainer.filters = [new PIXI.BlurFilter({ strength: 2.2, quality: 2 })];
+    c.addChild(this._barSparkBlurContainer);
+    this._barSparkPool = [];
+    this._barSparkBlurPool = [];
+    this._barSparkData = [];
+    this._barSparkSpawnTimer = 0;
+
+    // The "Reserve Core" — Rob: "tuck that gold orb away, we're going to
+    // use it later." Built but not added to the HUD container or updated
+    // for now, ready to wire up again whenever that later feature happens.
+    this._reserveCore = new PlasmaOrb({
+      radius: 17, particleCount: 26, cloudPuffs: 5, cloudChurn: 0.8,
+      swirlSpeed: 2.2, arcFrequency: 0, energyColor: 0xffe08a,
+    });
 
     this._isLandscape = false;
     this._t = Math.random() * 10;
@@ -90,104 +119,139 @@ const HudPixi = {
 
   refresh() {
     const visible = !PlayScreen.isOver;
-    this._panelGfx.visible = visible;
-    this._bubbles.visible = visible;
+    this._scoreBoard.visible = visible;
     this._scoreNumber.setVisible(visible);
-    this._barTrack.visible = visible;
     this._barFill.visible = visible;
-    this._moonGlow.visible = visible;
-    this._moonRing.visible = visible;
-    this._moon.visible = visible;
-    this._moonSweep.visible = visible;
+    this._barSweep.visible = visible;
+    this._barSparkContainer.visible = visible;
     if (!visible) return;
 
     this._t += this._dt || 1 / 60;
-    this._refreshPanel();
-    this._refreshScoreAndBar();
-    this._refreshMoon();
+    this._scoreNumber.setText(PlayScreen._scoreText(), this._numberPos.x, this._numberPos.y);
+    this._refreshBar();
+    this._refreshBarSparks();
   },
 
-  // The single dark stadium panel everything else sits on/overhangs.
-  _refreshPanel() {
-    const p = this._panel;
-    const g = this._panelGfx;
-    g.clear();
-    g.roundRect(p.x, p.y, p.w, p.h, p.h / 2)
-      .fill({ color: HUD_COLOR.void, alpha: 0.82 })
-      .stroke({ width: 1.5, color: HUD_COLOR.medViolet, alpha: 0.9 });
-    g.moveTo(p.x + 24, p.y + 1.5).lineTo(p.x + p.w - 24, p.y + 1.5)
-      .stroke({ width: 1, color: HUD_COLOR.electricPurple, alpha: 0.22, cap: 'round' });
-  },
-
-  _refreshScoreAndBar() {
-    const p = this._panel;
-    this._scoreNumber.setText(PlayScreen._scoreText(), p.x + 150 + (this._barRect.w) / 2 - 20, p.y + p.h * 0.34);
-
+  // Fills the empty pill slot baked into Rob's ScoreBoard2.png. Premium-
+  // arcade treatment per Rob's ask: lit along the top edge, a shadow along
+  // the bottom — a top-to-bottom gradient on the fill itself, not a flat
+  // color — plus a bright leading edge at the fill's current front.
+  _refreshBar() {
     const ready = PlayScreen.blastCharges >= PlayScreen.MAX_BLAST_CHARGES;
     const progress = ready ? 1 : Math.max(0, Math.min(1, (PlayScreen.score - PlayScreen.blastThreshold) / 1000));
+    // Rob: "make the pink color a little darker like my base pink for the
+    // potion" — dimmed toward the tube's own base pink instead of reading
+    // bright/washed out.
     const tube = (Physics.currentPlatform && Physics.currentPlatform.tubeColor) || [240, 0, 184];
-    const tubeHex = rgbToHex(tube[0], tube[1], tube[2]);
+    const darken = 0.8;
+    const baseColor = (ready ? [255, 66, 208] : tube).map((v) => v * darken);
 
     const { x, y, w, h } = this._barRect;
-    this._barTrack.clear();
-    this._barTrack.roundRect(x, y, w, h, h / 2).fill({ color: HUD_COLOR.deepViolet, alpha: 0.7 }).stroke({ width: 1, color: HUD_COLOR.medViolet, alpha: 0.6 });
-    this._barFill.clear();
     const fw = Math.max(0, w * progress);
-    if (fw > h) {
-      this._barFill.roundRect(x, y, fw, h, h / 2).fill({ color: ready ? HUD_COLOR.brightPink : tubeHex, alpha: ready ? 1 : 0.9 });
-    }
-  },
-
-  // Mini moon + glow + charge ring at the panel's right edge.
-  _refreshMoon() {
-    const ready = PlayScreen.blastCharges >= PlayScreen.MAX_BLAST_CHARGES;
-    const progress = ready ? 1 : Math.max(0, Math.min(1, (PlayScreen.score - PlayScreen.blastThreshold) / 1000));
-    const tube = (Physics.currentPlatform && Physics.currentPlatform.tubeColor) || [240, 0, 184];
-    const tubeHex = rgbToHex(tube[0], tube[1], tube[2]);
-    const { x: cx, y: cy } = this._moonCenter;
-    const r = this._moonRadius;
-
-    this._moonGlow.position.set(cx, cy);
-    this._moonGlow.tint = ready ? HUD_COLOR.brightPink : tubeHex;
-    const glowPulse = ready ? 0.85 + 0.15 * Math.sin(this._t * 4) : 1;
-    this._moonGlow.width = this._moonGlow.height = r * 2.4 * (0.7 + 0.3 * progress) * glowPulse;
-    this._moonGlow.alpha = 0.35 + 0.45 * progress;
-
-    this._moon.position.set(cx, cy);
-    this._moon.width = this._moon.height = r * 1.5;
-    this._moon.tint = ready ? 0xfff2d8 : 0xffffff;
-
-    // Charge ring — Rob: "the charge didn't render correctly because I
-    // think the ball was too small" — sized off the now-much-bigger moon
-    // radius above instead of the earlier tiny one, so the ring reads
-    // clearly instead of being a near-invisible sliver.
-    const rg = this._moonRing;
-    rg.clear();
-    rg.circle(cx, cy, r + 6).stroke({ width: 2, color: HUD_COLOR.medViolet, alpha: 0.5 });
-    if (progress > 0.02) {
-      const start = -Math.PI / 2;
-      rg.arc(cx, cy, r + 6, start, start + progress * Math.PI * 2)
-        .stroke({ width: 3, color: ready ? HUD_COLOR.brightPink : tubeHex, alpha: 0.95, cap: 'round' });
+    const fg = this._barFill;
+    fg.clear();
+    if (fw > h * 0.6) {
+      const r = h / 2;
+      // Light along the top, shadow along the bottom — lerp the fill's
+      // own color toward white near y0 and toward black near y1, same
+      // "light source from above" trick the earlier reservoir design used.
+      const grad = new PIXI.FillGradient({ type: 'linear', x0: 0, y0: y, x1: 0, y1: y + h });
+      const lerp = (t) => {
+        const mix = t < 0.5
+          ? baseColor.map((c) => Math.round(c + (255 - c) * (0.5 - t) * 0.7))
+          : baseColor.map((c) => Math.round(c * (1 - (t - 0.5) * 0.9)));
+        return `rgb(${mix[0]},${mix[1]},${mix[2]})`;
+      };
+      grad.addColorStop(0, lerp(0));
+      grad.addColorStop(0.45, lerp(0.45));
+      grad.addColorStop(1, lerp(1));
+      fg.roundRect(x, y, fw, h, r).fill(grad);
+      // Rob: "remove the little ball at the end" — no leading-edge dot.
     }
 
-    // Full-charge animation — a single traveling sweep around the ring the
-    // instant it first fills, not a repeating flash.
+    // Full-charge pulse on the bar itself — a once-off flare, not a
+    // repeating flash.
     if (ready && !this._meterWasReady) this._meterSweepT = 0;
     this._meterWasReady = ready;
-    const swg = this._moonSweep;
+    const swg = this._barSweep;
     swg.clear();
     if (this._meterSweepT !== null) {
       this._meterSweepT += this._dt || 1 / 60;
-      const dur = 0.45;
+      const dur = 0.4;
       if (this._meterSweepT >= dur) {
         this._meterSweepT = null;
       } else {
-        const t = this._meterSweepT / dur;
-        const ang = -Math.PI / 2 + t * Math.PI * 2;
-        swg.circle(cx + Math.cos(ang) * (r + 6), cy + Math.sin(ang) * (r + 6), 5)
-          .fill({ color: HUD_COLOR.coolWhite, alpha: 0.9 * (1 - t) });
+        const pulse = 1 - this._meterSweepT / dur;
+        swg.roundRect(x, y, fw, h, h / 2).stroke({ width: 4, color: HUD_COLOR.coolWhite, alpha: 0.8 * pulse });
       }
     }
+  },
+
+  // Thin strip of sparking energy riding the bar's own top edge — Rob:
+  // "the top of the long pink pill to show some energy... match the
+  // energy of our normal moonstone when it has energy" (pink/blue, not
+  // gold). Density and brightness build with progress, same spirit as the
+  // real moon orb's own arcs — just living along a line instead of a
+  // sphere.
+  _refreshBarSparks() {
+    const ready = PlayScreen.blastCharges >= PlayScreen.MAX_BLAST_CHARGES;
+    const progress = ready ? 1 : Math.max(0, Math.min(1, (PlayScreen.score - PlayScreen.blastThreshold) / 1000));
+    const { x, y, w } = this._barRect;
+    const fw = Math.max(0, w * progress);
+    const dt = this._dt || 1 / 60;
+
+    // Rob: "make sure those bubbles on the charge bar don't start until it
+    // reaches the end of the bar — it fills the bar" — only once fully
+    // charged now, not building up gradually alongside the fill.
+    const data = this._barSparkData;
+    if (ready) {
+      this._barSparkSpawnTimer -= dt;
+      const rate = 1 / 55;
+      let guard = 0;
+      while (this._barSparkSpawnTimer <= 0 && guard < 15) {
+        this._barSparkSpawnTimer += rate;
+        guard++;
+        // Rob: "make some of the bubbles white now but keep the pink and
+        // blue... maybe fifteen percent white" — carved out of the same
+        // roll, rest keeps its original ~40/60 pink/blue split.
+        const roll = Math.random();
+        const tint = roll < 0.15 ? 'white' : roll < 0.15 + 0.85 * 0.4 ? 'pink' : 'blue';
+        data.push({
+          x: x + Math.random() * fw, y: y + 1,
+          vy: -(14 + Math.random() * 16),
+          life: 0, maxLife: 0.28 + Math.random() * 0.22,
+          size: 2 + Math.random() * 2.5,
+          tint,
+          blurred: Math.random() < 0.35, // Rob: "a slight blur to some of the bubbles"
+        });
+      }
+    }
+    for (let i = data.length - 1; i >= 0; i--) {
+      const s = data[i];
+      s.life += dt;
+      if (s.life >= s.maxLife) { data.splice(i, 1); continue; }
+      s.y += s.vy * dt;
+    }
+    const sharp = data.filter((s) => !s.blurred);
+    const blurred = data.filter((s) => s.blurred);
+    const syncPool = (pool, container, list) => {
+      while (pool.length < list.length) {
+        const sp = new PIXI.Graphics();
+        container.addChild(sp);
+        pool.push(sp);
+      }
+      while (pool.length > list.length) container.removeChild(pool.pop());
+      for (let i = 0; i < list.length; i++) {
+        const s = list[i], sp = pool[i];
+        const t = s.life / s.maxLife;
+        sp.clear();
+        const color = s.tint === 'white' ? 0xffffff : s.tint === 'pink' ? 0xff4fb8 : 0x3aa8ff;
+        sp.circle(0, 0, s.size * (1 - t * 0.5)).fill({ color, alpha: (1 - t) * (ready ? 1 : 0.75) });
+        sp.position.set(s.x, s.y);
+      }
+    };
+    syncPool(this._barSparkPool, this._barSparkContainer, sharp);
+    syncPool(this._barSparkBlurPool, this._barSparkBlurContainer, blurred);
   },
 };
 

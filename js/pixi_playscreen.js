@@ -47,9 +47,26 @@ const PlayScreenPixi = {
     // first interactive match, so this background tap never steals a touch
     // meant for something drawn on top of it. fireBlast() itself already
     // no-ops when the run is over or still in its intro pause.
+    //
+    // Rob: "tap to jump... swipe up to jump charged" — a plain tap and a
+    // real upward swipe used to do the exact same thing (both just fired
+    // pointertap); now they're split by tracking where the pointer went
+    // down vs up and reading the vertical distance. allowChargeSpend (see
+    // ui.js's fireBlast) is only true for the swipe — a tap stays the
+    // free normal jump no matter how big a charge is banked.
     this._bg.eventMode = 'static';
     this._bg.cursor = 'pointer';
-    this._bg.on('pointertap', () => PlayScreen.fireBlast());
+    let pressY = null;
+    const SWIPE_UP_MIN_PX = 40;
+    this._bg.on('pointerdown', (e) => { pressY = e.global.y; });
+    const resolvePress = (e) => {
+      if (pressY === null) return;
+      const dy = pressY - e.global.y; // positive = moved up
+      pressY = null;
+      PlayScreen.fireBlast(dy > SWIPE_UP_MIN_PX);
+    };
+    this._bg.on('pointerup', resolvePress);
+    this._bg.on('pointerupoutside', resolvePress);
     c.addChild(this._bg);
 
     // Fog — 3 layers, each 2 stacked sprites (see Fog.layers in fog.js for the

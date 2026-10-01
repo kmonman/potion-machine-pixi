@@ -129,6 +129,15 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     angle: 0, // degrees; positive = right end tilts down
     startAngle: 0,
     targetAngle: 0,
+    // Rob: "once the charge is on the ball... [this platform] stops
+    // moving, stops producing... make the liquid go away so it's known
+    // that platform is no longer moving and can no longer charge the
+    // ball" — set once by ui.js the instant THIS platform is the one the
+    // ball is resting on when a charge actually completes (see
+    // PlayScreen's own blastThreshold accrual). Checked all over this
+    // file and in ui.js's per-platform jet loop to freeze the tilt tween,
+    // stop hinge bubbles/jets, and drain the tube's liquid to empty.
+    chargeSpent: false,
     tweenDuration: 3,
     tweenElapsed: 0,
     timer: 0,
@@ -193,6 +202,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
 
     reset() {
       this.angle = 0;
+      this.chargeSpent = false;
       // Randomized per platform (Rob: "all of the platforms start off
       // leaning the same direction... some should start leaning to the
       // right and others should start leaning to the left") — was fixed at
@@ -265,33 +275,43 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       // rather than letting it wobble like a normal platform (it's meant to
       // read as solid ground to land the run on, not another obstacle).
       if (this.isGoal) { this._updateTube(dt); this._updateLiquid(dt); this._updateLiquidBubbles(dt, this.isNearBall()); return; }
-      this.timer += dt;
-      this.tweenElapsed = Math.min(this.tweenElapsed + dt, this.tweenDuration);
-      const t = this.tweenElapsed / this.tweenDuration;
-      this.angle = this.startAngle + (this.targetAngle - this.startAngle) * easeInOutSine(t);
+      // Rob: a platform that's already handed off a charge "stops moving"
+      // — same flat-angle treatment the goal platform gets, just arrived
+      // at mid-run instead of being built that way. Liquid/tube still run
+      // below (so the liquid can actually animate draining to empty), but
+      // the tilt tween and its own length-pulse both freeze right where
+      // they were.
+      if (!this.chargeSpent) {
+        this.timer += dt;
+        this.tweenElapsed = Math.min(this.tweenElapsed + dt, this.tweenDuration);
+        const t = this.tweenElapsed / this.tweenDuration;
+        this.angle = this.startAngle + (this.targetAngle - this.startAngle) * easeInOutSine(t);
 
-      if (this.timer >= this.tweenDuration) {
-        this.direction *= -1;
-        this.startAngle = this.targetAngle;
-        this.targetAngle = (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
-        this.tweenElapsed = 0;
-        this.timer = 0;
-      }
+        if (this.timer >= this.tweenDuration) {
+          this.direction *= -1;
+          this.startAngle = this.targetAngle;
+          this.targetAngle = (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
+          this.tweenElapsed = 0;
+          this.timer = 0;
+        }
 
-      if (this.lengthPulse) {
-        this._pulsePhase = (this._pulsePhase + dt) % this.lengthPulse.period;
-        // Eased 0->1->0 (cosine, not linear) so it settles smoothly at each
-        // end instead of reversing direction with a sudden velocity flip.
-        const cyclePos = this._pulsePhase / this.lengthPulse.period;
-        const eased = 0.5 - 0.5 * Math.cos(cyclePos * Math.PI * 2);
-        const { min, max } = this.lengthPulse;
-        this.length = this.baseLength * (min + (max - min) * eased);
+        if (this.lengthPulse) {
+          this._pulsePhase = (this._pulsePhase + dt) % this.lengthPulse.period;
+          // Eased 0->1->0 (cosine, not linear) so it settles smoothly at each
+          // end instead of reversing direction with a sudden velocity flip.
+          const cyclePos = this._pulsePhase / this.lengthPulse.period;
+          const eased = 0.5 - 0.5 * Math.cos(cyclePos * Math.PI * 2);
+          const { min, max } = this.lengthPulse;
+          this.length = this.baseLength * (min + (max - min) * eased);
+        }
       }
 
       this._updateTube(dt);
       this._updateLiquid(dt);
-      this._updateLiquidBubbles(dt, this.isNearBall());
-      this._updateHinge(dt, this.isNearBall());
+      // "Stops producing" — no more hinge bubbles/magic once spent, same
+      // isNearBall() gate just forced false instead of actually checked.
+      this._updateLiquidBubbles(dt, this.isNearBall() && !this.chargeSpent);
+      this._updateHinge(dt, this.isNearBall() && !this.chargeSpent);
     },
 
     // `particlesActive` false pauses the ambient smoke/sparks below in
@@ -407,10 +427,21 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       const cols = this.liquidColumns;
       this.liquidTime += dt;
 
+      // Rob: "make the liquid from the platform also go away" once it's
+      // handed off a charge — the surface's own target just gets pulled
+      // all the way to the tube's bottom edge (+halfT: see _refreshLiquid's
+      // own "negative = up" note) instead of the normal tilt/ripple-driven
+      // target, and the same spring below eases it down smoothly like any
+      // other liquid movement rather than snapping empty instantly.
       for (const col of cols) {
-        const gravityTarget = clamp(-col.x * tanA, -halfT, halfT);
-        const ripple = Math.sin(this.liquidTime * this.liquidAmbientSpeed + col.x * 0.012) * this.liquidAmbientAmplitude;
-        const target = clamp(gravityTarget + ripple, -halfT, halfT);
+        let target;
+        if (this.chargeSpent) {
+          target = halfT;
+        } else {
+          const gravityTarget = clamp(-col.x * tanA, -halfT, halfT);
+          const ripple = Math.sin(this.liquidTime * this.liquidAmbientSpeed + col.x * 0.012) * this.liquidAmbientAmplitude;
+          target = clamp(gravityTarget + ripple, -halfT, halfT);
+        }
         col.velocity += (target - col.level) * this.liquidTension * steps;
         col.velocity *= Math.pow(1 - this.liquidDamping, steps);
         col.level += col.velocity * steps;
