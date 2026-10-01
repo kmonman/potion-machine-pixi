@@ -1086,9 +1086,7 @@ const PlayScreen = {
         if (isCurrentPlatform) p.jetGraceRemaining = this.JET_GRACE_SECONDS;
         else if (p.jetGraceRemaining > 0) p.jetGraceRemaining -= dt;
         const jetScale = p.length / (620 * p.visualScale);
-        // "Stops producing" also covers jets — a spent platform never
-        // spawns/toggles jets again, same as its hinge bubbles above.
-        if ((isCurrentPlatform || p.jetGraceRemaining > 0) && !p.chargeSpent) {
+        if (isCurrentPlatform || p.jetGraceRemaining > 0) {
           // Rob: "I'm getting some false pumps... the ball bumps with no
           // visible jet" — the actual launch impulse below only ever
           // checked gameJet.active + catch geometry, completely ignoring
@@ -1131,15 +1129,14 @@ const PlayScreen = {
       this._updatePlasmaStorms(dt);
       Physics.update(dt, tiltX);
       for (const p of this.platforms) {
-        // "Stops producing" — the hinge bubble stream itself (the one
-        // visually standing in for "releasing bubbles to charge the
-        // ball") never emits again once this platform's spent.
-        p.hingeBubbles.update(dt, p.touching && !p.chargeSpent, p.pivot.x, p.pivot.y);
+        p.hingeBubbles.update(dt, p.touching, p.pivot.x, p.pivot.y);
       }
       // Back to 6,000 points/minute (100/s) — the earlier 1,000/min slowdown was
       // to make the live-updating digits readable, which is now handled by the
       // tabular-number fix instead, so full speed is safe again (Rob).
-      if (Physics.touchingHinge) this.score += 100 * dt;
+      // A charge-spent platform's hinge keeps bubbling (still a valid charge
+      // source) but no longer scores — that's the only thing "spent" means now.
+      if (Physics.touchingHinge && !(Physics.currentPlatform && Physics.currentPlatform.chargeSpent)) this.score += 100 * dt;
       this.elapsed += dt;
       if (this.elapsed >= this.timeLimit) this.timedOut = true;
 
@@ -1152,11 +1149,10 @@ const PlayScreen = {
       if (this.score >= this.blastThreshold + 1000) {
         this.blastCharges = Math.min(this.MAX_BLAST_CHARGES, this.blastCharges + 1);
         this.blastThreshold += 1000;
-        // Rob: "once a platform releases enough bubbles to charge a ball,
-        // it stops moving... and can no longer charge the ball" — whatever
-        // platform the ball is actually resting on the instant a charge
-        // completes is the one that "gave" it, and goes quiet for the rest
-        // of the run (see platform.js's own chargeSpent checks).
+        // Whatever platform the ball is resting on the instant a charge
+        // completes is the one that "gave" it — it keeps moving/producing
+        // jets/bubbles normally (still needed for traversal), it just turns
+        // dark grey and stops scoring points from here on (Rob).
         if (Physics.currentPlatform) Physics.currentPlatform.chargeSpent = true;
       }
 
