@@ -95,11 +95,20 @@ const MOON_STAGE_PARAMS = {
 // original's ResetEmitter::onCreated switch — outer/middle mounts on each side).
 // "Off" is parked far beyond the bar's length so the ball can never be near it,
 // rather than a separate enabled flag — same trick the original used.
+// Rob (after seeing Level 12's dots): "move them so that they are between
+// the balls" — the inner mounts (±95, a 0.306-of-half-length fraction) sat
+// almost exactly on top of each tube's own inner dot (0.4 of half-length on
+// a small tube, 0.3 on the long base tube — see ui.js's _buildDots), since
+// a jet's own distance is scaled by the same lengthScale fraction as a
+// dot's frac. Pulled in to ±46 (~0.15 of half-length) so the inner jet
+// sits clearly between the hinge and the first dot instead of on it; the
+// outer mounts (±215, ~0.69) already land in the real gap between a tube's
+// two dots on both tube sizes, so those are untouched.
 const JET_DEFS = [
   { activeDistance: -215 },
   { activeDistance: 215 },
-  { activeDistance: -95 },
-  { activeDistance: 95 },
+  { activeDistance: -46 },
+  { activeDistance: 46 },
 ];
 const JET_PARKED_DISTANCE = 5000;
 // Tuned down twice now — first pass (-700, 0.4s cooldown) was too strong and could
@@ -110,7 +119,14 @@ const JET_PARKED_DISTANCE = 5000;
 // of purely on a timer — one puff per pass through, not one puff per cooldown tick.
 const JET_IMPULSE_VY = -306; // px/s kick applied to the ball — 15% down from -360 (Rob: tilt force reduction should carry over to every force on the ball)
 const JET_COOLDOWN = 0.2; // seconds — now just a safety debounce, not the main gate
-const JET_CATCH_RADIUS = 25; // px, how close the ball's x needs to be to the jet's x
+// Rob: "do you think twenty-five pixels is more than enough to capture the
+// entire width of the jet?" — it wasn't. The jet's solid core alone renders
+// at width*1.1 ≈ 62px (its soft outer glow is wider still, ~180-250px —
+// see plasma_jet.js's baseGlow/baseCore), so a ±25px hit box (50px total)
+// was narrower than even the beam's solid part, letting a player stand
+// visibly in the plasma and still read as "not touching" it. Widened to
+// roughly match the core's own half-width instead of the glow's.
+const JET_CATCH_RADIUS = 38; // px, how close the ball's x needs to be to the jet's x
 // With multiple platforms now sharing one world coordinate space, an x-only catch
 // check can false-positive on a jet several platforms away that just happens to
 // share an x coordinate while the ball is mid-flight past it. Added once platforms

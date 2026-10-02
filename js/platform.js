@@ -90,7 +90,11 @@ function createPlatform(pivotX, pivotY, opts = {}) {
     length: baseLength,
     lengthPulse,
     _pulsePhase: 0,
-    thickness: 52 * scale,
+    // Rob: "make the tube skinnier, not shorter... that looks better, it
+    // gives our game more space" — tried live at -30% then -10% more on top
+    // (0.7 * 0.9 = 0.63 of the original 52px) before settling here, applied
+    // globally to every tube/level rather than just the one being previewed.
+    thickness: 52 * 0.63 * scale,
     // The sprite's own outer ring (Hinge.png), measured directly from the asset
     // pixels: it sits at radius 42-49 of the 100x100 source, scaled to the 112px
     // display size (×1.12) → ~47-55. Used as the outer edge so Physics's "touching"

@@ -263,6 +263,20 @@ const PlayScreen = {
   MAX_BLAST_CHARGES: 1,
   blastCharges: 0,
 
+  // Level 12 dot-collection test bed (Rob): score there is dotsCollected ×
+  // scoreMultiplier instead of the normal hinge-time accrual below — a
+  // constant decay pulls the multiplier down from its max, each dot
+  // collected pushes it back up (capped there), nothing else touches it.
+  // See _buildDots/_dotWorldPos for dot placement and enter() for the
+  // per-run reset.
+  MAX_SCORE_MULTIPLIER: 5,
+  SCORE_MULTIPLIER_DECAY_PER_SEC: 5 / 25, // 25s to drain 5 -> 0 if no dots come in
+  SCORE_MULTIPLIER_PER_DOT: 0.6,
+  DOT_PICKUP_RADIUS: 34, // px, on top of the ball's own displayRadius
+  dots: [],
+  dotsCollected: 0,
+  scoreMultiplier: 5,
+
   blastThreshold: 0,
   // Bigger again (Rob: the ring+bottle together were both shrinking as this
   // whole box shrank, making the bottle too small — not that the box itself
@@ -443,7 +457,11 @@ const PlayScreen = {
   // built, so it only ever gets ONE `_visual` attached.
   _buildBasePlatform() {
     const base = createPlatform(360, 652, { hasPole: true, tubeSpeed: 1 });
-    base.jetSystem = createJetSystem();
+    // Rob: "let's just have two jets on the big platform, remove the inside
+    // jets" — outer mounts only (indices 0/1, see JET_DEFS), the inner pair
+    // (2/3) never toggles on here at all now instead of just being capped
+    // by _jetTierForLevel's bigMax.
+    base.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
     return base;
   },
 
@@ -464,7 +482,14 @@ const PlayScreen = {
   // rest the ball on there.
   _appendGoalPlatform(platforms) {
     const top = platforms[platforms.length - 1];
-    const goal = createPlatform(360, top.pivot.y - this.TOWER_SPACING, { isGoal: true, lengthScale: 1.1 });
+    // Rob (after the goal-line art swap to the new cauldron image): "make
+    // sure that PNG is quite a bit higher than the highest platform" — a
+    // flat TOWER_SPACING (300, same as any ordinary single jump) read as
+    // too close once the new art's own proportions were in place. Bumped
+    // past even the hardest in-level double-jump gap (BIG_TOWER_SPACING,
+    // 450) so reaching it always takes a real, deliberate charged jump.
+    const GOAL_GAP = this.TOWER_SPACING * 1.8; // 540
+    const goal = createPlatform(360, top.pivot.y - GOAL_GAP, { isGoal: true, lengthScale: 1.1 });
     goal.jetSystem = createJetSystem({ allowedIndices: [] });
     platforms.push(goal);
     return platforms;
@@ -804,6 +829,12 @@ const PlayScreen = {
       8: [-160, 190, -140, 220, -170, 150, -230, 180, -200],
       9: [170, -200, 150, -230, 180, -160, 240, -190, 210, -170],
       10: [-180, 210, -160, 240, -190, 170, -250, 200, -220, 160, 230],
+      // Level 12: internal test level for the new dot-collection/multiplier
+      // scoring system (Rob: "add everything we've worked on to level 12,
+      // test it out for the dots") — same layout as Level 10, untouched;
+      // only the dots/scoring differ, kept isolated here rather than
+      // touching any real level 1-10.
+      12: [-180, 210, -160, 240, -190, 170, -250, 200, -220, 160, 230],
     };
     // One letter per jump — length must match OFFSET_SEQUENCES[level]'s own
     // length (both are "how many jumps this level has").
@@ -818,6 +849,7 @@ const PlayScreen = {
       8: 'SDSSDSSLS',    // 3 double (1 sideways)
       9: 'SDSDSDSSLS',   // 4 double (1 sideways)
       10: 'SDSSDSDSSLS', // 4 double (1 sideways)
+      12: 'SDSSDSDSSLS', // same as 10 — see OFFSET_SEQUENCES[12]'s own comment
     };
     const offsets = OFFSET_SEQUENCES[levelNum];
     const gapPlan = GAP_PLANS[levelNum];
@@ -855,7 +887,52 @@ const PlayScreen = {
       level8: this._buildTieredTower(base, 8),
       level9: this._buildTieredTower(base, 9),
       level10: this._buildTieredTower(base, 10),
+      level12: this._buildTieredTower(base, 12),
       shared: this._buildSharedTower(base),
+    };
+  },
+
+  // Dot-collection test bed (Rob, Level 12 only — see OFFSET_SEQUENCES[12]'s
+  // own comment): one list per tower key, each entry {platform, frac,
+  // collected} rather than living ON the platform object itself, since the
+  // base platform instance is shared across every level's tower (see
+  // _buildBasePlatform) — storing dots there would leak them onto every
+  // other level too. `frac` is a fraction of the platform's own half-length
+  // (-1..1, excluding 0) so a dot's world position is recomputed fresh every
+  // frame off the platform's live pivot/dir/length — correct through tilt
+  // and any future length-pulse, same spirit as the jet mounts' own
+  // updatePositions().
+  //
+  // Counts (Rob): 3 per side (6 total) on the long base tube, 2 per side (4
+  // total) on every small climbing tube — his own phrasing was "one and
+  // two on each side" for the small tubes, read here as "a couple," easy to
+  // retune to a flat 1 if that reads as too many once it's playable.
+  _buildDots(platforms) {
+    const dots = [];
+    for (const p of platforms) {
+      if (p.isGoal) continue; // the finish line itself isn't a dot stop
+      const fracs = p.hasPole ? [0.3, 0.6, 0.9] : [0.4, 0.8];
+      for (const f of fracs) {
+        dots.push({ platform: p, frac: f, collected: false });
+        dots.push({ platform: p, frac: -f, collected: false });
+      }
+    }
+    return dots;
+  },
+
+  // World position of a dot right now — same "pivot + dir*along +
+  // normal*perp" resting-point math physics.js's own collision resolve
+  // uses (see its restPerp comment), so a dot floats at exactly the height
+  // the moonstone's own center sits at when actually resting on this tube,
+  // not an eyeballed offset (Rob: "floating at the height of where the
+  // middle of the moonstone is when it rolls").
+  _dotWorldPos(d) {
+    const p = d.platform;
+    const along = d.frac * (p.length / 2);
+    const restPerp = -(p.thickness / 2 + Physics.displayRadius);
+    return {
+      x: p.pivot.x + p.dir.x * along + p.normal.x * restPerp,
+      y: p.pivot.y + p.dir.y * along + p.normal.y * restPerp,
     };
   },
 
@@ -888,11 +965,23 @@ const PlayScreen = {
     // reset their state in place instead, same as the old singleton
     // Platform.reset() always did.
     if (!this.towers) this.towers = this._buildTowers();
+    if (!this.towerDots) this.towerDots = { level12: this._buildDots(this.towers.level12) };
     // Every level 1-10 now gets its own real tower (see _buildTowers) —
-    // only Free Play still falls back to the original shared one.
+    // only Free Play (and the Level 12 dot test bed) falls back to/uses
+    // their own separate keys below.
     const levelNum = this._levelNumber();
-    const towerKey = levelNum !== null && levelNum <= 10 ? 'level' + levelNum : 'shared';
+    const towerKey = levelNum !== null && this.towers['level' + levelNum] ? 'level' + levelNum : 'shared';
     this.platforms = this.towers[towerKey];
+    // Dots only exist for the Level 12 test bed — every other mode gets an
+    // empty list, which the scoring/pickup code below reads as "dots system
+    // off, use the normal hinge-time score" (see its own comment).
+    this.dots = this.towerDots[towerKey] || [];
+    for (const d of this.dots) d.collected = false;
+    this.dotsCollected = 0;
+    // Starts at the top (Rob: "wouldn't we start at 5 at the beginning of
+    // the game... you're getting the dots to try to keep it at the max of
+    // five") and only this dot-scored mode ever reads/decays it.
+    this.scoreMultiplier = this.MAX_SCORE_MULTIPLIER;
     // Every platform in every tower still needs its jets/hinge-bubbles/goal-
     // line visibility kept current even while its tower isn't the active
     // one (see pixi_playscreen.js's refresh(), which force-hides anything
@@ -1131,12 +1220,32 @@ const PlayScreen = {
       for (const p of this.platforms) {
         p.hingeBubbles.update(dt, p.touching, p.pivot.x, p.pivot.y);
       }
-      // Back to 6,000 points/minute (100/s) — the earlier 1,000/min slowdown was
-      // to make the live-updating digits readable, which is now handled by the
-      // tabular-number fix instead, so full speed is safe again (Rob).
-      // A charge-spent platform's hinge keeps bubbling (still a valid charge
-      // source) but no longer scores — that's the only thing "spent" means now.
-      if (Physics.touchingHinge && !(Physics.currentPlatform && Physics.currentPlatform.chargeSpent)) this.score += 100 * dt;
+      if (this.dots.length) {
+        // Level 12 dot test bed: score is dotsCollected × scoreMultiplier,
+        // not hinge-sitting time — see MAX_SCORE_MULTIPLIER's own comment.
+        // Decay first, then pickups bump it back up, so a dot grabbed on
+        // the exact frame the bar would've bottomed out still saves it.
+        this.scoreMultiplier = Math.max(0, this.scoreMultiplier - this.SCORE_MULTIPLIER_DECAY_PER_SEC * dt);
+        const pickupDistSq = (Physics.displayRadius + this.DOT_PICKUP_RADIUS) ** 2;
+        for (const d of this.dots) {
+          if (d.collected) continue;
+          const pos = this._dotWorldPos(d);
+          const dx = Physics.x - pos.x, dy = Physics.y - pos.y;
+          if (dx * dx + dy * dy < pickupDistSq) {
+            d.collected = true;
+            this.dotsCollected++;
+            this.scoreMultiplier = Math.min(this.MAX_SCORE_MULTIPLIER, this.scoreMultiplier + this.SCORE_MULTIPLIER_PER_DOT);
+          }
+        }
+        this.score = this.dotsCollected * this.scoreMultiplier;
+      } else {
+        // Back to 6,000 points/minute (100/s) — the earlier 1,000/min slowdown was
+        // to make the live-updating digits readable, which is now handled by the
+        // tabular-number fix instead, so full speed is safe again (Rob).
+        // A charge-spent platform's hinge keeps bubbling (still a valid charge
+        // source) but no longer scores — that's the only thing "spent" means now.
+        if (Physics.touchingHinge && !(Physics.currentPlatform && Physics.currentPlatform.chargeSpent)) this.score += 100 * dt;
+      }
       this.elapsed += dt;
       if (this.elapsed >= this.timeLimit) this.timedOut = true;
 

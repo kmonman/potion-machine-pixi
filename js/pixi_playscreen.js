@@ -165,12 +165,16 @@ const PlayScreenPixi = {
     // different heights (see PlayScreen._levelThresholdY), and
     // level1/freeplay/level2 all share this one screen/container.
     //
-    // Art (Rob): a witch stirring a cauldron, with the glowing pink
-    // potion-surface line the ball climbs to as its actual goal line — the
-    // story being the ball is the "moon stone" she's dropping in. The
-    // source image already fades to fully transparent well past that line
-    // (see GOAL_LINE_LINE_FRAC below), so it blends into the game's own
-    // dark background underneath with no separate gradient/mask needed.
+    // Art (Rob): a glowing cauldron under a starfield, with its bright pink
+    // potion surface as the actual goal line the ball climbs to — replaced
+    // the earlier witch/cat piece (same role, new look, Rob supplied the
+    // source render). The raw image has a plain black background and hard
+    // rectangular edges, unlike the old art's own built-in fade, so
+    // GoalLineCauldron.webp is a pre-processed version with a vertical fade
+    // (opaque down to just past the liquid line, transparent by the bottom
+    // edge) and a feathered left/right edge baked into its alpha channel —
+    // see the Python/Pillow composite used to build it — so it still blends
+    // into the game's own dark background with no separate mask here.
     this._goalLineGroup = new PIXI.Container();
     // Sized well past the 720px canvas width (Rob: "make that PNG image
     // much bigger") — centered, so it bleeds off both edges rather than
@@ -182,12 +186,12 @@ const PlayScreenPixi = {
     const goalLineSprite = new PIXI.Sprite(textures.goalLineWitch);
     const goalLineAspect = textures.goalLineWitch.height / textures.goalLineWitch.width;
     const goalLineDisplayH = GOAL_LINE_DISPLAY_W * goalLineAspect;
-    // How far down the source art (GoalLineWitch.webp, 1937x1090 — wider art
-    // swapped in to stop the old narrower version clipping left/right, Rob)
-    // the glowing potion-surface line actually sits — measured directly off
-    // the source pixels, not eyeballed, so this stays correct if the art is
-    // ever re-cropped/re-exported at a different size with the line elsewhere.
-    const GOAL_LINE_LINE_FRAC = 983 / 1090;
+    // How far down the source art (GoalLineCauldron.webp, 1672x941) the
+    // glowing potion-surface line actually sits — measured directly off the
+    // source pixels (brightest row in the cauldron's liquid), not eyeballed,
+    // so this stays correct if the art is ever re-cropped/re-exported at a
+    // different size with the line elsewhere.
+    const GOAL_LINE_LINE_FRAC = 522 / 941;
     goalLineSprite.position.set(360 - GOAL_LINE_DISPLAY_W / 2, -goalLineDisplayH * GOAL_LINE_LINE_FRAC);
     // Distance from the line (this group's own y=0) up to the image's actual
     // top edge — used by _updateCamera to keep the camera from panning past
@@ -218,6 +222,22 @@ const PlayScreenPixi = {
 
     for (const p of PlayScreen.platforms) {
       this._buildPlatformVisual(p, textures);
+    }
+
+    // Level 12 dot-collection test bed (Rob) — plain placeholder circles for
+    // now ("we will replace them with whatever we want them to look like
+    // later"). One Graphics per dot, built once up front same as every
+    // other platform visual; refresh() just repositions/hides them off
+    // PlayScreen._dotWorldPos() + d.collected every frame. A separate
+    // container (not parented to any one platform) since a dot's world
+    // position already bakes in its own platform's pivot/tilt.
+    this._dotContainer = new PIXI.Container();
+    this.worldContainer.addChild(this._dotContainer);
+    for (const d of PlayScreen.towerDots.level12) {
+      const g = new PIXI.Graphics().circle(0, 0, 10).fill({ color: 0xff42d0, alpha: 0.95 });
+      g.visible = false;
+      this._dotContainer.addChild(g);
+      d._visual = g;
     }
 
     // Ball — a sprite rotating around its own center, position/rotation copied
@@ -878,6 +898,7 @@ const PlayScreenPixi = {
     this._ballSprite.rotation = Physics.rotation;
     this._restackBall();
     this._updateMoonOrb();
+    this._updateDots();
     this._updateDarkMatterClouds();
     this._updatePlasmaStorms();
     this._updateDarkMatterWisp();
@@ -1003,7 +1024,6 @@ const PlayScreenPixi = {
       this._moonOrbAlpha = 0;
       this._moonDischargeGraceT = 0;
       this._moonDischargeSeen = PlayScreen.moonDischargeCount;
-      this._blastLaunchSeen = PlayScreen.blastLaunchCount;
     }
     orb.view.position.set(Physics.x, Physics.y);
     if (PlayScreen.moonDischargeCount !== this._moonDischargeSeen) {
@@ -1011,20 +1031,12 @@ const PlayScreenPixi = {
       this._moonDischargeGraceT = 0.6;
       orb.discharge(3);
     }
-    // Rob: "the potion blast will let out just like one pop randomly...
-    // one or two puffs rather than a regular blast" — every ORDINARY
-    // (uncharged) jump used to get no launch effect at all, only the rare
-    // charged ones did (above), which read as random misfires rather than
-    // a real effect. Every accepted tap now gets its own small burst here
-    // — the charged case already got its bigger one above, so this only
-    // fires the small version when this launch wasn't that one.
-    if (PlayScreen.blastLaunchCount !== this._blastLaunchSeen) {
-      this._blastLaunchSeen = PlayScreen.blastLaunchCount;
-      if (!PlayScreen.lastBlastWasBig) {
-        this._moonDischargeGraceT = Math.max(this._moonDischargeGraceT, 0.35);
-        orb.discharge(1);
-      }
-    }
+    // Rob: "on a normal jump the ball should not have the particles
+    // surrounding it — it should only do that when it's a double jump, so
+    // the player has a visual cue that they connected with a charge." A
+    // plain uncharged tap gets no burst at all now; the discharge effect
+    // above (moonDischargeCount) stays as the only trigger, so the burst
+    // reads as "you just spent a charge," not random noise on every jump.
     if (this._moonDischargeGraceT > 0) this._moonDischargeGraceT -= this._dt;
     const target = (PlayScreen.blastCharges > 0 || this._moonDischargeGraceT > 0) ? 1 : 0;
     this._moonOrbAlpha += (target - this._moonOrbAlpha) * Math.min(1, this._dt / 0.35);
@@ -1038,6 +1050,21 @@ const PlayScreenPixi = {
     this._moonGlow.position.set(Physics.x, Physics.y);
     this._moonGlow.alpha = this._moonOrbAlpha * 0.85;
     this._moonGlow.visible = this._moonOrbAlpha > 0.002;
+  },
+
+  // Level 12 dot test bed — visible only while PlayScreen.dots is actually
+  // the active run's list (every other level/mode leaves it empty, see
+  // ui.js's enter()), so these just sit hidden the rest of the time.
+  _updateDots() {
+    const active = PlayScreen.dots.length > 0;
+    for (const d of PlayScreen.towerDots.level12) {
+      const g = d._visual;
+      g.visible = active && !d.collected;
+      if (g.visible) {
+        const pos = PlayScreen._dotWorldPos(d);
+        g.position.set(pos.x, pos.y);
+      }
+    }
   },
 
   // "Ready" for the first half of the intro pause, "Go!" for the second

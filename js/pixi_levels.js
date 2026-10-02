@@ -4,7 +4,7 @@
 // ui.js's PlayScreen._levelThresholdY) — bump this as each new one lands.
 // Everything beyond it still unlocks in Storage (finishing Level N always
 // unlocks N+1) but shows "soon" here until its own build catches up.
-const BUILT_LEVELS = 10;
+const BUILT_LEVELS = 12; // 11 unused; 12 is the dot-collection test bed (Rob) — pull back to 10 once testing's done
 // Temporary (Rob: "keep them all unlocked for now" while all 10 get built
 // out and evaluated in one pass) — every built level is tappable regardless
 // of real progress. The actual unlock tracking (Storage.setHighestLevelUnlocked,
@@ -19,6 +19,9 @@ const LevelsScreenPixi = {
     { x: 429, y: 270, n: 4 }, { x: 569, y: 270, n: 5 },
     { x: 9, y: 417, n: 6 }, { x: 149, y: 417, n: 7 }, { x: 289, y: 417, n: 8 },
     { x: 429, y: 417, n: 9 }, { x: 569, y: 417, n: 10 },
+    // Row 3: 12 only, for now — the dot-test bed (11 has no tower built, see
+    // ui.js's OFFSET_SEQUENCES/GAP_PLANS, so it's deliberately skipped here).
+    { x: 9, y: 564, n: 12 },
   ],
   container: null,
   _cells: [], // { n, box, numberText, soonText }

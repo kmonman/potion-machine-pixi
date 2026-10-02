@@ -18,7 +18,7 @@ const ASSET_PATHS = {
   muteUnmuted: 'assets/Mute P.png',
   muteMuted: 'assets/Mute P1.png',
   potionCounter: 'assets/Potion Counter-8.png',
-  goalLineWitch: 'assets/GoalLineWitch.webp',
+  goalLineWitch: 'assets/GoalLineCauldron.webp', // Rob's new glowing-cauldron goal art, swapped in for the old witch/cat piece
   glowParticle: 'assets/Glow.png',
   smokeParticle: 'assets/DarkMagicSmoke.png',
   jetParticle: 'assets/LightGlow.png',
@@ -555,6 +555,10 @@ async function main() {
   // starts, and points PlayScreen.platforms at just that one.
   PlayScreen.towers = PlayScreen._buildTowers();
   PlayScreen.allPlatforms = [...new Set(Object.values(PlayScreen.towers).flat())];
+  // Same up-front seeding as towers above, for PlayScreenPixi.build() to
+  // construct dot visuals from (see ui.js's _buildDots/enter() for why this
+  // can't just live on the platform objects themselves).
+  PlayScreen.towerDots = { level12: PlayScreen._buildDots(PlayScreen.towers.level12) };
   // PlayScreenPixi.build() below only looks at PlayScreen.platforms — pass
   // it the full cross-tower list so every platform gets a visual; enter()
   // overwrites this with just the active tower before real gameplay starts.
@@ -569,8 +573,12 @@ async function main() {
   // Pre-registered for every level 1-10 up front (not just the ones actually
   // built yet — see pixi_levels.js's BUILT_LEVELS) so wiring up a new level
   // there never needs a matching edit here too; they all share this one
-  // PlayScreenPixi container just like freeplay does.
-  for (let n = 1; n <= 10; n++) screenContainers['level' + n] = PlayScreenPixi.container;
+  // PlayScreenPixi container just like freeplay does. Bumped to 12 for the
+  // Level 12 dot-collection test bed (ui.js's OFFSET_SEQUENCES[12]) — without
+  // its own entry here, showScreen('level12') found no registered container
+  // and hid the entire stage (every container's `visible` compares against
+  // `undefined`), which read as a plain black screen with no console error.
+  for (let n = 1; n <= 12; n++) screenContainers['level' + n] = PlayScreenPixi.container;
   screenContainers.freeplay = PlayScreenPixi.container;
   for (const key in screenContainers) app.stage.addChild(screenContainers[key]);
   showScreen(state.screen);
