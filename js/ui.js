@@ -244,6 +244,11 @@ const PlayScreen = {
   _levelCompletePending: false, // true while the ball rolls to a stop above the goal line, before levelComplete flips the win screen in
   _levelCompleteTimer: 0,
   gameOverT: 0, // 0-1 pop-in progress once the run has ended (reused for the level-complete pop-in too)
+  // Rob: "delay it until the brew finishes" — see the else-branch comment
+  // where this is used. Must match pixi_playscreen.js's PotionCauldron
+  // finaleDuration.
+  POTION_BREW_DELAY: 3.75,
+  _gameOverDelayT: 0,
   leaderboardMsgT: 0, // >0 while the "coming soon" message is showing
   goBubbles: [], // continuously-bubbling particles next to the Game Over score
   goBubbleTimer: 0,
@@ -1054,6 +1059,7 @@ const PlayScreen = {
     this._levelCompletePending = false;
     this._levelCompleteTimer = 0;
     this.gameOverT = 0;
+    this._gameOverDelayT = 0;
     this.leaderboardMsgT = 0;
     this._scoreSubmitted = false;
     this.goBubbles = [];
@@ -1311,7 +1317,21 @@ const PlayScreen = {
         if (this.mode === 'freeplay') Leaderboard.submitFreePlayScore(Math.floor(this.score));
       }
       for (const p of this.platforms) p.hingeBubbles.update(dt, false, p.pivot.x, p.pivot.y);
-      this.gameOverT = Math.min(1, this.gameOverT + dt / 0.35);
+      // Rob: "delay it until the brew finishes" — a level win holds off the
+      // "LEVEL COMPLETE" popup (and its near-opaque backdrop) until the
+      // cauldron's boil-over finale has actually played out on screen;
+      // POTION_BREW_DELAY must match pixi_playscreen.js's PotionCauldron
+      // finaleDuration (3.75) or one finishes visibly before/after the
+      // other. Free Play's plain game-over (fellOff/timedOut, no cauldron
+      // brew to wait on) still pops in immediately, same as always.
+      if (this.levelComplete) {
+        this._gameOverDelayT += dt;
+        if (this._gameOverDelayT >= this.POTION_BREW_DELAY) {
+          this.gameOverT = Math.min(1, this.gameOverT + dt / 0.35);
+        }
+      } else {
+        this.gameOverT = Math.min(1, this.gameOverT + dt / 0.35);
+      }
       if (this.leaderboardMsgT > 0) this.leaderboardMsgT = Math.max(0, this.leaderboardMsgT - dt);
       this._updateGoBubbles(dt);
     }
@@ -1439,6 +1459,12 @@ const PlayScreen = {
   // only the rare charged ones.
   blastLaunchCount: 0,
   lastBlastWasBig: false,
+  // Rob: "we used to show a short on then off for every jump but then
+  // removed it. I want to add that back every time we do a normal tap jump
+  // on the plasma jet" — narrower than the old version (which fired on
+  // every uncharged jump, jet or not); pixi_playscreen.js's own small-burst
+  // watcher now only fires when this was true AND the jump wasn't big.
+  lastBlastWasOnJet: false,
 
   _lastBlastAt: 0, // Date.now() of the last accepted tap — see the debounce below
   // Rob: "tap to jump... swipe up to jump charged" — a tap is always the
@@ -1491,6 +1517,7 @@ const PlayScreen = {
     // extra jet boost even if I'm not touching the plank... anytime I'm
     // touching the jet I should get the extra boost").
     const onJet = this.platforms.some(p => p.jetSystem.isBallOnJet());
+    this.lastBlastWasOnJet = onJet;
     let force;
     if (big && onJet) force = this.JET_BIG_BLAST_FORCE;
     else if (onJet) force = this.JET_BLAST_FORCE;

@@ -15,6 +15,12 @@ function rgbToHex(r, g, b) {
   return (clampByte(r) << 16) | (clampByte(g) << 8) | clampByte(b);
 }
 function clampByte(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+// Rob's cauldron colors are "match the base platform color, with a lighter
+// version for the glow and a pale tint for the steam" — one shared helper
+// for both, just a different mix fraction toward white.
+function mixTowardWhiteHex(r, g, b, t) {
+  return rgbToHex(r + (255 - r) * t, g + (255 - g) * t, b + (255 - b) * t);
+}
 
 const PlayScreenPixi = {
   container: null,
@@ -199,6 +205,23 @@ const PlayScreenPixi = {
     this._goalLineTopOffset = goalLineDisplayH * GOAL_LINE_LINE_FRAC;
     goalLineSprite.width = GOAL_LINE_DISPLAY_W;
     goalLineSprite.height = goalLineDisplayH;
+    // Boiling potion effect (handoff from the Plasma Energy Orb chat, Rob's
+    // tuned settings) — a child of the goal-line sprite itself rather than a
+    // sibling, so it inherits the sprite's own scale automatically and every
+    // option below stays in the ART's own pixel space (1672x941). (845, 505)
+    // is the potion-surface ellipse's measured center in that space. Colors
+    // are set live in refresh() (match each level's own base-tube color);
+    // brewOver() fires on level-complete, also in refresh().
+    this._potionCauldron = new PotionCauldron({
+      boil: 5.5, bubbleSize: 2, surfaceGlow: 1.15, surfaceSwirl: 2.8, vapour: 2.7,
+      finaleDuration: 3.75, eruptHeight: 520, vortexStrands: 1, vortexTurns: 1.1, spinSpeed: 2.3,
+      vortexWidth: 1, vortexBlur: 20, steamBurst: 1.8, sparkCount: 1.7, sparkBlur: 2.5,
+      surfaceWidth: 300, surfaceHeight: 44,
+    });
+    this._potionCauldron.view.position.set(845, 505);
+    goalLineSprite.addChild(this._potionCauldron.view);
+    this._potionBrewSeen = false;
+    this._potionRunStartSeen = PlayScreen.runStartCount;
     this._goalLabel = new PIXI.Text({
       text: '', style: { fontFamily: 'PotionTitle', fontSize: 32, fill: 0xff00c3, align: 'center' },
     });
@@ -870,7 +893,12 @@ const PlayScreenPixi = {
       if (!aboveGoal) this._refreshPlatform(p);
     }
 
-    this._goalLineGroup.visible = levelNum !== null && !PlayScreen.levelComplete;
+    // Used to hide on levelComplete (the win screen took over instead) —
+    // now stays up through it on purpose: Rob's cauldron boil-over finale
+    // (the moon stone "flies up and drops in the cauldron, then it can do
+    // the explosion") needs the art, and the effect riding on it, still on
+    // screen for the win screen to actually show.
+    this._goalLineGroup.visible = levelNum !== null;
     if (levelNum !== null && levelNum !== this._goalLineLevelNum) {
       this._goalLineLevelNum = levelNum;
       // _levelThresholdY is the ball's CENTER position when resting there
@@ -892,6 +920,35 @@ const PlayScreenPixi = {
       // surface.
       this._goalLineGroup.position.y = PlayScreen._levelThresholdY(levelNum) + Physics.displayRadius + 15;
       this._goalLabel.text = `LEVEL ${levelNum} GOAL`;
+    }
+    if (levelNum !== null) {
+      // Rob: "change the colors to match the base platform color for each
+      // level" — read live off the base tube's own lerping color (same
+      // field the liquid/jets already read), so the potion tracks a level's
+      // Cool/Warm/Fire heat shifts (and the 6-10 green/teal/blue theme)
+      // instead of a fixed color. Glow ~45% toward white, steam ~85%.
+      const [br, bg, bb] = PlayScreen.platforms[0].tubeColor;
+      this._potionCauldron.potionColor = rgbToHex(br, bg, bb);
+      this._potionCauldron.glowColor = mixTowardWhiteHex(br, bg, bb, 0.45);
+      this._potionCauldron.steamColor = mixTowardWhiteHex(br, bg, bb, 0.85);
+      // Fresh run (a new level started) — reset the one-shot brew trigger
+      // and snap straight back to resting, not mid-finale from last time.
+      if (PlayScreen.runStartCount !== this._potionRunStartSeen) {
+        this._potionRunStartSeen = PlayScreen.runStartCount;
+        this._potionBrewSeen = false;
+        this._potionCauldron.rest();
+      }
+      // Rob: "when the level is complete, half the ball flies up and drops
+      // in the cauldron, and then it can do the explosion" — one-shot per
+      // run, fires the instant levelComplete flips true (ui.js's own
+      // MIN_ROLL_DELAY/hasLanded gate already makes that the moment the
+      // stone settles into the cauldron, not the instant it merely crosses
+      // the line).
+      if (PlayScreen.levelComplete && !this._potionBrewSeen) {
+        this._potionBrewSeen = true;
+        this._potionCauldron.brewOver();
+      }
+      this._potionCauldron.update(this._dt);
     }
 
     this._ballSprite.position.set(Physics.x, Physics.y);
@@ -1024,6 +1081,7 @@ const PlayScreenPixi = {
       this._moonOrbAlpha = 0;
       this._moonDischargeGraceT = 0;
       this._moonDischargeSeen = PlayScreen.moonDischargeCount;
+      this._blastLaunchSeen = PlayScreen.blastLaunchCount;
     }
     orb.view.position.set(Physics.x, Physics.y);
     if (PlayScreen.moonDischargeCount !== this._moonDischargeSeen) {
@@ -1031,12 +1089,20 @@ const PlayScreenPixi = {
       this._moonDischargeGraceT = 0.6;
       orb.discharge(3);
     }
-    // Rob: "on a normal jump the ball should not have the particles
-    // surrounding it — it should only do that when it's a double jump, so
-    // the player has a visual cue that they connected with a charge." A
-    // plain uncharged tap gets no burst at all now; the discharge effect
-    // above (moonDischargeCount) stays as the only trigger, so the burst
-    // reads as "you just spent a charge," not random noise on every jump.
+    // Rob: "we used to show a short on then off for every jump but then
+    // removed it. I want to add that back every time we do a normal tap
+    // jump on the plasma jet" — a smaller, quicker burst than the full
+    // charged-jump discharge above, and only for a normal (not big) jump
+    // that actually connected with a jet (lastBlastWasOnJet) — a plain
+    // uncharged jump with no jet involved still gets nothing, same as Rob's
+    // earlier "don't show it on every ordinary jump" ask.
+    if (PlayScreen.blastLaunchCount !== this._blastLaunchSeen) {
+      this._blastLaunchSeen = PlayScreen.blastLaunchCount;
+      if (!PlayScreen.lastBlastWasBig && PlayScreen.lastBlastWasOnJet) {
+        this._moonDischargeGraceT = Math.max(this._moonDischargeGraceT, 0.35);
+        orb.discharge(1);
+      }
+    }
     if (this._moonDischargeGraceT > 0) this._moonDischargeGraceT -= this._dt;
     const target = (PlayScreen.blastCharges > 0 || this._moonDischargeGraceT > 0) ? 1 : 0;
     this._moonOrbAlpha += (target - this._moonOrbAlpha) * Math.min(1, this._dt / 0.35);
