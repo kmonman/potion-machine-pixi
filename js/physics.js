@@ -148,8 +148,9 @@ const Physics = {
     // Rob's follow-up: "reduce the force of the ball when on a platform by
     // 20%... it's hard to control" — grounded steering itself also eased off
     // a notch, independent of the airborne cut above (0.5 airborne is half of
-    // this new 0.8 grounded baseline, not half of the old full strength).
-    const airborneTiltMultiplier = this.airborne ? 0.5 : 0.8;
+    // the original full strength, not of the grounded value). Grounded went
+    // 1.0 -> 0.8 -> 0.7 as Rob kept finding it too fast on the plank.
+    const airborneTiltMultiplier = this.airborne ? 0.5 : 0.7;
     const gx = tiltX * this.tiltAccel * difficultyMultiplier * airborneTiltMultiplier;
     // Extra pull while a dark matter drop is in progress — see
     // DARK_MATTER_EXTRA_GRAVITY's own comment for why this is a continuous

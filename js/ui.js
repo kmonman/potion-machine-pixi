@@ -777,7 +777,10 @@ const PlayScreen = {
     // instead of a single fixed mount.
     platforms[1].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
     platforms[2].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
-    platforms[3].jetSystem = createJetSystem({ allowedIndices: [2, 3] }); // inner jets, for variety from the outer-only mid/top — already had both sides
+    // Was inner mounts [2,3] for variety — Rob: "make sure all of the small
+    // tubes only have one jet plasma on each side, and it's not on the
+    // inside by the hinge." Outer only now, same as every other platform.
+    platforms[3].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
     platforms[4].jetSystem = createJetSystem({ allowedIndices: [0, 1] });
 
     // Platforms 5-11 (Levels 4-10's targets, back when Level 4 still lived
@@ -787,16 +790,20 @@ const PlayScreen = {
     // than hand-placed one at a time (Rob: "do all 10, we can evaluate from
     // there" — a first pass to react to, not final tuning). tubeSpeed
     // cycles through a handful of distinct paces so no two neighboring
-    // platforms drift in lockstep; jets alternate between the outer pair
-    // and the inner pair per platform (both sides of one family, not a
-    // single fixed mount — see above) for a little visual variety.
+    // platforms drift in lockstep.
+    // Rob: "make sure all of the small tubes only have one jet plasma on
+    // each side, and it's not on the inside by the hinge" — this used to
+    // alternate between the outer pair and the inner pair per platform;
+    // the inner pair sits close enough to the hinge/resting ball that a
+    // jump there wasn't registering as a catch. Outer mounts only now,
+    // same as every small climbing tube (see _buildTieredTower below).
     const extraTubeSpeeds = [0.85, 1.2, 0.95, 1.25, 0.8, 1.15, 1.35];
     for (let i = 0; i < 7; i++) {
       const idx = 5 + i; // platforms[5..11], for Levels 4-10
       const x = idx % 2 === 1 ? baseX + this.TOWER_X_OFFSET : baseX - this.TOWER_X_OFFSET;
       const y = platforms[idx - 1].pivot.y - this.TOWER_SPACING;
       const extra = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: extraTubeSpeeds[i] });
-      extra.jetSystem = createJetSystem({ allowedIndices: i % 2 === 0 ? [0, 1] : [2, 3] });
+      extra.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
       platforms.push(extra);
     }
 
@@ -869,7 +876,10 @@ const PlayScreen = {
       // any other double) is what makes it need the boost.
       const x = baseX + offsets[i] * (gap === 'L' ? 1.8 : 1);
       const p = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: tubeSpeeds[i % tubeSpeeds.length] });
-      p.jetSystem = createJetSystem({ allowedIndices: i % 2 === 0 ? [0, 1] : [2, 3] });
+      // Outer mounts only (see _buildSharedTower's own comment, same ask) —
+      // used to alternate onto the inner pair near the hinge every other
+      // platform, which wasn't registering catches reliably.
+      p.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
       platforms.push(p);
     }
     return this._finishTower(this._appendGoalPlatform(platforms));
@@ -1220,6 +1230,15 @@ const PlayScreen = {
         }
       }
       Difficulty.update(dt);
+      // Rob: "let's keep the moon phase at 1 for all levels... let's remove
+      // it from Free Play for now" — Difficulty's own phase schedule (still
+      // named FREE_PLAY_PHASES, but actually running on every mode) swings
+      // moonTiltMultiplier up to 3x at a "Fire" moon, making steering
+      // wildly inconsistent run to run regardless of mode. Pinned to 1
+      // everywhere now; moonStage/the moon art swap still cycle visually,
+      // just with no steering effect attached. Easy single-line revert
+      // (just drop this override) once that difficulty is wanted back.
+      Difficulty.moonTiltMultiplier = 1;
       this._updateDarkMatterClouds(dt);
       this._updatePlasmaStorms(dt);
       Physics.update(dt, tiltX);
