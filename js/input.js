@@ -137,6 +137,7 @@ const Input = (() => {
     else if (angle === 180) tiltDeg = -event.gamma;
     else tiltDeg = event.gamma;
     if (tiltDeg === null || tiltDeg === undefined) return;
+    receivedAny = true;
     if (calibrateOnNextReading) {
       calibrateSampleSum += tiltDeg;
       calibrateSampleCount++;
@@ -187,10 +188,59 @@ const Input = (() => {
       }
     }
     if (typeof DeviceOrientationEvent !== 'undefined') {
-      window.addEventListener('deviceorientation', handleOrientation);
+      attachOrientationListener();
     }
     listening = true;
+    startWatchdog();
     return true;
+  }
+
+  // Some phones grant permission but then never deliver a single
+  // deviceorientation event on a cold start (about 1 in 7-8 loads for Rob).
+  // The watchdog re-attaches the listener if nothing arrives within
+  // WATCHDOG_MS, and tries once more before giving up and flagging it.
+  const WATCHDOG_MS = 1500;
+  let receivedAny = false;
+  let watchdogAttempts = 0;
+  let watchdogTimer = null;
+  let stuck = false;
+
+  function attachOrientationListener() {
+    window.removeEventListener('deviceorientation', handleOrientation);
+    window.addEventListener('deviceorientation', handleOrientation);
+  }
+
+  function startWatchdog() {
+    clearTimeout(watchdogTimer);
+    watchdogAttempts = 0;
+    stuck = false;
+    scheduleWatchdogCheck();
+  }
+
+  function scheduleWatchdogCheck() {
+    watchdogTimer = setTimeout(() => {
+      if (receivedAny) return;
+      if (watchdogAttempts < 2) {
+        watchdogAttempts++;
+        attachOrientationListener();
+        scheduleWatchdogCheck();
+      } else {
+        stuck = true;
+      }
+    }, WATCHDOG_MS);
+  }
+
+  // Exposed so the game can show a "tilt not detected" hint if the sensors
+  // still aren't responding after the automatic retries above.
+  function isStuck() { return stuck; }
+
+  // Manual retry hook (e.g. a "tap to reconnect" prompt) — re-runs the same
+  // listener + watchdog cycle from scratch.
+  function retry() {
+    if (typeof DeviceOrientationEvent === 'undefined') return;
+    receivedAny = false;
+    attachOrientationListener();
+    startWatchdog();
   }
 
   function update() {
@@ -238,6 +288,8 @@ const Input = (() => {
     get isListening() { return listening; },
     get isInverted() { return inverted; },
     requestPermission,
+    isStuck,
+    retry,
     calibrate,
     update,
     toggleInverted,

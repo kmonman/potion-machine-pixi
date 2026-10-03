@@ -370,7 +370,10 @@ const PlayScreen = {
     // little more... now that we have more control over the ball") — was
     // 10°→20° over Levels 1-5, now 12.5°→25° over the same ramp, staying
     // at 25° through Level 10.
-    return Math.min(25, 12.5 + (n - 1) * 3.125);
+    // Rob: Level 4 at 22°, Levels 5-10 at 23° (was 25° flat from Level 5 up).
+    if (n === 4) return 22;
+    if (n >= 5) return 23;
+    return 12.5 + (n - 1) * 3.125;
   },
 
   // Rob: "you can jump at least on the lowest levels without needing the
@@ -881,6 +884,27 @@ const PlayScreen = {
       // platform, which wasn't registering catches reliably.
       p.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
       platforms.push(p);
+    }
+    // Rob: "add new ones... going basically off the screen to the left and
+    // right" on the blue levels (6-10), growing with each level. Each tube
+    // sits halfway between two existing tubes in height, so it's a single
+    // ordinary jump from either neighbor, and sits off to one side (x = 360
+    // ± 400 — mostly past the 720px screen edge). Inserted into the middle
+    // of the array, never last, since the goal platform is built off the
+    // last entry.
+    const SIDE_TUBES = {
+      6: [{ after: 3, side: 1 }],
+      8: [{ after: 3, side: -1 }, { after: 3, side: 1 }],
+      10: [{ after: 2, side: -1 }, { after: 2, side: 1 }, { after: 5, side: -1 }, { after: 5, side: 1 }],
+    };
+    const sideSpecs = (SIDE_TUBES[levelNum] || []).map((spec) => ({
+      ...spec,
+      midY: (platforms[spec.after].pivot.y + platforms[spec.after + 1].pivot.y) / 2,
+    })).sort((a, b) => b.after - a.after);
+    for (const spec of sideSpecs) {
+      const side = createPlatform(360 + spec.side * 400, spec.midY, { lengthScale: 0.7, tubeSpeed: 1.0 });
+      side.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+      platforms.splice(spec.after + 1, 0, side);
     }
     return this._finishTower(this._appendGoalPlatform(platforms));
   },
