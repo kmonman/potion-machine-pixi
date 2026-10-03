@@ -48,6 +48,8 @@ const Input = (() => {
   const CALIBRATE_SAMPLES = 6;
   let calibrateSampleCount = 0;
   let calibrateSampleSum = 0;
+  let calibrateSampleAngle = null; // screen angle the in-progress samples were read at
+  let baselineAngle = null; // screen angle baselineDeg was measured at
   // Timestamp of the last usable deviceorientation reading (Rob: "the ball
   // moves even when I'm not tilting my phone") — once `listening` is true,
   // rawTilt used to only ever get set by handleOrientation, never decayed,
@@ -137,7 +139,7 @@ const Input = (() => {
       + `gamma: ${fmt(dbg.gamma)}   beta: ${fmt(dbg.beta)}\n`
       + `screen angle used: ${dbg.angle}\n`
       + `calibrating: ${calibrateOnNextReading ? calibrateSampleCount + '/' + CALIBRATE_SAMPLES : 'done'}\n`
-      + `baseline: ${baselineDeg.toFixed(1)}\n`
+      + `baseline: ${baselineDeg.toFixed(1)} (at angle ${baselineAngle})\n`
       + `rawTilt: ${rawTilt.toFixed(2)}   smoothed: ${smoothedTilt.toFixed(2)}\n`
       + `listening: ${listening}   inverted: ${inverted}`;
   }
@@ -166,12 +168,31 @@ const Input = (() => {
     else if (angle === 180) tiltDeg = -event.gamma;
     else tiltDeg = event.gamma;
     if (tiltDeg === null || tiltDeg === undefined) return;
+    // The baseline is only meaningful for the axis it was measured on (gamma
+    // in portrait, beta in landscape). If the screen angle reads differently
+    // now than when calibration ran (Rob's phone: baseline 78.5 was a beta
+    // value, but later readings used gamma -89, so tilt pinned at -1.00 and
+    // the ball rolled away), the old baseline is wrong — start over.
+    if (!calibrateOnNextReading && baselineAngle !== null && angle !== baselineAngle) {
+      calibrateOnNextReading = true;
+      calibrateSampleCount = 0;
+      calibrateSampleSum = 0;
+      rawTilt = 0;
+      smoothedTilt = 0;
+    }
     if (calibrateOnNextReading) {
+      // Samples from different angles can't be averaged together.
+      if (calibrateSampleAngle !== angle) {
+        calibrateSampleAngle = angle;
+        calibrateSampleCount = 0;
+        calibrateSampleSum = 0;
+      }
       calibrateSampleSum += tiltDeg;
       calibrateSampleCount++;
       lastReadingAt = Date.now(); // still counts as "recent" so the staleness decay above doesn't kick in mid-calibration
       if (calibrateSampleCount >= CALIBRATE_SAMPLES) {
         baselineDeg = calibrateSampleSum / calibrateSampleCount;
+        baselineAngle = angle;
         calibrateOnNextReading = false;
       }
       return; // don't act on tilt yet — rawTilt/smoothedTilt stay at the 0 calibrate() already set
