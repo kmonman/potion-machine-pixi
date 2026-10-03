@@ -75,22 +75,6 @@ const PlayScreenPixi = {
     this._bg.on('pointerupoutside', resolvePress);
     c.addChild(this._bg);
 
-    // "Tilt not detected" prompt (Rob: sensors sometimes stay silent on cold
-    // start). Shown only while Input.isStuck(); tapping it re-runs the sensor
-    // connection instead of counting as a jump. A plain text label for now —
-    // swap for a PNG sprite later by replacing this one object.
-    this._tiltPrompt = new PIXI.Text({
-      text: 'Tilt not detected — tap to reconnect',
-      style: { fontFamily: 'PotionTitle', fontSize: 26, fill: 0xff42d0, align: 'center', stroke: { color: 0x0a0410, width: 4 } },
-    });
-    this._tiltPrompt.anchor.set(0.5);
-    this._tiltPrompt.position.set(360, 640);
-    this._tiltPrompt.eventMode = 'static';
-    this._tiltPrompt.cursor = 'pointer';
-    this._tiltPrompt.visible = false;
-    this._tiltPrompt.on('pointertap', () => { Input.retry(); });
-    c.addChild(this._tiltPrompt);
-
     // Fog — 3 layers, each 2 stacked sprites (see Fog.layers in fog.js for the
     // actual scroll/wrap math, unchanged). Screen-fixed background atmosphere,
     // not part of the panning world — it doesn't need to scroll with the camera.
@@ -972,7 +956,6 @@ const PlayScreenPixi = {
     this._restackBall();
     this._updateMoonOrb();
     this._updateDots();
-    this._tiltPrompt.visible = Input.isStuck() && !PlayScreen.isOver;
     this._updateDarkMatterClouds();
     this._updatePlasmaStorms();
     this._updateDarkMatterWisp();
