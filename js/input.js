@@ -120,7 +120,7 @@ const Input = (() => {
   // Rob's "ball rolls off on its own at the start of a run" problem. Always
   // on for now (Rob: nobody else is playing yet) — to hide it again, change
   // `true` below to the commented-out query-string check.
-  const dbg = { events: 0, gamma: null, beta: null, angle: 0, lastAt: 0 };
+  const dbg = { events: 0, gamma: null, beta: null, angle: 0, lastAt: 0, tiltDeg: null };
   let dbgEl = null;
   let dbgNextAt = 0;
   if (true /* /[?&]debug=tilt/.test(location.search) */) {
@@ -137,6 +137,7 @@ const Input = (() => {
     dbgEl.textContent =
       `events: ${dbg.events}   last: ${dbg.lastAt ? now - dbg.lastAt : '-'} ms ago\n`
       + `gamma: ${fmt(dbg.gamma)}   beta: ${fmt(dbg.beta)}\n`
+      + `tilt used: ${fmt(dbg.tiltDeg)}\n`
       + `screen angle used: ${dbg.angle}\n`
       + `calibrating: ${calibrateOnNextReading ? calibrateSampleCount + '/' + CALIBRATE_SAMPLES : 'done'}\n`
       + `baseline: ${baselineDeg.toFixed(1)} (at angle ${baselineAngle})\n`
@@ -149,6 +150,17 @@ const Input = (() => {
     if (typeof window.orientation === 'number') return window.orientation;
     return 0;
   }
+
+  // Sideways component of gravity in the phone's own frame, as an angle:
+  // asin(cos(beta) * sin(gamma)). Equals gamma when the phone is flat, and
+  // stays smooth when it's held upright, where gamma alone goes erratic.
+  function gravityRollDeg(beta, gamma) {
+    if (beta === null || beta === undefined || gamma === null || gamma === undefined) return null;
+    const rad = Math.PI / 180;
+    const s = Math.cos(beta * rad) * Math.sin(gamma * rad);
+    return Math.asin(Math.max(-1, Math.min(1, s))) / rad;
+  }
+  function negateOrNull(v) { return v === null ? null : -v; }
 
   function handleOrientation(event) {
     // Rounded to the nearest 90 rather than trusting the raw value is
@@ -163,10 +175,15 @@ const Input = (() => {
     // Landscape signs flipped from the initial guess (Rob tested on Android:
     // came out inverted — tilting right made the ball go left). Still
     // unverified on iOS, which can differ here; that's a follow-up check.
+    // Portrait left/right tilt now comes from gravity's sideways pull on the
+    // phone, not raw gamma: gamma is unstable when the phone is held near
+    // upright (beta ~90) — Rob's overlay showed gamma jumping -89 -> +57 for
+    // tiny hand movements, which calibration then treated as real tilt.
     if (angle === 90) tiltDeg = event.beta;
     else if (angle === 270 || angle === -90) tiltDeg = -event.beta;
-    else if (angle === 180) tiltDeg = -event.gamma;
-    else tiltDeg = event.gamma;
+    else if (angle === 180) tiltDeg = negateOrNull(gravityRollDeg(event.beta, event.gamma));
+    else tiltDeg = gravityRollDeg(event.beta, event.gamma);
+    dbg.tiltDeg = tiltDeg;
     if (tiltDeg === null || tiltDeg === undefined) return;
     // The baseline is only meaningful for the axis it was measured on (gamma
     // in portrait, beta in landscape). If the screen angle reads differently
