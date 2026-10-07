@@ -910,9 +910,20 @@ const PlayScreen = {
       side.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
       platforms.splice(spec.after + 1, 0, side);
     }
-    // Flat planks: 3 of every 10 climbing tubes, counted over the whole
-    // finished tower (side tubes included), so every level lands at 30%.
-    platforms.forEach((p, j) => { if (j > 0) p.isFlatPlank = [2, 5, 8].includes((j - 1) % 10); });
+    // Flat planks are helpers for getting through the tower, so they go low
+    // and mid-height, never at the top: about 30% of climbing tubes, spread
+    // evenly from just above the base up to (not including) the top two.
+    const climbing = platforms.slice(1);
+    const flatCount = Math.round(climbing.length * 0.3);
+    const eligibleLast = climbing.length - 3;
+    if (flatCount > 0 && eligibleLast >= 0) {
+      const slots = new Set();
+      for (let k = 0; k < flatCount; k++) {
+        const pos = flatCount === 1 ? 0 : Math.round((k * eligibleLast) / (flatCount - 1));
+        slots.add(Math.min(pos, eligibleLast));
+      }
+      [...slots].forEach((pos) => { climbing[pos].isFlatPlank = true; });
+    }
     return this._finishTower(this._appendGoalPlatform(platforms));
   },
 

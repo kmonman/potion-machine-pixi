@@ -620,12 +620,15 @@ const PlayScreenPixi = {
     if (v.poleGlowBlurred) v.poleGlowBlurred.visible = visible;
     if (v.poleGlowSolid) v.poleGlowSolid.visible = visible;
     v.platformContainer.visible = visible;
-    v.hingeBubbleContainer.visible = visible;
-    v.hingeSprite.visible = visible;
-    v.hingeGlowBlurred.visible = visible;
-    v.hingeGlowSolid.visible = visible;
-    v.hingeMagicContainer.visible = visible;
-    v.hingeSparkContainer.visible = visible;
+    // Flat planks have no hinge (Rob: "just have a tube by itself") — hide
+    // the hinge pieces for them even while the tube itself is visible.
+    const hingeVisible = visible && !p.isFlatPlank;
+    v.hingeBubbleContainer.visible = hingeVisible;
+    v.hingeSprite.visible = hingeVisible;
+    v.hingeGlowBlurred.visible = hingeVisible;
+    v.hingeGlowSolid.visible = hingeVisible;
+    v.hingeMagicContainer.visible = hingeVisible;
+    v.hingeSparkContainer.visible = hingeVisible;
     // Back to toggling with everything else now that the old particle
     // jets are the ones actually drawing again (see build()/refresh()'s
     // own comments on trying them instead of the new PlasmaJet beams).

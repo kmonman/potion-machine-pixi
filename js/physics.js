@@ -426,6 +426,8 @@ const Physics = {
   _checkHinge() {
     this.touchingHinge = false;
     for (const p of this.platforms) {
+      // Flat planks have no hinge at all (Rob: "just have a tube by itself").
+      if (p.isFlatPlank) { p.touching = false; continue; }
       const dx = this.x - p.pivot.x;
       const dy = this.y - p.pivot.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
