@@ -878,6 +878,10 @@ const PlayScreen = {
       // jump would — the extra horizontal distance (not the rise, same as
       // any other double) is what makes it need the boost.
       const x = baseX + offsets[i] * (gap === 'L' ? 1.8 : 1);
+      // Rob: about 30% of climbing tubes are flat planks on every level, so
+      // the difficulty ramp comes from other elements, not from the share of
+      // tilting tubes. Fixed positions (3 of every 10) so each level is the
+      // same every run.
       const p = createPlatform(x, y, { lengthScale: 0.7, tubeSpeed: tubeSpeeds[i % tubeSpeeds.length] });
       // Outer mounts only (see _buildSharedTower's own comment, same ask) —
       // used to alternate onto the inner pair near the hinge every other
@@ -906,6 +910,9 @@ const PlayScreen = {
       side.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
       platforms.splice(spec.after + 1, 0, side);
     }
+    // Flat planks: 3 of every 10 climbing tubes, counted over the whole
+    // finished tower (side tubes included), so every level lands at 30%.
+    platforms.forEach((p, j) => { if (j > 0) p.isFlatPlank = [2, 5, 8].includes((j - 1) % 10); });
     return this._finishTower(this._appendGoalPlatform(platforms));
   },
 

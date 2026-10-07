@@ -83,6 +83,8 @@ function createPlatform(pivotX, pivotY, opts = {}) {
   const isGoal = !!opts.isGoal;
   return {
     isGoal,
+    // A flat plank never tilts: its target is always 0 (see reset()/update()).
+    isFlatPlank: !!opts.flatPlank,
     pivot: { x: pivotX, y: pivotY },
     visualScale: scale,
     lengthScale,
@@ -218,7 +220,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       this.startAngle = 0;
       // A goal platform never picks a real target angle — it stays flat at
       // 0 forever (see update()'s matching guard).
-      this.targetAngle = this.isGoal ? 0 : (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
+      this.targetAngle = (this.isGoal || this.isFlatPlank) ? 0 : (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
       this.tweenElapsed = 0;
       this.timer = 0;
       this.hingeGlow = 0;
@@ -290,7 +292,7 @@ function createPlatform(pivotX, pivotY, opts = {}) {
       if (this.timer >= this.tweenDuration) {
         this.direction *= -1;
         this.startAngle = this.targetAngle;
-        this.targetAngle = (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
+        this.targetAngle = this.isFlatPlank ? 0 : (5 + Math.random() * (this.maxTiltAngle - 5)) * this.direction;
         this.tweenElapsed = 0;
         this.timer = 0;
       }
