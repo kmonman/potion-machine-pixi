@@ -8,6 +8,26 @@
 </head>
 <body>
 
+<!-- Loading spinner: plain HTML/CSS so it shows before any game script has
+     run. game.js removes it once the first frame is up. -->
+<style>
+  #loadingSpinner {
+    position: fixed; inset: 0; z-index: 99998;
+    display: flex; align-items: center; justify-content: center;
+    background: #0a0410;
+    transition: opacity 0.3s ease;
+  }
+  #loadingSpinner.done { opacity: 0; pointer-events: none; }
+  #loadingSpinner .ring {
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 6px solid rgba(150, 61, 255, 0.2);
+    border-top-color: #963dff;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+<div id="loadingSpinner"><div class="ring"></div></div>
+
 <div id="viewport">
   <div id="gameWrap">
     <canvas id="gameCanvas" width="720" height="1280"></canvas>

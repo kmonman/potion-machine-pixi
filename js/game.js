@@ -613,6 +613,12 @@ async function main() {
   app.renderer.render(app.stage);
 
   app.ticker.add(tick);
+  // Game is up — fade out the purple loading spinner from index.html.
+  const spinner = document.getElementById('loadingSpinner');
+  if (spinner) {
+    spinner.classList.add('done');
+    setTimeout(() => spinner.remove(), 400);
+  }
 }
 
 main();
