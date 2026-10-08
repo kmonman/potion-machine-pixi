@@ -954,8 +954,24 @@ const PlayScreenPixi = {
       this._potionCauldron.update(this._dt);
     }
 
-    this._ballSprite.position.set(Physics.x, Physics.y);
-    this._ballSprite.rotation = Physics.rotation;
+    // Rob: "when the moon stone lands in the cauldron it sticks to the
+    // potion... bobbing up and down while half in the potion" — once the
+    // run is actually won, the ball sprite stops following Physics.x/y
+    // (which already froze at the goal platform) and instead snaps to the
+    // cauldron's own potion-surface point (same local point the
+    // PotionCauldron effect itself is anchored to — see build() above),
+    // sunk by half the ball's own size, with a slow vertical bob.
+    if (PlayScreen.levelComplete) {
+      if (!this._cauldronStickT) this._cauldronStickT = 0;
+      this._cauldronStickT += this._dt;
+      const stickWorld = this.worldContainer.toLocal(this._potionCauldron.view.getGlobalPosition());
+      const bob = Math.sin(this._cauldronStickT * 2.2) * 7;
+      this._ballSprite.position.set(stickWorld.x, stickWorld.y + Physics.displayRadius * 0.5 + bob);
+    } else {
+      this._cauldronStickT = 0;
+      this._ballSprite.position.set(Physics.x, Physics.y);
+      this._ballSprite.rotation = Physics.rotation;
+    }
     this._restackBall();
     this._updateMoonOrb();
     this._updateDots();

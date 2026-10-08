@@ -910,16 +910,21 @@ const PlayScreen = {
       side.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
       platforms.splice(spec.after + 1, 0, side);
     }
-    // Flat planks are helpers for getting through the tower, so they go low
-    // and mid-height, never at the top: about 30% of climbing tubes, spread
-    // evenly from just above the base up to (not including) the top two.
+    // Flat planks are helpers for getting through the tower, so they go in
+    // the middle of the climb — never the 1st or 2nd tube off the base, and
+    // never the last tube before the goal (Rob). About 30% of climbing
+    // tubes, spread evenly across that eligible middle band.
     const climbing = platforms.slice(1);
     const flatCount = Math.round(climbing.length * 0.3);
-    const eligibleLast = climbing.length - 3;
-    if (flatCount > 0 && eligibleLast >= 0) {
+    const eligibleFirst = 2;
+    const eligibleLast = climbing.length - 2;
+    const eligibleSpan = eligibleLast - eligibleFirst;
+    if (flatCount > 0 && eligibleSpan >= 0) {
       const slots = new Set();
       for (let k = 0; k < flatCount; k++) {
-        const pos = flatCount === 1 ? 0 : Math.round((k * eligibleLast) / (flatCount - 1));
+        const pos = flatCount === 1
+          ? eligibleFirst
+          : eligibleFirst + Math.round((k * eligibleSpan) / (flatCount - 1));
         slots.add(Math.min(pos, eligibleLast));
       }
       [...slots].forEach((pos) => { climbing[pos].isFlatPlank = true; });
