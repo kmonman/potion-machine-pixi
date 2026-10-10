@@ -244,6 +244,8 @@ const Physics = {
     for (const c of this.darkMatterClouds) {
       const halfW = c.width / 2 + this.displayRadius, halfH = c.height / 2 + this.displayRadius;
       if (Math.abs(this.x - c.x) < halfW && Math.abs(this.y - c.y) < halfH) {
+        // Rob: don't trigger dark matter drop if the ball is resting on a flat plank
+        if (this.currentPlatform && this.currentPlatform.isFlatPlank) return;
         // Any non-null value just marks "a drop is active" now (see this
         // field's own comment) — true works as well as a count would.
         this.darkMatterSkipsRemaining = true;
