@@ -15,6 +15,33 @@ function rgbToHex(r, g, b) {
   return (clampByte(r) << 16) | (clampByte(g) << 8) | clampByte(b);
 }
 function clampByte(v) { return Math.max(0, Math.min(255, Math.round(v))); }
+// Small dashed-shape helpers for the Level 1-2 goal-height indicator (Rob:
+// "a white dotted line"). Pixi has no native dash support on strokes, so
+// these just draw short segments with gaps by hand.
+function drawDashedEllipseImpl(g, cx, cy, rx, ry, dashLen, gapLen, color, alpha) {
+  // Pixi's arc() only draws circles, so each dash is its own short polyline
+  // sampled along the ellipse's parametric curve instead.
+  const circumference = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
+  const dashCount = Math.max(8, Math.round(circumference / (dashLen + gapLen)));
+  const dashFrac = (dashLen / (dashLen + gapLen)) / dashCount;
+  const samplesPerDash = 4;
+  for (let i = 0; i < dashCount; i++) {
+    const t0 = i / dashCount;
+    for (let s = 0; s <= samplesPerDash; s++) {
+      const t = t0 + dashFrac * (s / samplesPerDash);
+      const ang = t * Math.PI * 2;
+      const x = cx + Math.cos(ang) * rx, y = cy + Math.sin(ang) * ry;
+      if (s === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+  }
+  g.stroke({ width: 3, color, alpha });
+}
+function drawDashedLineImpl(g, x0, x1, y, dashLen, gapLen, color, alpha) {
+  for (let x = x0; x < x1; x += dashLen + gapLen) {
+    g.moveTo(x, y).lineTo(Math.min(x + dashLen, x1), y);
+  }
+  g.stroke({ width: 3, color, alpha });
+}
 // Rob's cauldron colors are "match the base platform color, with a lighter
 // version for the glow and a pale tint for the steam" — one shared helper
 // for both, just a different mix fraction toward white.
@@ -220,16 +247,37 @@ const PlayScreenPixi = {
     });
     this._potionCauldron.view.position.set(845, 505);
     goalLineSprite.addChild(this._potionCauldron.view);
+    // Clips the ball sprite to its top half while it's sitting sunk in the
+    // cauldron (Rob: "it should be partially submerged... we should only
+    // see about half of it") — a plain rectangle above the liquid surface
+    // line, resized/repositioned every frame in refresh() to track the bob.
+    this._cauldronMask = new PIXI.Graphics();
+    this.worldContainer.addChild(this._cauldronMask);
     this._potionBrewSeen = false;
     this._potionRunStartSeen = PlayScreen.runStartCount;
     this._goalLabel = new PIXI.Text({
-      text: '', style: { fontFamily: 'PotionTitle', fontSize: 32, fill: 0xff00c3, align: 'center' },
+      // Rob: "the text is too pink" — white instead, so it reads as a UI
+      // label over the art rather than blending into the pink potion glow.
+      text: '', style: { fontFamily: 'PotionTitle', fontSize: 32, fill: 0xffffff, align: 'center' },
     });
     this._goalLabel.anchor.set(0.5, 1);
     // Sits in the open misty gap between the cauldron and the potion-surface
     // line (see the art) rather than right on top of either.
     this._goalLabel.position.set(360, -70);
     this._goalLineGroup.addChild(goalLineSprite, this._goalLabel);
+
+    // Rob: "there's nothing to indicate [the goal height] to players... make
+    // a white dotted line around the rim of the cauldron... it should extend
+    // left and right at precisely where the moon stone will stop even if the
+    // pot is missed." First couple levels only (see refresh()'s own
+    // visibility toggle) — a dashed ellipse over the pot's own rim plus a
+    // dashed line spanning the full width at the same height as the art's
+    // own baked-in goal line (this group's local y=0, same reference every
+    // other goal-line measurement in this file already uses).
+    this._goalTargetLine = new PIXI.Graphics();
+    this._goalLineGroup.addChild(this._goalTargetLine);
+    this._drawDashedEllipse(this._goalTargetLine, 360, 0, 148, 20, 10, 8, 0xffffff, 0.9);
+    this._drawDashedLine(this._goalTargetLine, -2000, 2000, 0, 10, 8, 0xffffff, 0.9);
     this.worldContainer.addChild(this._goalLineGroup);
 
     // Plasma storm fields (Rob: Level 4's appearing/disappearing storm —
@@ -614,6 +662,13 @@ const PlayScreenPixi = {
   // per-platform wrapper would break. So hiding a platform (Rob: platforms
   // above the current level's goal line) means toggling every one of these
   // pieces individually instead of just one container.
+  _drawDashedEllipse(g, cx, cy, rx, ry, dashLen, gapLen, color, alpha) {
+    drawDashedEllipseImpl(g, cx, cy, rx, ry, dashLen, gapLen, color, alpha);
+  },
+  _drawDashedLine(g, x0, x1, y, dashLen, gapLen, color, alpha) {
+    drawDashedLineImpl(g, x0, x1, y, dashLen, gapLen, color, alpha);
+  },
+
   _setPlatformVisualVisible(p, visible) {
     const v = p._visual;
     if (v.poleSprite) v.poleSprite.visible = visible;
@@ -902,6 +957,10 @@ const PlayScreenPixi = {
     // the explosion") needs the art, and the effect riding on it, still on
     // screen for the win screen to actually show.
     this._goalLineGroup.visible = levelNum !== null;
+    // Rob: "maybe only the first couple levels need a line" — once a player
+    // has seen it on Level 1-2, the goal height's established; later levels
+    // go back to just the art's own baked-in line.
+    this._goalTargetLine.visible = levelNum === 1 || levelNum === 2;
     if (levelNum !== null && levelNum !== this._goalLineLevelNum) {
       this._goalLineLevelNum = levelNum;
       // _levelThresholdY is the ball's CENTER position when resting there
@@ -960,15 +1019,21 @@ const PlayScreenPixi = {
     // (which already froze at the goal platform) and instead snaps to the
     // cauldron's own potion-surface point (same local point the
     // PotionCauldron effect itself is anchored to — see build() above),
-    // sunk by half the ball's own size, with a slow vertical bob.
+    // centered exactly ON the surface with a slow vertical bob — the mask
+    // below (not a position offset) is what actually hides the bottom half.
     if (PlayScreen.levelComplete) {
       if (!this._cauldronStickT) this._cauldronStickT = 0;
       this._cauldronStickT += this._dt;
       const stickWorld = this.worldContainer.toLocal(this._potionCauldron.view.getGlobalPosition());
       const bob = Math.sin(this._cauldronStickT * 2.2) * 7;
-      this._ballSprite.position.set(stickWorld.x, stickWorld.y + Physics.displayRadius * 0.5 + bob);
+      const surfaceY = stickWorld.y + bob;
+      this._ballSprite.position.set(stickWorld.x, surfaceY);
+      const r = Physics.displayRadius;
+      this._cauldronMask.clear().rect(stickWorld.x - r * 1.5, surfaceY - r * 2, r * 3, r * 2).fill(0xffffff);
+      this._ballSprite.mask = this._cauldronMask;
     } else {
       this._cauldronStickT = 0;
+      this._ballSprite.mask = null;
       this._ballSprite.position.set(Physics.x, Physics.y);
       this._ballSprite.rotation = Physics.rotation;
     }
@@ -1102,7 +1167,10 @@ const PlayScreenPixi = {
       this._moonDischargeSeen = PlayScreen.moonDischargeCount;
       this._blastLaunchSeen = PlayScreen.blastLaunchCount;
     }
-    orb.view.position.set(Physics.x, Physics.y);
+    // Follows the ball sprite's own rendered position (not raw Physics.x/y
+    // directly) so it tracks the cauldron-stick point once a level's won —
+    // _ballSprite is already repositioned there earlier this same refresh().
+    orb.view.position.set(this._ballSprite.x, this._ballSprite.y);
     if (PlayScreen.moonDischargeCount !== this._moonDischargeSeen) {
       this._moonDischargeSeen = PlayScreen.moonDischargeCount;
       this._moonDischargeGraceT = 0.6;
@@ -1123,7 +1191,10 @@ const PlayScreenPixi = {
       }
     }
     if (this._moonDischargeGraceT > 0) this._moonDischargeGraceT -= this._dt;
-    const target = (PlayScreen.blastCharges > 0 || this._moonDischargeGraceT > 0) ? 1 : 0;
+    // Rob: "when the moon falls in the potion it should have the emitter
+    // surrounding it on" — the swirl/glow stays lit the whole time it's
+    // sitting sunk in the cauldron, same as while a charge is banked.
+    const target = (PlayScreen.blastCharges > 0 || this._moonDischargeGraceT > 0 || PlayScreen.levelComplete) ? 1 : 0;
     this._moonOrbAlpha += (target - this._moonOrbAlpha) * Math.min(1, this._dt / 0.35);
     orb.view.alpha = this._moonOrbAlpha;
     orb.view.visible = this._moonOrbAlpha > 0.002;
@@ -1132,7 +1203,7 @@ const PlayScreenPixi = {
     // Ambient light-blue backlight — same charged/not-charged visibility
     // and ease as the orb itself, just a plain glow with nothing of its
     // own to update() every frame.
-    this._moonGlow.position.set(Physics.x, Physics.y);
+    this._moonGlow.position.set(this._ballSprite.x, this._ballSprite.y);
     this._moonGlow.alpha = this._moonOrbAlpha * 0.85;
     this._moonGlow.visible = this._moonOrbAlpha > 0.002;
   },
