@@ -871,11 +871,31 @@ const PlayScreen = {
     const offsets = OFFSET_SEQUENCES[levelNum];
     const gapPlan = GAP_PLANS[levelNum];
     const tubeSpeeds = [0.75, 1.3, 1.1, 0.9, 0.85, 1.2, 0.95, 1.25, 0.8, 1.15, 1.35];
+    // Pre-calculate which platforms will be flat (same logic as below)
+    // so we can apply gap adjustments during building
+    const flatPositions = new Set();
+    const tempClimbCount = gapPlan.length; // platforms.slice(1) will have this many
+    const tempFlatCount = Math.round(tempClimbCount * 0.4);
+    const tempEligibleFirst = 2, tempEligibleLast = tempClimbCount - 2;
+    if (tempFlatCount > 0 && tempEligibleLast >= tempEligibleFirst) {
+      const tempSpan = tempEligibleLast - tempEligibleFirst;
+      for (let k = 0; k < tempFlatCount; k++) {
+        const pos = tempFlatCount === 1
+          ? tempEligibleFirst
+          : tempEligibleFirst + Math.round((k * tempSpan) / (tempFlatCount - 1));
+        flatPositions.add(Math.min(pos, tempEligibleLast));
+      }
+    }
     const platforms = [base];
     let y = baseY;
     for (let i = 0; i < gapPlan.length; i++) {
       const gap = gapPlan[i];
-      y -= gap === 'S' ? this.TOWER_SPACING : this.BIG_TOWER_SPACING;
+      // If landing on a flat plank, reduce D/L gaps by 30% (0.7x multiplier)
+      let spacing = gap === 'S' ? this.TOWER_SPACING : this.BIG_TOWER_SPACING;
+      if (gap !== 'S' && flatPositions.has(i)) {
+        spacing *= 0.7;
+      }
+      y -= spacing;
       // A sideways ('L') gap leans on its offset much harder than a normal
       // jump would — the extra horizontal distance (not the rise, same as
       // any other double) is what makes it need the boost.
