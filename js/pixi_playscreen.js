@@ -276,8 +276,23 @@ const PlayScreenPixi = {
     // other goal-line measurement in this file already uses).
     this._goalTargetLine = new PIXI.Graphics();
     this._goalLineGroup.addChild(this._goalTargetLine);
-    this._drawDashedEllipse(this._goalTargetLine, 360, 0, 148, 20, 10, 8, 0xffffff, 0.9);
-    this._drawDashedLine(this._goalTargetLine, -2000, 2000, 0, 10, 8, 0xffffff, 0.9);
+    // Rob: "the dotted line is off, a little too low" — y=0 here is the
+    // ball's own resting CENTER, which the art was deliberately nudged
+    // below the cauldron's visual rim for (see the +15 a few lines up, "it
+    // rests on the top of the tube" not bisected by the line) — so the
+    // dashed line needs that same upward nudge to track the rim rather
+    // than the ball's center.
+    const TARGET_LINE_Y = -18;
+    const TARGET_RX = 148;
+    this._drawDashedEllipse(this._goalTargetLine, 360, TARGET_LINE_Y, TARGET_RX, 20, 10, 8, 0xffffff, 0.9);
+    // Rob: "a break at the edge of the pot, so it's a circle in the pot and
+    // then the line is outside the pot" — two segments stopping at the
+    // ellipse's own left/right edge instead of one line drawn straight
+    // through the middle of it.
+    // Rob: 100% -> 80% -> 50% on the line segments only, rim ellipse
+    // unchanged throughout.
+    this._drawDashedLine(this._goalTargetLine, -2000, 360 - TARGET_RX, TARGET_LINE_Y, 10, 8, 0xffffff, 0.5);
+    this._drawDashedLine(this._goalTargetLine, 360 + TARGET_RX, 2000, TARGET_LINE_Y, 10, 8, 0xffffff, 0.5);
     this.worldContainer.addChild(this._goalLineGroup);
 
     // Plasma storm fields (Rob: Level 4's appearing/disappearing storm —

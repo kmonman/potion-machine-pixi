@@ -116,14 +116,15 @@ const Input = (() => {
   // screen.orientation.angle (falling back to the older window.orientation
   // for older iOS Safari) says which physical rotation is currently in
   // effect, so the right raw axis — and its sign — can be picked per angle.
-  // Test overlay: shows what the sensor is actually delivering, to diagnose
-  // Rob's "ball rolls off on its own at the start of a run" problem. Always
-  // on for now (Rob: nobody else is playing yet) — to hide it again, change
-  // `true` below to the commented-out query-string check.
+  // Test overlay: shows what the sensor is actually delivering. Used to
+  // diagnose Rob's "ball rolls off on its own at the start of a run"
+  // problem (fixed — see the gravity-based tilt calc and recalibrate-on-
+  // angle-change above). Hidden again now; add ?debug=tilt to the URL to
+  // bring it back if needed.
   const dbg = { events: 0, gamma: null, beta: null, angle: 0, lastAt: 0, tiltDeg: null };
   let dbgEl = null;
   let dbgNextAt = 0;
-  if (true /* /[?&]debug=tilt/.test(location.search) */) {
+  if (/[?&]debug=tilt/.test(location.search)) {
     dbgEl = document.createElement('div');
     dbgEl.style.cssText = 'position:fixed;left:4px;top:4px;z-index:99999;pointer-events:none;'
       + 'font:11px/1.3 monospace;color:#7CFF9B;background:rgba(0,0,0,0.72);padding:4px 6px;white-space:pre;';
