@@ -311,8 +311,9 @@ const PlayScreen = {
   // Vertical gap between platforms — reduced 15% from 300 to make single jumps easier.
   // The occasional "big jump" gap some levels place — reduced 10% to account
   // for platform tilt variance making them harder than static spacing suggests
-  // (was 450, now 405 = 255 * 1.588). Still needs 2x (charged or jet) to clear.
-  BIG_TOWER_SPACING: 405,
+  // (was 450, now 344 = 255 * 1.35). Still needs 2x (charged or jet) to clear.
+  // Further reduced by 15% per Rob's feedback on levels 6-10.
+  BIG_TOWER_SPACING: 344,
   // Horizontal offset (world px) for the middle/top platforms — Rob: move one
   // right and one left instead of stacking every platform straight above the
   // base. Middle goes right, top goes left, so climbing the tower zigzags
@@ -899,7 +900,7 @@ const PlayScreen = {
     // last entry.
     const SIDE_TUBES = {
       6: [{ after: 3, side: 1 }],
-      8: [{ after: 3, side: -1 }, { after: 3, side: 1 }],
+      8: [{ after: 3, side: -1 }, { after: 5, side: 1 }],
       10: [{ after: 2, side: -1 }, { after: 2, side: 1 }, { after: 5, side: -1 }, { after: 5, side: 1 }],
     };
     const sideSpecs = (SIDE_TUBES[levelNum] || []).map((spec) => ({
