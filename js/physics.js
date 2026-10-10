@@ -151,9 +151,8 @@ const Physics = {
     // the original full strength, not of the grounded value). Grounded went
     // 1.0 -> 0.8 -> 0.7 as Rob kept finding it too fast on the plank.
     // Airborne went 1.0 -> 0.5 early on (too much control in the air), then
-    // back up to 0.8 once tilt input was stable (Rob: "I need more control
-    // when the ball leaves").
-    const airborneTiltMultiplier = this.airborne ? 0.8 : 0.7;
+    // 0.8, then 0.9 (Rob: more control in the air for better steering).
+    const airborneTiltMultiplier = this.airborne ? 0.9 : 0.7;
     const gx = tiltX * this.tiltAccel * difficultyMultiplier * airborneTiltMultiplier;
     // Extra pull while a dark matter drop is in progress — see
     // DARK_MATTER_EXTRA_GRAVITY's own comment for why this is a continuous

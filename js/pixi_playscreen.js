@@ -1644,7 +1644,7 @@ const PlayScreenPixi = {
     // platform's own live tubeColor (near the hinge) toward white (as
     // they rise and fade), same spirit as the in-liquid bubbles already
     // do, so every level/color identity carries all the way through.
-    const [htr, htg, htb] = p.chargeSpent ? [60, 60, 66] : p.tubeColor;
+    const [htr, htg, htb] = p.tubeColor;
     this._syncParticlePool(v.hingeBubblePool, v.hingeBubbleContainer, p.hingeBubbles.bubbles, textures.hingeBubbleParticle, (bp, t) => ({
       x: bp.x + Math.sin(bp.wobblePhase) * bp.wobbleAmp, y: bp.y,
       size: bp.maxSize * (1 - t), alpha: 1 - t,
@@ -1799,11 +1799,9 @@ const PlayScreenPixi = {
     // to stall and clean up). Only rebuilding once the color has visibly
     // shifted keeps the transition looking smooth while capping the rebuild
     // rate to something sane instead of every frame forever.
-    // Charge-spent platforms go dark grey — still chargeable, just no
-    // longer scoring (Rob) — overriding the live tubeColor here instead of
-    // in platform.js keeps tubeColor itself intact for anything else that
-    // reads it (jets, hinge bubbles use their own override below).
-    const [tr, tg, tb] = p.chargeSpent ? [60, 60, 66] : p.tubeColor;
+    // Rob: removed charge-spent greying — platforms keep their color and keep
+    // scoring indefinitely so you never get stuck without power.
+    const [tr, tg, tb] = p.tubeColor;
     const cached = v._liquidGradColor;
     const changed = !cached
       || Math.abs(cached[0] - tr) >= 2 || Math.abs(cached[1] - tg) >= 2 || Math.abs(cached[2] - tb) >= 2;

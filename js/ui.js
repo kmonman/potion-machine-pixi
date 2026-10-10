@@ -308,10 +308,10 @@ const PlayScreen = {
   // actual projectile range (v^2/gravityY ≈ 600px) once aimed toward it rather
   // than straight up.
   TOWER_SPACING: 300,
-  // The occasional "big jump" gap some levels place, cleared only by a
-  // charged-moon blast — 50% taller than a normal gap, matching
-  // BIG_BLAST_FORCE's own "50% higher jump" spec exactly (300 * 1.5 = 450).
-  BIG_TOWER_SPACING: 450,
+  // The occasional "big jump" gap some levels place — reduced 15% to account
+  // for platform tilt variance making them harder than static spacing suggests
+  // (was 450, now 383 = 300 * 1.275). Still needs 2x (charged or jet) to clear.
+  BIG_TOWER_SPACING: 383,
   // Horizontal offset (world px) for the middle/top platforms — Rob: move one
   // right and one left instead of stacking every platform straight above the
   // base. Middle goes right, top goes left, so climbing the tower zigzags
@@ -912,10 +912,10 @@ const PlayScreen = {
     }
     // Flat planks are helpers for getting through the tower, so they go in
     // the middle of the climb — never the 1st or 2nd tube off the base, and
-    // never the last tube before the goal (Rob). About 30% of climbing
+    // never the last tube before the goal (Rob). About 40% of climbing
     // tubes, spread evenly across that eligible middle band.
     const climbing = platforms.slice(1);
-    const flatCount = Math.round(climbing.length * 0.3);
+    const flatCount = Math.round(climbing.length * 0.4);
     const eligibleFirst = 2;
     const eligibleLast = climbing.length - 2;
     const eligibleSpan = eligibleLast - eligibleFirst;
@@ -1349,11 +1349,8 @@ const PlayScreen = {
       if (this.score >= this.blastThreshold + 1000) {
         this.blastCharges = Math.min(this.MAX_BLAST_CHARGES, this.blastCharges + 1);
         this.blastThreshold += 1000;
-        // Whatever platform the ball is resting on the instant a charge
-        // completes is the one that "gave" it — it keeps moving/producing
-        // jets/bubbles normally (still needed for traversal), it just turns
-        // dark grey and stops scoring points from here on (Rob).
-        if (Physics.currentPlatform) Physics.currentPlatform.chargeSpent = true;
+        // Rob: removed platform.chargeSpent marking — platforms keep scoring and
+        // producing charges indefinitely so you never get stuck without power.
       }
 
       // Level win condition — Physics.y counts down as the ball climbs, so
