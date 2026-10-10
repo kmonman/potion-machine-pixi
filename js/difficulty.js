@@ -126,7 +126,8 @@ const JET_COOLDOWN = 0.2; // seconds — now just a safety debounce, not the mai
 // was narrower than even the beam's solid part, letting a player stand
 // visibly in the plasma and still read as "not touching" it. Widened to
 // roughly match the core's own half-width instead of the glow's.
-const JET_CATCH_RADIUS = 38; // px, how close the ball's x needs to be to the jet's x
+const JET_CATCH_RADIUS = 50; // px, how close the ball's x needs to be to the jet's x
+// Increased from 38 to account for horizontal drift during the launch impulse
 // With multiple platforms now sharing one world coordinate space, an x-only catch
 // check can false-positive on a jet several platforms away that just happens to
 // share an x coordinate while the ball is mid-flight past it. Added once platforms
