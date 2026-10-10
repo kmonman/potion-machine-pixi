@@ -307,10 +307,11 @@ const PlayScreen = {
   // diagonal to a horizontally-offset target, well inside a 950-force blast's
   // actual projectile range (v^2/gravityY ≈ 600px) once aimed toward it rather
   // than straight up.
-  TOWER_SPACING: 300,
+  TOWER_SPACING: 255,
+  // Vertical gap between platforms — reduced 15% from 300 to make single jumps easier.
   // The occasional "big jump" gap some levels place — reduced 10% to account
   // for platform tilt variance making them harder than static spacing suggests
-  // (was 450, now 405 = 300 * 1.35). Still needs 2x (charged or jet) to clear.
+  // (was 450, now 405 = 255 * 1.588). Still needs 2x (charged or jet) to clear.
   BIG_TOWER_SPACING: 405,
   // Horizontal offset (world px) for the middle/top platforms — Rob: move one
   // right and one left instead of stacking every platform straight above the
