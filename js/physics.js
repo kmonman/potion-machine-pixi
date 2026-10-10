@@ -198,6 +198,12 @@ const Physics = {
   // storm's soft outer edges (the same edges its visuals fade out over), so
   // there's no sudden shove at an invisible boundary.
   _plasmaStormAccel() {
+    // Rob: "if the ball is sitting on a plank it shocks it but doesn't knock it
+    // down. It only knocks it down if the ball is in the air" — only apply
+    // sideways storm push while airborne. Grounded, the ball can still be
+    // touched (for visual shock/glow effects in pixi_playscreen.js) but
+    // doesn't get pushed off the platform.
+    if (!this.airborne) return 0;
     let ax = 0;
     for (const s of this.plasmaStorms) {
       if (s.visibility <= 0) continue;
