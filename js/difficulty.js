@@ -141,7 +141,8 @@ const JET_CATCH_RADIUS_Y = 70;
 // keeps a jet "catchable" for a beat after it actually fires, so a tap
 // that lands shortly after the auto-bump still reads as on-jet for
 // fireBlast's own tier check instead of silently falling back to normal.
-const JET_BOOST_GRACE = 0.35;
+// Increased from 0.35 to 0.5 to be more forgiving of reaction time.
+const JET_BOOST_GRACE = 0.5;
 
 // Each platform in the tower runs its own independent jets (Rob: platforms should
 // "function independently", not share one global set) — flow/spawn/particle math
