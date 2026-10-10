@@ -427,8 +427,8 @@ const PlayScreenPixi = {
     // falling, not blend into the background the way the big ambient cloud
     // can.
     this._darkMatterWisp = new NebulaCloud({
-      width: 190, height: 190, density: 22, emberCount: 55,
-      color: 0x4fc3ff, secondColor: null, lightningFrequency: 1.4, turbulence: 1.5,
+      width: 190, height: 190, density: 12, emberCount: 30,
+      color: 0x4fc3ff, secondColor: null, lightningFrequency: 0.8, turbulence: 0.9,
     });
     const wispBrightness = new PIXI.ColorMatrixFilter();
     wispBrightness.brightness(1.6, false);
@@ -1107,8 +1107,8 @@ const PlayScreenPixi = {
         // original red/orange (secondColor: null = one color, no second
         // tone blended in).
         visual = new NebulaCloud({
-          width: cloud.width, height: cloud.height, density: 44, emberCount: 180,
-          color: 0x1a71ff, secondColor: null, lightningFrequency: 1.25, turbulence: 1,
+          width: cloud.width, height: cloud.height, density: 24, emberCount: 90,
+          color: 0x1a71ff, secondColor: null, lightningFrequency: 0.7, turbulence: 0.6,
         });
         this._darkMatterContainer.addChild(visual.view);
         this._darkMatterVisuals.set(cloud, visual);
