@@ -1289,6 +1289,25 @@ const PlayScreen = {
       this._updateDarkMatterClouds(dt);
       this._updatePlasmaStorms(dt);
       Physics.update(dt, tiltX);
+      // Rob: "make sure that if it rolls towards the cauldron after reaching
+      // the dotted line that it doesn't roll past the center of the cauldron" —
+      // once the ball is at or above the goal line, stop it at the cauldron
+      // center (x=360) so it can't overshoot left or right.
+      if (this._isLevelMode()) {
+        const n = this._levelNumber();
+        if (Physics.y <= this._levelThresholdY(n)) {
+          const CAULDRON_X = 360;
+          const MIN_X = CAULDRON_X - 15;
+          const MAX_X = CAULDRON_X + 15;
+          if (Physics.x < MIN_X) {
+            Physics.x = MIN_X;
+            Physics.vx = Math.max(0, Physics.vx); // stop leftward movement
+          } else if (Physics.x > MAX_X) {
+            Physics.x = MAX_X;
+            Physics.vx = Math.min(0, Physics.vx); // stop rightward movement
+          }
+        }
+      }
       for (const p of this.platforms) {
         p.hingeBubbles.update(dt, p.touching, p.pivot.x, p.pivot.y);
       }

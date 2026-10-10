@@ -89,17 +89,12 @@ const PlayScreenPixi = {
     // free normal jump no matter how big a charge is banked.
     this._bg.eventMode = 'static';
     this._bg.cursor = 'pointer';
-    let pressY = null;
-    const SWIPE_UP_MIN_PX = 40;
-    this._bg.on('pointerdown', (e) => { pressY = e.global.y; });
-    const resolvePress = (e) => {
-      if (pressY === null) return;
-      const dy = pressY - e.global.y; // positive = moved up
-      pressY = null;
-      PlayScreen.fireBlast(dy > SWIPE_UP_MIN_PX);
-    };
-    this._bg.on('pointerup', resolvePress);
-    this._bg.on('pointerupoutside', resolvePress);
+    // Rob: "allow all jumps whether tapping or swiping" — simplified to just
+    // detect any pointer release. Both tap and swipe can spend a banked charge
+    // if one is available (allowChargeSpend = true for all). Removed the
+    // SWIPE_UP_MIN_PX threshold that used to gate charge spending on swipe only.
+    this._bg.on('pointerup', () => PlayScreen.fireBlast(true));
+    this._bg.on('pointerupoutside', () => PlayScreen.fireBlast(true));
     c.addChild(this._bg);
 
     // Fog — 3 layers, each 2 stacked sprites (see Fog.layers in fog.js for the
@@ -372,6 +367,9 @@ const PlayScreenPixi = {
     this._moonOrb.layers.cloud.visible = false;
     this._moonOrb.view.visible = false;
     this._moonOrb.view.alpha = 0;
+    // Rob: "if I jump into an emitter on the platform it blocks me" — set to
+    // 'none' so the emitter doesn't intercept pointer events or block the ball.
+    this._moonOrb.view.eventMode = 'none';
     this.worldContainer.addChild(this._moonOrb.view);
 
     // Soft light-blue ambient glow behind the ball (Rob: "keep working on
@@ -605,6 +603,7 @@ const PlayScreenPixi = {
     v.jetContainers = JET_DEFS.map(() => {
       const jc = new PIXI.Container();
       jc.blendMode = 'add';
+      jc.eventMode = 'none'; // Don't block jumps through the jet emitter
       wc.addChild(jc);
       return { particleContainer: jc, pool: [] };
     });
@@ -1046,9 +1045,14 @@ const PlayScreenPixi = {
       const r = Physics.displayRadius;
       this._cauldronMask.clear().rect(stickWorld.x - r * 1.5, surfaceY - r * 2, r * 3, r * 2).fill(0xffffff);
       this._ballSprite.mask = this._cauldronMask;
+      // Rob: "the emitter aroudn teh ball needs to be masked like the ball is
+      // so only half is showing ablove the potion" — apply the same mask to
+      // the moon orb so it's only half-visible while submerged.
+      this._moonOrb.view.mask = this._cauldronMask;
     } else {
       this._cauldronStickT = 0;
       this._ballSprite.mask = null;
+      this._moonOrb.view.mask = null;
       this._ballSprite.position.set(Physics.x, Physics.y);
       this._ballSprite.rotation = Physics.rotation;
     }
