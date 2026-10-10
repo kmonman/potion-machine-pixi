@@ -309,11 +309,10 @@ const PlayScreen = {
   // than straight up.
   TOWER_SPACING: 255,
   // Vertical gap between platforms — reduced 15% from 300 to make single jumps easier.
-  // The occasional "big jump" gap some levels place — reduced 10% to account
-  // for platform tilt variance making them harder than static spacing suggests
-  // (was 450, now 344 = 255 * 1.35). Still needs 2x (charged or jet) to clear.
-  // Further reduced by 15% per Rob's feedback on levels 6-10.
-  BIG_TOWER_SPACING: 344,
+  // The occasional "big jump" gap some levels place — reduced further for levels 1-10
+  // to keep the climb accessible (was 450, now 292 = 255 * 1.14). Still needs 2x
+  // (charged or jet) to clear. Levels 11-20 will have separate variables for adjustment.
+  BIG_TOWER_SPACING: 292,
   // Horizontal offset (world px) for the middle/top platforms — Rob: move one
   // right and one left instead of stacking every platform straight above the
   // base. Middle goes right, top goes left, so climbing the tower zigzags
