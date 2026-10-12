@@ -64,6 +64,7 @@
     color: rgb(var(--title-rgb));
     text-shadow: 0 0 8px rgba(var(--title-rgb), .7), 0 0 22px rgba(var(--title-rgb), .45);
   }
+  .icon img { display: block; width: 84px; height: 84px; margin: 0 auto; object-fit: contain; }
   .icon { display: block; text-align: center; font-size: 34px; line-height: 1; margin-bottom: 4px;
           filter: drop-shadow(0 0 10px rgba(var(--frame-rgb), .6)); }
   .reset { text-align: center; font-size: 12px; font-weight: 800; color: var(--dim); margin: 8px 0 16px; }
@@ -124,12 +125,22 @@
 (function () {
   'use strict';
   const GAMES = {
-    potion:  { icon: '🧪', title: 'Top Potion Brewers' },
-    monster: { icon: '👹', title: 'Top Monster Smashers' },
+    potion:  { icon: '🧪', img: 'potion-bottle.png', title: 'Top Potion Brewers' }, // Rob's pink potion bottle art
+    monster: { icon: '👹', img: 'monster-head.png', title: 'Top Monster Smashers' }, // the game's own Blue Monster Head art
   };
   const game = new URLSearchParams(location.search).get('game') === 'monster' ? 'monster' : 'potion';
   document.body.classList.add('game-' + game);
-  document.getElementById('icon').textContent = GAMES[game].icon;
+  const iconEl = document.getElementById('icon');
+  if (GAMES[game].img) {
+    const img = new Image();
+    img.alt = '';
+    img.onerror = () => { iconEl.textContent = GAMES[game].icon; }; // fall back to the emoji
+    img.src = GAMES[game].img;
+    iconEl.textContent = '';
+    iconEl.appendChild(img);
+  } else {
+    iconEl.textContent = GAMES[game].icon;
+  }
   document.getElementById('title').textContent = GAMES[game].title;
   document.title = GAMES[game].title;
   LB.init(game);
