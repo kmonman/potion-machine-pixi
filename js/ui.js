@@ -1040,6 +1040,11 @@ const PlayScreen = {
     // why it's a "next reading" flag, not instant).
     Input.calibrate();
     Difficulty.reset();
+    // Send game_start event to GA4
+    if (typeof gtag !== 'undefined') {
+      const levelNum = this._levelNumber() || 'freeplay';
+      gtag('event', 'game_start', { 'level': levelNum });
+    }
     // Reuse the same platform instances every run rather than rebuilding new
     // ones — game.js's main() seeds `this.towers` once at boot (before
     // PlayScreenPixi.build() runs, which attaches Pixi display objects to
@@ -1135,6 +1140,7 @@ const PlayScreen = {
     this.timedOut = false;
     this.levelComplete = false;
     this._levelCompletePending = false;
+    this._endEventSent = false; // Track if we've sent game_complete event for this run
     this._levelCompleteTimer = 0;
     this.gameOverT = 0;
     this._gameOverDelayT = 0;
@@ -1208,6 +1214,14 @@ const PlayScreen = {
     if (this.introT > 0) {
       this.introT -= dt;
       return;
+    }
+    // Send game_complete event for loss conditions (fell off or timed out)
+    if (!this._endEventSent && (Physics.fellOff || this.timedOut)) {
+      this._endEventSent = true;
+      if (typeof gtag !== 'undefined') {
+        const levelNum = this._levelNumber() || 'freeplay';
+        gtag('event', 'game_complete', { 'level': levelNum, 'status': 'lose' });
+      }
     }
     // Hard guarantee the ball starts its very first fall from true rest,
     // whatever the actual cause of Rob's "ball flies off right when it
@@ -1410,6 +1424,12 @@ const PlayScreen = {
           if (this._levelCompleteTimer >= MAX_ROLL_DELAY
             || (this._levelCompleteTimer >= MIN_ROLL_DELAY && hasLanded)) {
             this.levelComplete = true;
+            // Send game_complete event to GA4 (level won)
+            if (!this._endEventSent && typeof gtag !== 'undefined') {
+              this._endEventSent = true;
+              const levelNum = this._levelNumber() || 'freeplay';
+              gtag('event', 'game_complete', { 'level': levelNum, 'status': 'win' });
+            }
           }
         }
       }
