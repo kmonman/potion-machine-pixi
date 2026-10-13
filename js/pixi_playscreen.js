@@ -330,9 +330,11 @@ const PlayScreenPixi = {
     const ballSize = Physics.displayRadius * 2;
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
 
-    // Charge ring — thin stroke circle around the ball that grows with charge.
-    // Uses Graphics to draw a stroke-based line ring (not filled).
-    this._chargeRing = new PIXI.Graphics();
+    // Charge ring — glowing circle around ball, gets brighter as charge builds
+    this._chargeRing = new PIXI.Sprite(textures.glowParticle);
+    this._chargeRing.anchor.set(0.5);
+    this._chargeRing.tint = 0x963dff; // Potion purple
+    this._chargeRing.blendMode = 'add';
     this._chargeRingMaxCharges = 3;
     this._chargeRingAlpha = 0;
 
@@ -1244,19 +1246,16 @@ const PlayScreenPixi = {
     const targetRingAlpha = chargePercent * chargePercent; // Square curve for fade
     this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.1);
 
-    // Update Graphics ring: draw arc that grows with charge
-    this._chargeRing.clear();
-    if (this._chargeRingAlpha > 0.002) {
-      const ringRadius = Physics.displayRadius + 8;
-      const arcAngle = chargePercent * Math.PI * 2; // 0 to 360 degrees based on charge
-      // Glow stroke (blurred effect with lower alpha)
-      this._chargeRing.stroke({ color: 0x963dff, width: 3, alpha: this._chargeRingAlpha * 0.4 });
-      this._chargeRing.arc(0, 0, ringRadius, -Math.PI / 2, -Math.PI / 2 + arcAngle);
-      // Main stroke
-      this._chargeRing.stroke({ color: 0x963dff, width: 3, alpha: this._chargeRingAlpha });
-      this._chargeRing.arc(0, 0, ringRadius, -Math.PI / 2, -Math.PI / 2 + arcAngle);
-    }
+    // Charge ring — glow that grows as charge builds
+    const chargePercent = Math.min(1, PlayScreen.blastCharges / this._chargeRingMaxCharges);
+    const targetRingAlpha = chargePercent * chargePercent; // Square curve for fade
+    this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.1);
+
+    // Scale ring based on charge (grows from 1.5x to 3x ball size)
+    const ringScale = 1.5 + (chargePercent * 1.5);
+    this._chargeRing.scale.set(ringScale);
     this._chargeRing.position.set(this._ballSprite.x, this._ballSprite.y);
+    this._chargeRing.alpha = this._chargeRingAlpha;
     this._chargeRing.visible = this._chargeRingAlpha > 0.002;
   },
 
