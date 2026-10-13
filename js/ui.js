@@ -610,18 +610,30 @@ const PlayScreen = {
     // level's own available climb (shared tower pivots, see the per-level
     // comments) so they don't all bunch at one height.
     const specs = {
-      // Level 9 — 3 clouds, spread across platforms 3-10 (y=-148..-2248).
+      // Level 6 — 2 clouds
+      6: [
+        { width: 300, height: 190, pivotY: -600, startDir: -1 },
+        { width: 420, height: 160, pivotY: -1400, startDir: 1 },
+      ],
+      // Level 7 — 2 clouds
+      7: [
+        { width: 340, height: 200, pivotY: -700, startDir: 1 },
+        { width: 380, height: 180, pivotY: -1600, startDir: -1 },
+      ],
+      // Level 8 — 2 clouds
+      8: [
+        { width: 320, height: 210, pivotY: -800, startDir: -1 },
+        { width: 460, height: 150, pivotY: -1800, startDir: 1 },       // long/flat
+      ],
+      // Level 9 — 2 clouds (was 3)
       9: [
         { width: 300, height: 190, pivotY: -450, startDir: -1 },
         { width: 500, height: 140, pivotY: -1200, startDir: 1 },       // long/flat
-        { width: 360, height: 230, pivotY: -1950, startDir: -1 },
       ],
-      // Level 10 — 4 clouds, spread across platforms 3-11 (y=-148..-2548).
+      // Level 10 — 2 clouds (was 4)
       10: [
         { width: 320, height: 200, pivotY: -400, startDir: 1 },
         { width: 460, height: 150, pivotY: -1000, startDir: -1 },      // long/flat
-        { width: 340, height: 220, pivotY: -1650, startDir: 1 },
-        { width: 420, height: 260, pivotY: -2250, startDir: -1 },      // biggest, roundest
       ],
     };
     const list = specs[levelNum];
@@ -720,28 +732,9 @@ const PlayScreen = {
   // Rob's test-page size (wider than the 720 screen, so its soft ends
   // sit off-screen).
   _buildPlasmaStorms(levelNum) {
-    // Rob: "let's remove the plasma storm cloud for now on the first ten
-    // levels. It's pretty hard." — specs kept below (untouched) so this is
-    // a one-line flip back once it's ready to return, not a rebuild.
-    return [];
-    // eslint-disable-next-line no-unreachable
     const specs = {
-      4: [{ pivotY: 200 }],
-      6: [{ pivotY: -1200, dir: 1 }],
-      7: [{ pivotY: -1500, dir: -1 }],
-      8: [
-        { pivotY: -700, dir: 1, driftPhase: 0 },
-        { pivotY: -1600, dir: -1, driftPhase: 4 },
-      ],
-      9: [
-        { pivotY: -600, dir: -1, driftPhase: 1 },
-        { pivotY: -1700, dir: 1, driftPhase: 5 },
-      ],
-      10: [
-        { pivotY: -500, dir: 1, driftPhase: 0 },
-        { pivotY: -1400, dir: -1, driftPhase: 3 },
-        { pivotY: -2300, dir: 1, driftPhase: 6 },
-      ],
+      9: [{ pivotY: -1200, dir: -1, driftPhase: 1 }],
+      10: [{ pivotY: -1400, dir: 1, driftPhase: 0 }],
     };
     const list = specs[levelNum];
     if (!list) return [];
