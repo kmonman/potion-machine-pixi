@@ -330,13 +330,16 @@ const PlayScreenPixi = {
     const ballSize = Physics.displayRadius * 2;
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
 
-    // Charge ring — glowing circle around ball, gets brighter as charge builds
-    this._chargeRing = new PIXI.Sprite(textures.glowParticle);
-    this._chargeRing.anchor.set(0.5);
-    this._chargeRing.tint = 0x963dff; // Potion purple
+    // Charge ring — thin potion-purple arc hugging the ball that sweeps
+    // from a short line to a full circle as the power-up bar fills.
+    this._chargeRing = new PIXI.Graphics();
     this._chargeRing.blendMode = 'add';
-    this._chargeRingMaxCharges = 3;
-    this._chargeRingAlpha = 0;
+    this._chargeRing.filters = [new PIXI.BlurFilter({ strength: 1.2, quality: 3 })];
+    // Outer glow: a blurred copy of the same arc sitting behind the crisp line.
+    this._chargeGlow = new PIXI.Graphics();
+    this._chargeGlow.blendMode = 'add';
+    this._chargeGlow.filters = [new PIXI.BlurFilter({ strength: 7, quality: 3 })];
+    this._chargeGlow.visible = false;
 
     // Moon charge — a PlasmaOrb glow wrapped around the existing moon/ball
     // art (Rob: replaces the old potion-bottle charge system entirely; the
@@ -399,8 +402,6 @@ const PlayScreenPixi = {
     this.worldContainer.addChild(this._moonGlow);
 
     this._chargeRing.visible = false;
-    this._chargeRing.alpha = 0;
-    this.worldContainer.addChild(this._chargeRing);
 
     this._moonDischargeSeen = PlayScreen.moonDischargeCount;
     this._moonDischargeGraceT = 0;
@@ -408,6 +409,8 @@ const PlayScreenPixi = {
     this._runStartSeen = PlayScreen.runStartCount;
 
     this.worldContainer.addChild(this._ballSprite);
+    this.worldContainer.addChild(this._chargeGlow);
+    this.worldContainer.addChild(this._chargeRing);
 
     // Dark matter cloud hazards (Rob: drifting clouds that drop the ball
     // through platforms on touch — see physics.js/ui.js for the actual
@@ -1240,17 +1243,38 @@ const PlayScreenPixi = {
     this._moonGlow.alpha = this._moonOrbAlpha * 0.85;
     this._moonGlow.visible = this._moonOrbAlpha > 0.002;
 
-    // Charge ring — glow that grows as charge builds
-    const chargePercent = Math.min(1, PlayScreen.blastCharges / this._chargeRingMaxCharges);
-    const targetRingAlpha = chargePercent * chargePercent; // Square curve for fade
-    this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.1);
-
-    // Scale ring based on charge (grows from 1.5x to 3x ball size)
-    const ringScale = 1.5 + (chargePercent * 1.5);
-    this._chargeRing.scale.set(ringScale);
-    this._chargeRing.position.set(this._ballSprite.x, this._ballSprite.y);
-    this._chargeRing.alpha = this._chargeRingAlpha;
-    this._chargeRing.visible = this._chargeRingAlpha > 0.002;
+    // Charge ring — same 0..1 progress the HUD power-up bar uses (blastCharges
+    // itself is only ever 0 or 1, so it can't drive a gradual ring).
+    const ready = PlayScreen.blastCharges >= PlayScreen.MAX_BLAST_CHARGES;
+    const ringTarget = ready ? 1 : Math.max(0, Math.min(1, (PlayScreen.score - PlayScreen.blastThreshold) / 1000));
+    // Ease toward the target so score bonuses/resets glide instead of snapping.
+    if (this._ringShown === undefined) this._ringShown = ringTarget;
+    this._ringShown += (ringTarget - this._ringShown) * Math.min(1, (this._dt || 1 / 60) * 10);
+    const ringProgress = this._ringShown;
+    const ring = this._chargeRing;
+    ring.clear();
+    // Tint follows the potion tube the ball is sitting on (same source as the
+    // HUD bar); holds the last color while airborne and blends between tubes.
+    const tubeRgb = Physics.currentPlatform && Physics.currentPlatform.tubeColor;
+    if (!this._ringRgb) this._ringRgb = (tubeRgb || [240, 0, 184]).slice();
+    if (tubeRgb) {
+      const k = Math.min(1, (this._dt || 1 / 60) * 8);
+      for (let i = 0; i < 3; i++) this._ringRgb[i] += (tubeRgb[i] - this._ringRgb[i]) * k;
+    }
+    const glowHex = rgbToHex(...this._ringRgb.map((c) => Math.round(c + (255 - c) * 0.3)));
+    const lineHex = rgbToHex(...this._ringRgb.map((c) => Math.round(c + (255 - c) * 0.45)));
+    const glow = this._chargeGlow;
+    glow.clear();
+    ring.visible = glow.visible = ringProgress > 0.01;
+    if (ring.visible) {
+      const r = Physics.displayRadius + 8;
+      const start = -Math.PI / 2;
+      const end = start + ringProgress * Math.PI * 2;
+      glow.arc(0, 0, r, start, end).stroke({ width: 8, color: glowHex, alpha: 1, cap: 'round' });
+      ring.arc(0, 0, r, start, end).stroke({ width: 3, color: lineHex, alpha: 1, cap: 'round' });
+      ring.position.set(this._ballSprite.x, this._ballSprite.y);
+      glow.position.set(this._ballSprite.x, this._ballSprite.y);
+    }
   },
 
   // Level 12 dot test bed — visible only while PlayScreen.dots is actually
