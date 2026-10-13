@@ -643,6 +643,7 @@ const PlayScreenPixi = {
         // at PIXI's default (visible) showing whatever blank initial state
         // its sprites start at.
         jet.view.visible = false;
+        jet.view.eventMode = 'none'; // Don't block jumps through the jet emitter
         // Rob: "still visually detached." The gameplay jet.x/jet.y this
         // used to be positioned from (see difficulty.js) were only ever a
         // rough WORLD-space approximation — along the bar via its dir
@@ -994,7 +995,7 @@ const PlayScreenPixi = {
       // real visible thickness, and one radius alone put the ball's bottom
       // edge at the rail's vertical middle rather than clearly on its top
       // surface.
-      this._goalLineGroup.position.y = PlayScreen._levelThresholdY(levelNum) + Physics.displayRadius + 15;
+      this._goalLineGroup.position.y = PlayScreen._levelThresholdY(levelNum) + Physics.displayRadius + 50;
       this._goalLabel.text = `LEVEL ${levelNum} GOAL`;
     }
     if (levelNum !== null) {
