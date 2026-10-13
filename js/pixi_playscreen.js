@@ -1240,12 +1240,6 @@ const PlayScreenPixi = {
     this._moonGlow.alpha = this._moonOrbAlpha * 0.85;
     this._moonGlow.visible = this._moonOrbAlpha > 0.002;
 
-    // Charge ring — arc that grows around the ball as charge builds.
-    // Starts as a small arc, grows to half circle, then full circle at max charge.
-    const chargePercent = Math.min(1, PlayScreen.blastCharges / this._chargeRingMaxCharges);
-    const targetRingAlpha = chargePercent * chargePercent; // Square curve for fade
-    this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.1);
-
     // Charge ring — glow that grows as charge builds
     const chargePercent = Math.min(1, PlayScreen.blastCharges / this._chargeRingMaxCharges);
     const targetRingAlpha = chargePercent * chargePercent; // Square curve for fade
