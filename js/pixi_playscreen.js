@@ -330,12 +330,14 @@ const PlayScreenPixi = {
     const ballSize = Physics.displayRadius * 2;
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
 
-    // Charge ring — thin glowing circle around the ball that fills as charge builds.
-    // Color matches level theme. Invisible when no charge, visible as player charges.
-    this._chargeRing = new PIXI.Graphics();
-    this._chargeRingRadius = Physics.displayRadius + 8;
-    this._chargeRingMaxCharges = 3; // Full rotation at max charge level
-    this._chargeRingAlpha = 0; // Initialize to 0
+    // Charge ring — glowing circle around the ball that grows with charge.
+    // Uses the glow particle texture scaled up as a ring indicator.
+    this._chargeRing = new PIXI.Sprite(textures.glowParticle);
+    this._chargeRing.anchor.set(0.5);
+    this._chargeRing.tint = 0x963dff; // Potion purple
+    this._chargeRing.blendMode = 'add';
+    this._chargeRingMaxCharges = 3;
+    this._chargeRingAlpha = 0;
 
     // Moon charge — a PlasmaOrb glow wrapped around the existing moon/ball
     // art (Rob: replaces the old potion-bottle charge system entirely; the
@@ -1245,22 +1247,11 @@ const PlayScreenPixi = {
     const targetRingAlpha = chargePercent > 0 ? chargePercent : 0;
     this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.2);
 
-    if (this._chargeRingAlpha > 0.002) {
-      const ringColor = 0x963dff; // Potion purple
-      this._chargeRing.clear();
-
-      // Draw ring as a filled circle that grows with charge
-      const radius = this._chargeRingRadius * chargePercent;
-      if (radius > 0.5) {
-        this._chargeRing.circle(0, 0, radius);
-        this._chargeRing.fill({ color: ringColor, alpha: this._chargeRingAlpha * 0.3 });
-        this._chargeRing.stroke({ width: 1.5, color: ringColor, alpha: this._chargeRingAlpha });
-      }
-    } else {
-      this._chargeRing.clear();
-    }
-
+    // Scale the ring sprite based on charge level
+    const ringScale = 1.5 + (chargePercent * 1.5); // Grows from 1.5x to 3x
+    this._chargeRing.scale.set(ringScale);
     this._chargeRing.position.set(this._ballSprite.x, this._ballSprite.y);
+    this._chargeRing.alpha = this._chargeRingAlpha;
     this._chargeRing.visible = this._chargeRingAlpha > 0.002;
   },
 
