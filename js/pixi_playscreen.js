@@ -330,12 +330,9 @@ const PlayScreenPixi = {
     const ballSize = Physics.displayRadius * 2;
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
 
-    // Charge ring — glowing circle around the ball that grows with charge.
-    // Uses the glow particle texture scaled up as a ring indicator.
-    this._chargeRing = new PIXI.Sprite(textures.glowParticle);
-    this._chargeRing.anchor.set(0.5);
-    this._chargeRing.tint = 0x963dff; // Potion purple
-    this._chargeRing.blendMode = 'add';
+    // Charge ring — thin stroke circle around the ball that grows with charge.
+    // Uses Graphics to draw a stroke-based line ring (not filled).
+    this._chargeRing = new PIXI.Graphics();
     this._chargeRingMaxCharges = 3;
     this._chargeRingAlpha = 0;
 
@@ -1241,18 +1238,25 @@ const PlayScreenPixi = {
     this._moonGlow.alpha = this._moonOrbAlpha * 0.85;
     this._moonGlow.visible = this._moonOrbAlpha > 0.002;
 
-    // Charge ring — thin glowing circle that fills around the ball as charge builds.
-    // Color is potion pink/purple (matches the theme). Invisible at zero charge.
+    // Charge ring — arc that grows around the ball as charge builds.
+    // Starts as a small arc, grows to half circle, then full circle at max charge.
     const chargePercent = Math.min(1, PlayScreen.blastCharges / this._chargeRingMaxCharges);
-    // Ring alpha: 0 when no charge, ramps to 1.0 at full charge
-    const targetRingAlpha = chargePercent * chargePercent; // Square curve for smoother ramp
+    const targetRingAlpha = chargePercent * chargePercent; // Square curve for fade
     this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.1);
 
-    // Scale the ring sprite based on charge level
-    const ringScale = 1.5 + (chargePercent * 1.5); // Grows from 1.5x to 3x
-    this._chargeRing.scale.set(ringScale);
+    // Update Graphics ring: draw arc that grows with charge
+    this._chargeRing.clear();
+    if (this._chargeRingAlpha > 0.002) {
+      const ringRadius = Physics.displayRadius + 8;
+      const arcAngle = chargePercent * Math.PI * 2; // 0 to 360 degrees based on charge
+      // Glow stroke (blurred effect with lower alpha)
+      this._chargeRing.stroke({ color: 0x963dff, width: 3, alpha: this._chargeRingAlpha * 0.4 });
+      this._chargeRing.arc(0, 0, ringRadius, -Math.PI / 2, -Math.PI / 2 + arcAngle);
+      // Main stroke
+      this._chargeRing.stroke({ color: 0x963dff, width: 3, alpha: this._chargeRingAlpha });
+      this._chargeRing.arc(0, 0, ringRadius, -Math.PI / 2, -Math.PI / 2 + arcAngle);
+    }
     this._chargeRing.position.set(this._ballSprite.x, this._ballSprite.y);
-    this._chargeRing.alpha = this._chargeRingAlpha;
     this._chargeRing.visible = this._chargeRingAlpha > 0.002;
   },
 
