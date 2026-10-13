@@ -1244,8 +1244,9 @@ const PlayScreenPixi = {
     // Charge ring — thin glowing circle that fills around the ball as charge builds.
     // Color is potion pink/purple (matches the theme). Invisible at zero charge.
     const chargePercent = Math.min(1, PlayScreen.blastCharges / this._chargeRingMaxCharges);
-    const targetRingAlpha = chargePercent > 0 ? chargePercent : 0;
-    this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.2);
+    // Ring becomes visible immediately at any charge level, grows brighter as charge builds
+    const targetRingAlpha = chargePercent > 0 ? 0.4 + (chargePercent * 0.6) : 0; // Min 0.4 alpha when charging, max 1.0
+    this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.15); // Faster easing
 
     // Scale the ring sprite based on charge level
     const ringScale = 1.5 + (chargePercent * 1.5); // Grows from 1.5x to 3x
