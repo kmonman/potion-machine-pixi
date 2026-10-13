@@ -335,6 +335,7 @@ const PlayScreenPixi = {
     this._chargeRing = new PIXI.Graphics();
     this._chargeRingRadius = Physics.displayRadius + 8;
     this._chargeRingMaxCharges = 3; // Full rotation at max charge level
+    this._chargeRingAlpha = 0; // Initialize to 0
 
     // Moon charge — a PlasmaOrb glow wrapped around the existing moon/ball
     // art (Rob: replaces the old potion-bottle charge system entirely; the
