@@ -644,6 +644,7 @@ const PlayScreenPixi = {
         // its sprites start at.
         jet.view.visible = false;
         jet.view.eventMode = 'none'; // Don't block jumps through the jet emitter
+        jet.view.interactiveChildren = false; // Disable all children from receiving events
         // Rob: "still visually detached." The gameplay jet.x/jet.y this
         // used to be positioned from (see difficulty.js) were only ever a
         // rough WORLD-space approximation — along the bar via its dir
