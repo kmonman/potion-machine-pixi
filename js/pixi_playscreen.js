@@ -1107,8 +1107,8 @@ const PlayScreenPixi = {
         // original red/orange (secondColor: null = one color, no second
         // tone blended in).
         visual = new NebulaCloud({
-          width: cloud.width, height: cloud.height, density: 24, emberCount: 90,
-          color: 0x1a71ff, secondColor: null, lightningFrequency: 0.7, turbulence: 0.6,
+          width: cloud.width, height: cloud.height, density: 16, emberCount: 60,
+          color: 0x1a71ff, secondColor: null, lightningFrequency: 0.5, turbulence: 0.4,
         });
         this._darkMatterContainer.addChild(visual.view);
         this._darkMatterVisuals.set(cloud, visual);

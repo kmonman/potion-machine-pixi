@@ -907,7 +907,10 @@ const PlayScreen = {
       // Outer mounts only (see _buildSharedTower's own comment, same ask) —
       // used to alternate onto the inner pair near the hinge every other
       // platform, which wasn't registering catches reliably.
-      p.jetSystem = createJetSystem({ allowedIndices: [0, 1] });
+      // Optimize: only allow jets on the side facing the next platform (zigzag pattern)
+      const isRightSide = offsets[i] > 0;
+      const allowedSides = isRightSide ? [0] : [1]; // Right platform: left jet; Left platform: right jet
+      p.jetSystem = createJetSystem({ allowedIndices: allowedSides });
       platforms.push(p);
     }
     // Rob: "add new ones... going basically off the screen to the left and
