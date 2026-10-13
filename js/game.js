@@ -272,7 +272,9 @@ async function tryEnterGame(mode) {
   state.requestingMotion = true;
   nameInput.style.display = 'none';
 
-  const granted = await Input.requestPermission();
+  // Skip motion permission for browser testing; re-enable on device
+  const granted = true;
+  // const granted = await Input.requestPermission();
   state.requestingMotion = false;
 
   if (!granted) {
