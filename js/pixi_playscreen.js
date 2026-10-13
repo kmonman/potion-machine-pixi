@@ -1248,8 +1248,17 @@ const PlayScreenPixi = {
       const ringColor = 0x963dff; // Potion purple
       const arc = Math.PI * 2 * chargePercent; // 0 to 2π based on charge
       this._chargeRing.clear();
-      this._chargeRing.moveTo(this._chargeRingRadius, 0);
-      this._chargeRing.arc(0, 0, this._chargeRingRadius, 0, arc, false);
+
+      // Draw partial arc for charge indicator
+      if (arc > 0) {
+        // Start at top (0 radians = right, so we offset by -π/2)
+        const startAngle = -Math.PI / 2;
+        const endAngle = startAngle + arc;
+        const x1 = Math.cos(startAngle) * this._chargeRingRadius;
+        const y1 = Math.sin(startAngle) * this._chargeRingRadius;
+        this._chargeRing.moveTo(x1, y1);
+        this._chargeRing.arc(0, 0, this._chargeRingRadius, startAngle, endAngle, false);
+      }
       this._chargeRing.stroke({ width: 2, color: ringColor, alpha: this._chargeRingAlpha });
     } else {
       this._chargeRing.clear();
