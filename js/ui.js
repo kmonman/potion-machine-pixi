@@ -610,30 +610,30 @@ const PlayScreen = {
     // level's own available climb (shared tower pivots, see the per-level
     // comments) so they don't all bunch at one height.
     const specs = {
-      // Level 6 — 2 clouds
+      // Level 6 — 2 clouds, lower on the tower (avoid gap before goal)
       6: [
-        { width: 300, height: 190, pivotY: -600, startDir: -1 },
-        { width: 420, height: 160, pivotY: -1400, startDir: 1 },
+        { width: 380, height: 180, pivotY: -1200, startDir: 1 },
+        { width: 420, height: 160, pivotY: -1800, startDir: -1 },
       ],
-      // Level 7 — 2 clouds
+      // Level 7 — 2 clouds, lower on the tower
       7: [
-        { width: 340, height: 200, pivotY: -700, startDir: 1 },
-        { width: 380, height: 180, pivotY: -1600, startDir: -1 },
+        { width: 340, height: 200, pivotY: -1400, startDir: 1 },
+        { width: 380, height: 180, pivotY: -2000, startDir: -1 },
       ],
-      // Level 8 — 2 clouds
+      // Level 8 — 2 clouds, lower on the tower
       8: [
-        { width: 320, height: 210, pivotY: -800, startDir: -1 },
-        { width: 460, height: 150, pivotY: -1800, startDir: 1 },       // long/flat
+        { width: 320, height: 210, pivotY: -1600, startDir: -1 },
+        { width: 460, height: 150, pivotY: -2200, startDir: 1 },       // long/flat
       ],
-      // Level 9 — 2 clouds (was 3)
+      // Level 9 — 2 clouds, lower on the tower (was 3)
       9: [
-        { width: 300, height: 190, pivotY: -450, startDir: -1 },
         { width: 500, height: 140, pivotY: -1200, startDir: 1 },       // long/flat
+        { width: 360, height: 230, pivotY: -1950, startDir: -1 },
       ],
-      // Level 10 — 2 clouds (was 4)
+      // Level 10 — 2 clouds, lower on the tower (was 4)
       10: [
-        { width: 320, height: 200, pivotY: -400, startDir: 1 },
         { width: 460, height: 150, pivotY: -1000, startDir: -1 },      // long/flat
+        { width: 420, height: 260, pivotY: -2250, startDir: -1 },      // biggest, roundest
       ],
     };
     const list = specs[levelNum];
