@@ -330,6 +330,12 @@ const PlayScreenPixi = {
     const ballSize = Physics.displayRadius * 2;
     this._ballSprite.width = ballSize; this._ballSprite.height = ballSize;
 
+    // Charge ring — thin glowing circle around the ball that fills as charge builds.
+    // Color matches level theme. Invisible when no charge, visible as player charges.
+    this._chargeRing = new PIXI.Graphics();
+    this._chargeRingRadius = Physics.displayRadius + 8;
+    this._chargeRingMaxCharges = 3; // Full rotation at max charge level
+
     // Moon charge — a PlasmaOrb glow wrapped around the existing moon/ball
     // art (Rob: replaces the old potion-bottle charge system entirely; the
     // moon itself glows when a charge is banked, dark/off otherwise). Added
@@ -389,6 +395,10 @@ const PlayScreenPixi = {
     this._moonGlow.visible = false;
     this._moonGlow.alpha = 0;
     this.worldContainer.addChild(this._moonGlow);
+
+    this._chargeRing.visible = false;
+    this._chargeRing.alpha = 0;
+    this.worldContainer.addChild(this._chargeRing);
 
     this._moonDischargeSeen = PlayScreen.moonDischargeCount;
     this._moonDischargeGraceT = 0;
@@ -1227,6 +1237,26 @@ const PlayScreenPixi = {
     this._moonGlow.position.set(this._ballSprite.x, this._ballSprite.y);
     this._moonGlow.alpha = this._moonOrbAlpha * 0.85;
     this._moonGlow.visible = this._moonOrbAlpha > 0.002;
+
+    // Charge ring — thin glowing circle that fills around the ball as charge builds.
+    // Color is potion pink/purple (matches the theme). Invisible at zero charge.
+    const chargePercent = Math.min(1, PlayScreen.blastCharges / this._chargeRingMaxCharges);
+    const targetRingAlpha = chargePercent > 0 ? chargePercent : 0;
+    this._chargeRingAlpha += (targetRingAlpha - this._chargeRingAlpha) * Math.min(1, this._dt / 0.2);
+
+    if (this._chargeRingAlpha > 0.002) {
+      const ringColor = 0x963dff; // Potion purple
+      const arc = Math.PI * 2 * chargePercent; // 0 to 2π based on charge
+      this._chargeRing.clear();
+      this._chargeRing.moveTo(this._chargeRingRadius, 0);
+      this._chargeRing.arc(0, 0, this._chargeRingRadius, 0, arc, false);
+      this._chargeRing.stroke({ width: 2, color: ringColor, alpha: this._chargeRingAlpha });
+    } else {
+      this._chargeRing.clear();
+    }
+
+    this._chargeRing.position.set(this._ballSprite.x, this._ballSprite.y);
+    this._chargeRing.visible = this._chargeRingAlpha > 0.002;
   },
 
   // Level 12 dot test bed — visible only while PlayScreen.dots is actually
