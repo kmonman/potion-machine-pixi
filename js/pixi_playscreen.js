@@ -1249,13 +1249,12 @@ const PlayScreenPixi = {
       const ringColor = 0x963dff; // Potion purple
       this._chargeRing.clear();
 
-      // Draw ring as partial circle arc
-      const arc = Math.PI * 2 * chargePercent;
-      if (arc > 0.01) {
-        const startAngle = -Math.PI / 2;
-        const endAngle = startAngle + arc;
-        this._chargeRing.arc(0, 0, this._chargeRingRadius, startAngle, endAngle);
-        this._chargeRing.stroke({ width: 2.5, color: ringColor, alpha: this._chargeRingAlpha });
+      // Draw ring as a filled circle that grows with charge
+      const radius = this._chargeRingRadius * chargePercent;
+      if (radius > 0.5) {
+        this._chargeRing.circle(0, 0, radius);
+        this._chargeRing.fill({ color: ringColor, alpha: this._chargeRingAlpha * 0.3 });
+        this._chargeRing.stroke({ width: 1.5, color: ringColor, alpha: this._chargeRingAlpha });
       }
     } else {
       this._chargeRing.clear();
