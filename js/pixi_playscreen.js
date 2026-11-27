@@ -1066,10 +1066,15 @@ const PlayScreenPixi = {
       // so only half is showing ablove the potion" — apply the same mask to
       // the moon orb so it's only half-visible while submerged.
       this._moonOrb.view.mask = this._cauldronMask;
+      // Charge ring + its glow get the same cut so they sink with the ball.
+      this._chargeRing.mask = this._cauldronMask;
+      this._chargeGlow.mask = this._cauldronMask;
     } else {
       this._cauldronStickT = 0;
       this._ballSprite.mask = null;
       this._moonOrb.view.mask = null;
+      this._chargeRing.mask = null;
+      this._chargeGlow.mask = null;
       this._ballSprite.position.set(Physics.x, Physics.y);
       this._ballSprite.rotation = Physics.rotation;
     }
