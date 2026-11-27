@@ -42,6 +42,13 @@ const Physics = {
   // down — distinct from the camera intentionally NOT chasing every wobble
   // while just resting/rolling on a platform).
   airborne: false,
+  // Seconds since the ball last had real contact with a platform. Unlike
+  // `airborne` (only set by a jump or a cloud drop), this also counts up when
+  // the ball simply rolls off an end. See _checkDarkMatterClouds.
+  timeOffPlatform: 0,
+  // Tiny gaps in contact (a tube rotating out from under the ball for a few
+  // frames) still count as sitting on it.
+  PLATFORM_CONTACT_GRACE: 0.12,
 
   // Dark matter cloud hazard (Rob: "floating across the screen... if the
   // ball touches it, it automatically takes it, adds downward pressure").
@@ -98,6 +105,7 @@ const Physics = {
     this.rotation = 0;
     this.touchingHinge = false;
     this.airborne = false;
+    this.timeOffPlatform = 0;
     this.fellOff = false;
     this.currentPlatform = base;
     this.darkMatterSkipsRemaining = null;
@@ -171,12 +179,15 @@ const Physics = {
     // also keeps it spinning sensibly through the air, which looks right too.
     this.rotation += (this.vx / this.radius) * dt;
 
-    this._checkDarkMatterClouds();
     // Always runs, dropping or not — see _resolvePlatformCollision's own
     // darkMatterSkipsRemaining handling for how it lets N real landings
     // pass through untouched instead of just disabling collision checking
     // wholesale for a stretch (the earlier version's tunnel-off-the-tower bug).
+    // Counts up every step; a platform contact below resets it to 0.
+    this.timeOffPlatform += dt;
     this._resolvePlatformCollision(dt);
+    // After collision, so it knows whether the ball is on a platform right now.
+    this._checkDarkMatterClouds();
     this._checkBoundaries();
     this._checkHinge();
 
@@ -244,8 +255,8 @@ const Physics = {
     for (const c of this.darkMatterClouds) {
       const halfW = c.width / 2 + this.displayRadius, halfH = c.height / 2 + this.displayRadius;
       if (Math.abs(this.x - c.x) < halfW && Math.abs(this.y - c.y) < halfH) {
-        // Rob: don't trigger dark matter drop if the ball is resting on a flat plank
-        if (this.currentPlatform && this.currentPlatform.isFlatPlank) return;
+        // Rob: safe while sitting on any platform; only an in-air ball drops.
+        if (this.timeOffPlatform <= this.PLATFORM_CONTACT_GRACE) return;
         // Any non-null value just marks "a drop is active" now (see this
         // field's own comment) — true works as well as a count would.
         this.darkMatterSkipsRemaining = true;
@@ -379,6 +390,7 @@ const Physics = {
         this.vy = dir.y * vAlong + normal.y * vNormal;
         this.currentPlatform = p;
         this.airborne = false;
+        this.timeOffPlatform = 0;
         return;
       }
     }
@@ -454,6 +466,8 @@ const Physics = {
     this.vx += Math.sin(rad) * force;
     this.vy -= Math.cos(rad) * force;
     this.airborne = true;
+    // A jump is in the air immediately, no grace period.
+    this.timeOffPlatform = this.PLATFORM_CONTACT_GRACE + 1;
   },
 
   draw(ctx, images) {
